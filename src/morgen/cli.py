@@ -192,8 +192,8 @@ def _get_client() -> MorgenClient:
 # accounts
 # ---------------------------------------------------------------------------
 
-ACCOUNT_COLUMNS = ["accountId", "name", "email", "providerId"]
-ACCOUNT_CONCISE_FIELDS = ["accountId", "name"]
+ACCOUNT_COLUMNS = ["id", "providerUserDisplayName", "preferredEmail", "integrationId", "integrationGroups"]
+ACCOUNT_CONCISE_FIELDS = ["id", "providerUserDisplayName", "integrationId"]
 
 
 @cli.command()
@@ -216,8 +216,8 @@ def accounts(
 # calendars
 # ---------------------------------------------------------------------------
 
-CALENDAR_COLUMNS = ["calendarId", "accountId", "name", "color", "writable"]
-CALENDAR_CONCISE_FIELDS = ["calendarId", "name", "writable"]
+CALENDAR_COLUMNS = ["id", "accountId", "name", "color", "myRights"]
+CALENDAR_CONCISE_FIELDS = ["id", "name", "myRights"]
 
 
 @cli.command()
@@ -240,7 +240,7 @@ def calendars(
 # events
 # ---------------------------------------------------------------------------
 
-EVENT_COLUMNS = ["id", "title", "start", "end", "calendarId"]
+EVENT_COLUMNS = ["id", "title", "start", "end", "showAs", "calendarId"]
 EVENT_CONCISE_FIELDS = ["id", "title", "start", "end"]
 
 
@@ -414,8 +414,8 @@ def events_delete(event_id: str, calendar_id: str | None, account_id: str | None
 # tasks
 # ---------------------------------------------------------------------------
 
-TASK_COLUMNS = ["id", "title", "status", "priority", "due"]
-TASK_CONCISE_FIELDS = ["id", "title", "status", "due"]
+TASK_COLUMNS = ["id", "title", "progress", "priority", "due", "taskListId"]
+TASK_CONCISE_FIELDS = ["id", "title", "progress", "due"]
 
 
 @cli.group()
@@ -674,7 +674,7 @@ def tags_delete(tag_id: str) -> None:
 # Quick views: today, this-week, this-month
 # ---------------------------------------------------------------------------
 
-VIEW_CONCISE_FIELDS = ["type", "id", "title", "start", "status"]
+VIEW_CONCISE_FIELDS = ["type", "id", "title", "start", "end", "progress", "due"]
 
 
 def _combined_view(

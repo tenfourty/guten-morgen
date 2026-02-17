@@ -19,13 +19,17 @@ from morgen.config import Settings
 
 FAKE_ACCOUNTS = [
     {
-        "id": "acc-1", "accountId": "acc-1", "name": "Work Google",
-        "email": "jeremy@example.com", "providerId": "google",
+        "id": "acc-1", "name": "Work Google",
+        "providerUserDisplayName": "Test User",
+        "preferredEmail": "test@example.com",
+        "integrationId": "google",
         "integrationGroups": ["calendars"],
     },
     {
-        "id": "acc-2", "accountId": "acc-2", "name": "Personal",
-        "email": "j@personal.com", "providerId": "caldav",
+        "id": "acc-2", "name": "Personal",
+        "providerUserDisplayName": "Test Personal",
+        "preferredEmail": "personal@example.com",
+        "integrationId": "caldav",
         "integrationGroups": ["calendars"],
     },
 ]
@@ -64,15 +68,17 @@ FAKE_TASKS = [
     {
         "id": "task-1",
         "title": "Review PR",
-        "status": "open",
+        "progress": "needs-action",
         "priority": 2,
         "due": "2026-02-17T23:59:59Z",
+        "taskListId": "inbox",
     },
     {
         "id": "task-2",
         "title": "Write docs",
-        "status": "open",
+        "progress": "needs-action",
         "priority": 1,
+        "taskListId": "inbox",
     },
 ]
 
