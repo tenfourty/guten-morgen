@@ -45,6 +45,7 @@ FAKE_CALENDARS = [
         "color": "#4285f4",
         "myRights": "rw",
         "writable": True,
+        "isActiveByDefault": True,
     },
     {
         "id": "cal-2",
@@ -54,6 +55,7 @@ FAKE_CALENDARS = [
         "color": "#0b8043",
         "myRights": "r",
         "writable": False,
+        "isActiveByDefault": False,
     },
     {
         "id": "cal-3",
@@ -63,6 +65,7 @@ FAKE_CALENDARS = [
         "color": "#e67c73",
         "myRights": "rw",
         "writable": True,
+        "isActiveByDefault": True,
     },
 ]
 

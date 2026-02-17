@@ -178,14 +178,40 @@ class MorgenClient:
         self._cache_set(key, result, TTL_EVENTS)
         return result
 
-    def list_all_events(self, start: str, end: str) -> list[dict[str, Any]]:
-        """List events across all calendar-capable accounts, deduplicating synced copies.
+    def list_all_events(
+        self,
+        start: str,
+        end: str,
+        *,
+        account_keys: list[str] | None = None,
+        calendar_names: list[str] | None = None,
+        active_only: bool = False,
+    ) -> list[dict[str, Any]]:
+        """List events across calendar-capable accounts, deduplicating synced copies.
 
         Fans out list_events() per account, then filters out "(via Morgen)"
         synced copies to avoid duplicates.
+
+        Optional filters:
+        - account_keys: "email:provider" strings to match against accounts
+        - calendar_names: whitelist of calendar names within matched accounts
+        - active_only: skip calendars where isActiveByDefault is not True
         """
+        from morgen.groups import match_account
+
         accounts = self.list_accounts()
         calendars = self.list_calendars()
+
+        # Filter accounts by key if specified
+        if account_keys:
+            accounts = [a for a in accounts if any(match_account(a, k) for k in account_keys)]
+
+        # Filter calendars
+        if active_only:
+            calendars = [c for c in calendars if c.get("isActiveByDefault") is True]
+        if calendar_names:
+            name_set = set(calendar_names)
+            calendars = [c for c in calendars if c.get("name") in name_set]
 
         # Group calendars by accountId
         cals_by_account: dict[str, list[str]] = {}
