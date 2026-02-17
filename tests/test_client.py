@@ -85,3 +85,73 @@ class TestListAllEvents:
         # acc-1: Standup, Lunch, Tasks and Deep Work
         # acc-2: Dentist (synced copy removed)
         assert len(events) == 4
+
+
+class TestListAllEventsFiltering:
+    """Tests for list_all_events filtering: account_keys, calendar_names, active_only."""
+
+    def test_filter_by_account_key(self, client: MorgenClient) -> None:
+        """Only events from matching accounts are returned."""
+        events = client.list_all_events(
+            "2026-02-17T00:00:00",
+            "2026-02-17T23:59:59",
+            account_keys=["test@example.com:google"],
+        )
+        account_ids = {e["accountId"] for e in events}
+        assert account_ids == {"acc-1"}
+
+    def test_filter_by_email_only(self, client: MorgenClient) -> None:
+        """Email-only key matches any provider for that email."""
+        events = client.list_all_events(
+            "2026-02-17T00:00:00",
+            "2026-02-17T23:59:59",
+            account_keys=["personal@example.com"],
+        )
+        account_ids = {e["accountId"] for e in events}
+        assert account_ids == {"acc-2"}
+
+    def test_active_only_filters_inactive_calendars(self, client: MorgenClient) -> None:
+        """active_only=True skips calendars with isActiveByDefault=False."""
+        # cal-2 (Holidays) has isActiveByDefault=False, belongs to acc-1
+        # Events from cal-2 should be excluded — but our fake events are all on cal-1/cal-3
+        # So count should stay the same since no events are on cal-2
+        events = client.list_all_events(
+            "2026-02-17T00:00:00",
+            "2026-02-17T23:59:59",
+            active_only=True,
+        )
+        assert len(events) == 4  # cal-2 has no events, so no change
+
+    def test_filter_by_calendar_name(self, client: MorgenClient) -> None:
+        """Only events from calendars with matching names are returned."""
+        events = client.list_all_events(
+            "2026-02-17T00:00:00",
+            "2026-02-17T23:59:59",
+            calendar_names=["Personal Calendar"],
+        )
+        # Only acc-2's "Personal Calendar" matches, after dedup only "Dentist" remains
+        titles = [e["title"] for e in events]
+        assert "Dentist" in titles
+        assert "Standup" not in titles
+
+    def test_combined_account_and_calendar_filter(self, client: MorgenClient) -> None:
+        """Account + calendar name filters combine."""
+        events = client.list_all_events(
+            "2026-02-17T00:00:00",
+            "2026-02-17T23:59:59",
+            account_keys=["test@example.com:google"],
+            calendar_names=["Work"],
+        )
+        # acc-1 matches, only "Work" calendar (cal-1) events
+        titles = [e["title"] for e in events]
+        assert "Standup" in titles
+        assert "Lunch" in titles
+
+    def test_no_matching_accounts_returns_empty(self, client: MorgenClient) -> None:
+        """Non-matching account key returns no events."""
+        events = client.list_all_events(
+            "2026-02-17T00:00:00",
+            "2026-02-17T23:59:59",
+            account_keys=["nobody@nowhere.com:google"],
+        )
+        assert events == []
