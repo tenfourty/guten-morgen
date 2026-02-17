@@ -154,6 +154,69 @@ def enrich_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return enriched
 
 
+def _resolve_label(labels: list[dict[str, Any]], label_id: str) -> str | None:
+    """Find a label value by its id in a task's labels list."""
+    for lbl in labels:
+        if lbl.get("id") == label_id:
+            return lbl.get("value")
+    return None
+
+
+def _resolve_label_display(label_value: str | None, label_defs: list[dict[str, Any]], label_id: str) -> str | None:
+    """Map an opaque label value to its human-readable display name via labelDefs."""
+    if label_value is None:
+        return None
+    for defn in label_defs:
+        if defn.get("id") != label_id:
+            continue
+        for val in defn.get("values", []):
+            if val.get("value") == label_value:
+                result: str | None = val.get("label")
+                return result
+    return label_value  # Fallback: return raw value if no mapping found
+
+
+def enrich_tasks(
+    tasks: list[dict[str, Any]],
+    *,
+    label_defs: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Add source, source_id, source_url, source_status to tasks (shallow copy).
+
+    Normalizes external task metadata (Linear labels, Notion properties) into
+    common fields so the agent never needs to learn source-specific schemas.
+    """
+    defs = label_defs or []
+    enriched: list[dict[str, Any]] = []
+    for task in tasks:
+        t = {**task}
+        labels = t.get("labels", [])
+        integration = t.get("integrationId", "morgen")
+
+        t["source"] = integration
+
+        # source_url: from links.original.href
+        links = t.get("links", {})
+        original = links.get("original", {})
+        t["source_url"] = original.get("href") if original else None
+
+        # source_id: Linear uses labels[id=identifier], others use None
+        t["source_id"] = _resolve_label(labels, "identifier")
+
+        # source_status: resolve via label defs
+        # Linear uses "state", Notion uses "notion://projects/status_property"
+        status_label_ids = ["state", "notion%3A%2F%2Fprojects%2Fstatus_property"]
+        t["source_status"] = None
+        for sid in status_label_ids:
+            raw = _resolve_label(labels, sid)
+            if raw is not None:
+                t["source_status"] = _resolve_label_display(raw, defs, sid)
+                break
+
+        enriched.append(t)
+    return enriched
+
+
 def render(
     data: Any,
     fmt: str = "table",
