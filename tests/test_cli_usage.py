@@ -27,6 +27,13 @@ class TestUsage:
         assert "--fields" in result.output
         assert "--jq" in result.output
         assert "--response-format" in result.output
+        assert "--no-cache" in result.output
+
+    def test_contains_cache_commands(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["usage"])
+        assert result.exit_code == 0
+        assert "morgen cache clear" in result.output
+        assert "morgen cache stats" in result.output
 
     def test_contains_workflow(self, runner: CliRunner) -> None:
         result = runner.invoke(cli, ["usage"])

@@ -175,6 +175,14 @@ def usage() -> None:
 - `--fields <comma-separated>` (select specific fields)
 - `--jq <expression>` (jq filtering)
 - `--response-format detailed|concise` (concise uses ~1/3 tokens)
+- `--no-cache` (bypass cache, fetch fresh from API)
+
+### Cache Management
+- `morgen cache clear`
+  Wipe all cached API data.
+
+- `morgen cache stats`
+  Show cache ages, TTLs, and sizes.
 
 ## Recommended Workflow
 1. `morgen today --json --response-format concise`     (daily overview)
