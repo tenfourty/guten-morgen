@@ -584,11 +584,13 @@ def tasks_get(
 @click.option("--due", default=None, help="Due datetime (ISO 8601).")
 @click.option("--priority", default=None, type=int, help="Priority (0-4).")
 @click.option("--description", default=None, help="Task description.")
+@click.option("--duration", default=None, type=int, help="Estimated duration in minutes.")
 def tasks_create(
     title: str,
     due: str | None,
     priority: int | None,
     description: str | None,
+    duration: int | None,
 ) -> None:
     """Create a new task."""
     try:
@@ -600,6 +602,8 @@ def tasks_create(
             task_data["priority"] = priority
         if description:
             task_data["description"] = description
+        if duration is not None:
+            task_data["estimatedDuration"] = f"PT{duration}M"
         result = client.create_task(task_data)
         click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
@@ -612,12 +616,14 @@ def tasks_create(
 @click.option("--due", default=None, help="New due datetime (ISO 8601).")
 @click.option("--priority", default=None, type=int, help="New priority (0-4).")
 @click.option("--description", default=None, help="New description.")
+@click.option("--duration", default=None, type=int, help="Estimated duration in minutes.")
 def tasks_update(
     task_id: str,
     title: str | None,
     due: str | None,
     priority: int | None,
     description: str | None,
+    duration: int | None,
 ) -> None:
     """Update a task."""
     try:
@@ -631,6 +637,8 @@ def tasks_update(
             task_data["priority"] = priority
         if description is not None:
             task_data["description"] = description
+        if duration is not None:
+            task_data["estimatedDuration"] = f"PT{duration}M"
         result = client.update_task(task_data)
         output = result or {"status": "updated", "id": task_id}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
