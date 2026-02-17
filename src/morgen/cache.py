@@ -60,3 +60,37 @@ class CacheStore:
         path.write_text(json.dumps(data, default=str, ensure_ascii=False))
         self._meta[key] = {"ts": time.time(), "ttl": float(ttl)}
         self._save_meta()
+
+    def invalidate(self, prefix: str) -> None:
+        """Remove all cache entries whose key starts with prefix."""
+        to_remove = [k for k in self._meta if k == prefix or k.startswith(prefix + "/")]
+        for key in to_remove:
+            self._data_path(key).unlink(missing_ok=True)
+            del self._meta[key]
+        if to_remove:
+            self._save_meta()
+
+    def clear(self) -> None:
+        """Wipe all cached data."""
+        for key in list(self._meta):
+            self._data_path(key).unlink(missing_ok=True)
+        self._meta.clear()
+        self._save_meta()
+
+    def stats(self) -> dict[str, Any]:
+        """Return cache statistics."""
+        now = time.time()
+        keys: dict[str, dict[str, Any]] = {}
+        for key, entry in self._meta.items():
+            age = now - entry["ts"]
+            remaining = entry["ttl"] - age
+            path = self._data_path(key)
+            size = path.stat().st_size if path.exists() else 0
+            keys[key] = {
+                "age_seconds": round(age, 1),
+                "ttl": int(entry["ttl"]),
+                "remaining_seconds": round(max(0, remaining), 1),
+                "expired": remaining <= 0,
+                "size_bytes": size,
+            }
+        return {"entries": len(keys), "cache_dir": str(self._dir), "keys": keys}
