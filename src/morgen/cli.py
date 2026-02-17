@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from morgen.cache import CacheStore
     from morgen.client import MorgenClient
 
 import click
@@ -77,8 +78,12 @@ def morgen_output(
 
 
 @click.group()
-def cli() -> None:
+@click.option("--no-cache", is_flag=True, help="Bypass cache, fetch fresh from API.")
+@click.pass_context
+def cli(ctx: click.Context, no_cache: bool) -> None:
     """Morgen CLI — calendar and task management for Control Tower."""
+    ctx.ensure_object(dict)
+    ctx.obj["no_cache"] = no_cache
 
 
 # ---------------------------------------------------------------------------
@@ -180,12 +185,22 @@ def usage() -> None:
     click.echo(text)
 
 
+def _get_cache_store() -> CacheStore:
+    """Return a CacheStore instance (default location)."""
+    from morgen.cache import CacheStore
+
+    return CacheStore()
+
+
 def _get_client() -> MorgenClient:
-    """Create a MorgenClient from settings."""
+    """Create a MorgenClient from settings, with cache by default."""
     from morgen.client import MorgenClient
 
     settings = load_settings()
-    return MorgenClient(settings)
+    ctx = click.get_current_context(silent=True)
+    no_cache = ctx.obj.get("no_cache", False) if ctx and ctx.obj else False
+    cache = None if no_cache else _get_cache_store()
+    return MorgenClient(settings, cache=cache)
 
 
 # ---------------------------------------------------------------------------
@@ -753,3 +768,28 @@ def this_month(fmt: str, fields: list[str] | None, jq_expr: str | None, response
 
     start, end = this_month_range()
     _combined_view(start, end, fmt, fields, jq_expr, response_format)
+
+
+# ---------------------------------------------------------------------------
+# cache management
+# ---------------------------------------------------------------------------
+
+
+@cli.group("cache")
+def cache_group() -> None:
+    """Manage the local API cache."""
+
+
+@cache_group.command("clear")
+def cache_clear() -> None:
+    """Wipe all cached API data."""
+    store = _get_cache_store()
+    store.clear()
+    click.echo(json.dumps({"status": "cleared", "cache_dir": str(store._dir)}))
+
+
+@cache_group.command("stats")
+def cache_stats() -> None:
+    """Show cache statistics."""
+    store = _get_cache_store()
+    click.echo(json.dumps(store.stats(), indent=2, default=str))
