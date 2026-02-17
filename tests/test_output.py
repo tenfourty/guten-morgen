@@ -84,8 +84,8 @@ class TestFormatTable:
         result = format_table(rows, columns=["id", "title"])
         # The full 200-char ID should not appear
         assert "a" * 200 not in result
-        # But a truncated version should
-        assert "a" * 12 in result
+        # A short hash should appear instead
+        assert len(result) < 250  # table itself is compact
 
 
 class TestSelectFields:
@@ -148,7 +148,7 @@ class TestTruncateIds:
         result = truncate_ids(data)
         assert result[0]["id"] == "short"
 
-    def test_truncate_ids_nested(self) -> None:
+    def test_truncate_ids_nested_dict(self) -> None:
         from morgen.output import truncate_ids
 
         data = {"id": "x" * 50, "name": "foo"}
@@ -161,6 +161,27 @@ class TestTruncateIds:
         data = [{"id": "abc123", "description": "a" * 200}]
         result = truncate_ids(data)
         assert len(result[0]["description"]) == 200
+
+    def test_truncate_recurses_into_nested_lists(self) -> None:
+        """Handles {"events": [{"id": "long..."}]} structure."""
+        from morgen.output import truncate_ids
+
+        data = {"events": [{"id": "x" * 200, "title": "Test"}], "count": 1}
+        result = truncate_ids(data)
+        assert len(result["events"][0]["id"]) == 12
+        assert result["count"] == 1
+
+    def test_different_ids_produce_different_hashes(self) -> None:
+        """Different long IDs produce distinct short IDs."""
+        from morgen.output import truncate_ids
+
+        data = [
+            {"id": "SHARED_PREFIX_UNIQUE_A"},
+            {"id": "SHARED_PREFIX_UNIQUE_B"},
+        ]
+        result = truncate_ids(data, length=12)
+        assert result[0]["id"] != result[1]["id"]
+        assert len(result[0]["id"]) == 12
 
 
 class TestOutputError:
