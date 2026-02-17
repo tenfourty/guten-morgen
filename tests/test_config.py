@@ -24,6 +24,8 @@ class TestLoadSettings:
 
     def test_missing_key_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("MORGEN_API_KEY", raising=False)
+        # Prevent .env file from being loaded
+        monkeypatch.setattr("morgen.config._find_env_file", lambda: None)
         with pytest.raises(ConfigError, match="MORGEN_API_KEY is not set"):
             load_settings()
 

@@ -15,6 +15,24 @@ from morgen.errors import (
 )
 
 
+def _extract_list(data: Any, key: str) -> list[dict[str, Any]]:
+    """Extract a list from Morgen's nested response format.
+
+    Morgen wraps list responses as: {"data": {"<key>": [...]}}
+    Some endpoints return a flat list directly.
+    """
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        inner = data.get("data", data)
+        if isinstance(inner, dict):
+            result: list[dict[str, Any]] = inner.get(key, [])
+            return result
+        if isinstance(inner, list):
+            return inner
+    return []
+
+
 class MorgenClient:
     """Sync HTTP client for the Morgen v3 API."""
 
@@ -63,16 +81,14 @@ class MorgenClient:
     def list_accounts(self) -> list[dict[str, Any]]:
         """List connected calendar accounts."""
         data = self._request("GET", "/integrations/accounts/list")
-        result: list[dict[str, Any]] = data.get("data", data) if isinstance(data, dict) else data
-        return result
+        return _extract_list(data, "accounts")
 
     # ----- Calendars -----
 
     def list_calendars(self) -> list[dict[str, Any]]:
         """List all calendars."""
         data = self._request("GET", "/calendars/list")
-        result: list[dict[str, Any]] = data.get("data", data) if isinstance(data, dict) else data
-        return result
+        return _extract_list(data, "calendars")
 
     # ----- Events -----
 
@@ -94,8 +110,7 @@ class MorgenClient:
                 "end": end,
             },
         )
-        result: list[dict[str, Any]] = data.get("data", data) if isinstance(data, dict) else data
-        return result
+        return _extract_list(data, "events")
 
     def create_event(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Create a new event."""
@@ -119,8 +134,7 @@ class MorgenClient:
         if updated_after:
             params["updatedAfter"] = updated_after
         data = self._request("GET", "/tasks/list", params=params)
-        result: list[dict[str, Any]] = data.get("data", data) if isinstance(data, dict) else data
-        return result
+        return _extract_list(data, "tasks")
 
     def get_task(self, task_id: str) -> dict[str, Any]:
         """Get a single task."""
@@ -166,8 +180,7 @@ class MorgenClient:
     def list_tags(self) -> list[dict[str, Any]]:
         """List all tags."""
         data = self._request("GET", "/tags/list")
-        result: list[dict[str, Any]] = data.get("data", data) if isinstance(data, dict) else data
-        return result
+        return _extract_list(data, "tags")
 
     def get_tag(self, tag_id: str) -> dict[str, Any]:
         """Get a single tag."""

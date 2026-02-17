@@ -18,13 +18,27 @@ from morgen.config import Settings
 # ---------------------------------------------------------------------------
 
 FAKE_ACCOUNTS = [
-    {"accountId": "acc-1", "name": "Work Google", "email": "jeremy@example.com", "providerId": "google"},
-    {"accountId": "acc-2", "name": "Personal", "email": "j@personal.com", "providerId": "caldav"},
+    {
+        "id": "acc-1", "accountId": "acc-1", "name": "Work Google",
+        "email": "jeremy@example.com", "providerId": "google",
+        "integrationGroups": ["calendars"],
+    },
+    {
+        "id": "acc-2", "accountId": "acc-2", "name": "Personal",
+        "email": "j@personal.com", "providerId": "caldav",
+        "integrationGroups": ["calendars"],
+    },
 ]
 
 FAKE_CALENDARS = [
-    {"calendarId": "cal-1", "accountId": "acc-1", "name": "Work", "color": "#4285f4", "writable": True},
-    {"calendarId": "cal-2", "accountId": "acc-1", "name": "Holidays", "color": "#0b8043", "writable": False},
+    {
+        "id": "cal-1", "calendarId": "cal-1", "accountId": "acc-1",
+        "name": "Work", "color": "#4285f4", "myRights": "rw", "writable": True,
+    },
+    {
+        "id": "cal-2", "calendarId": "cal-2", "accountId": "acc-1",
+        "name": "Holidays", "color": "#0b8043", "myRights": "r", "writable": False,
+    },
 ]
 
 FAKE_EVENTS = [
@@ -73,11 +87,11 @@ FAKE_TAGS = [
 # ---------------------------------------------------------------------------
 
 ROUTES: dict[str, Any] = {
-    "/v3/integrations/accounts/list": {"data": FAKE_ACCOUNTS},
-    "/v3/calendars/list": {"data": FAKE_CALENDARS},
-    "/v3/events/list": {"data": FAKE_EVENTS},
-    "/v3/tasks/list": {"data": FAKE_TASKS},
-    "/v3/tags/list": {"data": FAKE_TAGS},
+    "/v3/integrations/accounts/list": {"data": {"accounts": FAKE_ACCOUNTS}},
+    "/v3/calendars/list": {"data": {"calendars": FAKE_CALENDARS}},
+    "/v3/events/list": {"data": {"events": FAKE_EVENTS}},
+    "/v3/tasks/list": {"data": {"tasks": FAKE_TASKS}},
+    "/v3/tags/list": FAKE_TAGS,  # Tags API returns flat list
 }
 
 

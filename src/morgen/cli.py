@@ -250,16 +250,35 @@ def events() -> None:
 
 
 def _auto_discover(client: MorgenClient) -> tuple[str, list[str]]:
-    """Auto-discover first account and its writable calendars."""
+    """Auto-discover first calendar account and its writable calendars.
+
+    Accounts use "id" field. Calendars use "id" for calendar ID,
+    "accountId" to link to account, and "myRights" for permissions.
+    Only picks accounts in the "calendars" integration group.
+    """
     accounts_data = client.list_accounts()
     if not accounts_data:
         raise MorgenError("No connected accounts found", suggestions=["Connect an account in Morgen"])
-    account_id: str = accounts_data[0]["accountId"]
+
+    # Find the first calendar-capable account
+    calendar_accounts = [
+        a for a in accounts_data if "calendars" in a.get("integrationGroups", [])
+    ]
+    account = calendar_accounts[0] if calendar_accounts else accounts_data[0]
+    account_id: str = account.get("id", account.get("accountId", ""))
 
     calendars_data = client.list_calendars()
-    writable = [c["calendarId"] for c in calendars_data if c.get("writable") and c.get("accountId") == account_id]
+    # Filter to calendars belonging to this account
+    account_cals = [c for c in calendars_data if c.get("accountId") == account_id]
+    # Prefer writable calendars (myRights contains write permissions)
+    writable = [
+        c.get("id", c.get("calendarId", ""))
+        for c in account_cals
+        if "w" in str(c.get("myRights", "")) or c.get("writable")
+    ]
     if not writable:
-        writable = [c["calendarId"] for c in calendars_data if c.get("accountId") == account_id]
+        # Fall back to all calendars for the account
+        writable = [c.get("id", c.get("calendarId", "")) for c in account_cals]
     if not writable:
         raise MorgenError("No calendars found for account", suggestions=["Check calendar sync in Morgen"])
     return account_id, writable
