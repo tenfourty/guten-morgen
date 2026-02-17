@@ -6,11 +6,14 @@ Calendar and task management CLI for the Morgen API, optimised for LLM consumpti
 
 ```bash
 uv sync --all-extras          # Install all deps
+uv run pre-commit install     # Install pre-commit hooks (ruff, mypy, pytest)
 uv run pytest                 # Run tests
 uv run mypy src/              # Type check
 uv run ruff check .           # Lint
 uv run morgen usage           # Self-documentation
 ```
+
+**After cloning**, always run `uv sync --all-extras && uv run pre-commit install` to set up the environment.
 
 ## TDD Workflow
 
