@@ -48,3 +48,10 @@ class TestUsage:
         assert "--status" in result.output
         assert "--overdue" in result.output
         assert "--no-frames" in result.output
+
+    def test_contains_group_options(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["usage"])
+        assert "--group" in result.output
+        assert "--all-calendars" in result.output
+        assert "morgen groups" in result.output
+        assert "Calendar Groups" in result.output

@@ -13,6 +13,9 @@ class Account(TypedDict, total=False):
     providerAccountId: str
     name: str
     email: str
+    preferredEmail: str
+    integrationId: str
+    integrationGroups: list[str]
 
 
 class Calendar(TypedDict, total=False):
@@ -23,6 +26,7 @@ class Calendar(TypedDict, total=False):
     name: str
     color: str
     writable: bool
+    isActiveByDefault: bool
 
 
 class Event(TypedDict, total=False):
