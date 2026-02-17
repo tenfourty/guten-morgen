@@ -9,6 +9,7 @@ import pytest
 from morgen.errors import output_error
 from morgen.output import (
     enrich_events,
+    enrich_tasks,
     format_csv_str,
     format_json,
     format_jsonl,
@@ -255,6 +256,76 @@ class TestEnrichEvents:
         result = enrich_events(events)
         assert result[0]["participants_display"] == ""
         assert result[0]["location_display"] == ""
+
+
+class TestEnrichTasks:
+    def test_morgen_native_task(self) -> None:
+        tasks = [{"id": "t1", "title": "Review PR", "integrationId": "morgen", "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert result[0]["source"] == "morgen"
+        assert result[0]["source_id"] is None
+        assert result[0]["source_url"] is None
+        assert result[0]["source_status"] is None
+
+    def test_linear_task(self) -> None:
+        tasks = [
+            {
+                "id": "lt1",
+                "title": "Budget planning",
+                "integrationId": "linear",
+                "progress": "needs-action",
+                "links": {"original": {"href": "https://linear.app/co/issue/ENG-1740/budget"}},
+                "labels": [
+                    {"id": "identifier", "value": "ENG-1740"},
+                    {"id": "state", "value": "state-1"},
+                ],
+            }
+        ]
+        label_defs = [
+            {
+                "id": "state",
+                "label": "Status",
+                "type": "enum",
+                "values": [{"value": "state-1", "label": "In Progress"}],
+            },
+        ]
+        result = enrich_tasks(tasks, label_defs=label_defs)
+        assert result[0]["source"] == "linear"
+        assert result[0]["source_id"] == "ENG-1740"
+        assert result[0]["source_url"] == "https://linear.app/co/issue/ENG-1740/budget"
+        assert result[0]["source_status"] == "In Progress"
+
+    def test_notion_task(self) -> None:
+        tasks = [
+            {
+                "id": "nt1",
+                "title": "Update Ladder",
+                "integrationId": "notion",
+                "progress": "needs-action",
+                "links": {"original": {"href": "https://www.notion.so/abc123"}},
+                "labels": [
+                    {"id": "notion%3A%2F%2Fprojects%2Fstatus_property", "value": "in-progress"},
+                ],
+            }
+        ]
+        label_defs = [
+            {
+                "id": "notion%3A%2F%2Fprojects%2Fstatus_property",
+                "label": "Status",
+                "type": "enum",
+                "values": [{"value": "in-progress", "label": "In Progress"}],
+            },
+        ]
+        result = enrich_tasks(tasks, label_defs=label_defs)
+        assert result[0]["source"] == "notion"
+        assert result[0]["source_url"] == "https://www.notion.so/abc123"
+        assert result[0]["source_status"] == "In Progress"
+
+    def test_no_labels_graceful(self) -> None:
+        tasks = [{"id": "t1", "title": "Bare task", "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert result[0]["source"] == "morgen"  # default when integrationId missing
+        assert result[0]["source_id"] is None
 
 
 class TestOutputError:
