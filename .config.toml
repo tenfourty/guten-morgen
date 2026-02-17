@@ -1,0 +1,16 @@
+default_group = "work"
+active_only = true
+
+[groups.work]
+accounts = ["user@example.com:google"]
+
+[groups.personal]
+# Fastmail personal calendars — also included in family group
+accounts = ["personal@example.com:fastmail"]
+
+[groups.family]
+# Personal fastmail + google family calendars
+accounts = ["personal@example.com:fastmail", "personal@example.com:google", "family@example.com:google"]
+calendars = ["Personal & Family", "Family", "👦 Child", "👱‍♂️ Jeremy"]
+
+# "all" is built-in — no filtering
