@@ -44,7 +44,7 @@ class TestCalendars:
         result = runner.invoke(cli, ["calendars", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert len(data) == 2
+        assert len(data) == 3
         assert data[0]["name"] == "Work"
 
     def test_concise_format(self, runner: CliRunner, mock_client: MorgenClient) -> None:

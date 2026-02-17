@@ -46,8 +46,8 @@ class TestNext:
             result = runner.invoke(cli, ["next", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        # Lunch (12:00) and the routine (14:00) remain
-        assert len(data) == 2
+        # Lunch (12:00), Deep Work (14:00), Dentist (16:00) remain
+        assert len(data) == 3
         assert data[0]["title"] == "Lunch"
 
     def test_concise_format(self, runner: CliRunner, mock_client: MorgenClient) -> None:

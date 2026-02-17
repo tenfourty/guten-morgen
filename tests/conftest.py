@@ -55,6 +55,15 @@ FAKE_CALENDARS = [
         "myRights": "r",
         "writable": False,
     },
+    {
+        "id": "cal-3",
+        "calendarId": "cal-3",
+        "accountId": "acc-2",
+        "name": "Personal Calendar",
+        "color": "#e67c73",
+        "myRights": "rw",
+        "writable": True,
+    },
 ]
 
 FAKE_EVENTS = [
@@ -65,11 +74,14 @@ FAKE_EVENTS = [
         "duration": "PT30M",
         "calendarId": "cal-1",
         "accountId": "acc-1",
-        "attendees": [
-            {"name": "Alice", "email": "alice@example.com"},
-            {"name": "Bob", "email": "bob@example.com"},
-        ],
-        "location": "https://meet.google.com/abc-defg-hij",
+        "participants": {
+            "p1": {"name": "Alice", "email": "alice@example.com", "kind": "individual"},
+            "p2": {"name": "Bob", "email": "bob@example.com", "kind": "individual"},
+            "p3": {"name": "Room 42", "email": "room42@example.com", "kind": "resource"},
+        },
+        "locations": {
+            "loc1": {"name": "https://meet.google.com/abc-defg-hij"},
+        },
     },
     {
         "id": "evt-2",
@@ -78,7 +90,6 @@ FAKE_EVENTS = [
         "duration": "PT1H",
         "calendarId": "cal-1",
         "accountId": "acc-1",
-        "location": "Café de Flore",
     },
     {
         "id": "evt-3",
@@ -93,6 +104,25 @@ FAKE_EVENTS = [
             "isFlexible": False,
             "canBeCompleted": False,
         },
+    },
+]
+
+FAKE_EVENTS_ACC2 = [
+    {
+        "id": "evt-synced-1",
+        "title": "Standup (via Morgen)",
+        "start": "2026-02-17T09:00:00",
+        "duration": "PT30M",
+        "calendarId": "cal-3",
+        "accountId": "acc-2",
+    },
+    {
+        "id": "evt-personal-1",
+        "title": "Dentist",
+        "start": "2026-02-17T16:00:00",
+        "duration": "PT1H",
+        "calendarId": "cal-3",
+        "accountId": "acc-2",
     },
 ]
 
@@ -143,9 +173,14 @@ FAKE_TAGS = [
 ROUTES: dict[str, Any] = {
     "/v3/integrations/accounts/list": {"data": {"accounts": FAKE_ACCOUNTS}},
     "/v3/calendars/list": {"data": {"calendars": FAKE_CALENDARS}},
-    "/v3/events/list": {"data": {"events": FAKE_EVENTS}},
     "/v3/tasks/list": {"data": {"tasks": FAKE_TASKS}},
     "/v3/tags/list": FAKE_TAGS,  # Tags API returns flat list
+}
+
+# Events routing by accountId
+_EVENTS_BY_ACCOUNT: dict[str, list[dict[str, Any]]] = {
+    "acc-1": FAKE_EVENTS,
+    "acc-2": FAKE_EVENTS_ACC2,
 }
 
 
@@ -163,6 +198,13 @@ def _item_key_from_path(path: str) -> str:
 def mock_transport_handler(request: httpx.Request) -> httpx.Response:
     """Route mock API requests to fake data."""
     path = request.url.path
+
+    # Route events by accountId query param
+    if path == "/v3/events/list":
+        account_id = dict(request.url.params).get("accountId", "acc-1")
+        events = _EVENTS_BY_ACCOUNT.get(account_id, [])
+        return httpx.Response(200, json={"data": {"events": events}})
+
     if path in ROUTES:
         return httpx.Response(200, json=ROUTES[path])
 

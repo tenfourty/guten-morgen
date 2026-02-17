@@ -36,9 +36,9 @@ class Event(TypedDict, total=False):
     duration: str
     calendarId: str
     accountId: str
-    location: str
+    participants: dict[str, Any]
+    locations: dict[str, Any]
     showAs: str
-    attendees: list[dict[str, Any]]
 
 
 class Task(TypedDict, total=False):

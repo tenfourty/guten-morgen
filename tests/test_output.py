@@ -8,9 +8,12 @@ import pytest
 
 from morgen.errors import output_error
 from morgen.output import (
+    enrich_events,
     format_csv_str,
     format_json,
     format_jsonl,
+    format_locations,
+    format_participants,
     format_table,
     render,
     select_fields,
@@ -182,6 +185,76 @@ class TestTruncateIds:
         result = truncate_ids(data, length=12)
         assert result[0]["id"] != result[1]["id"]
         assert len(result[0]["id"]) == 12
+
+
+class TestFormatParticipants:
+    def test_basic(self) -> None:
+        participants = {
+            "p1": {"name": "Alice", "email": "alice@example.com", "kind": "individual"},
+            "p2": {"name": "Bob", "email": "bob@example.com", "kind": "individual"},
+        }
+        assert format_participants(participants) == "Alice, Bob"
+
+    def test_filters_resources(self) -> None:
+        participants = {
+            "p1": {"name": "Alice", "kind": "individual"},
+            "p2": {"name": "Room 42", "kind": "resource"},
+        }
+        assert format_participants(participants) == "Alice"
+
+    def test_email_fallback(self) -> None:
+        participants = {
+            "p1": {"email": "alice@example.com", "kind": "individual"},
+        }
+        assert format_participants(participants) == "alice@example.com"
+
+    def test_empty(self) -> None:
+        assert format_participants(None) == ""
+        assert format_participants({}) == ""
+
+
+class TestFormatLocations:
+    def test_basic(self) -> None:
+        locations = {
+            "loc1": {"name": "Room A"},
+            "loc2": {"name": "meet.google.com/xyz"},
+        }
+        assert format_locations(locations) == "Room A, meet.google.com/xyz"
+
+    def test_empty(self) -> None:
+        assert format_locations(None) == ""
+        assert format_locations({}) == ""
+
+
+class TestEnrichEvents:
+    def test_adds_display_fields(self) -> None:
+        events = [
+            {
+                "id": "e1",
+                "title": "Standup",
+                "participants": {
+                    "p1": {"name": "Alice", "kind": "individual"},
+                },
+                "locations": {
+                    "loc1": {"name": "Room A"},
+                },
+            },
+        ]
+        result = enrich_events(events)
+        assert result[0]["participants_display"] == "Alice"
+        assert result[0]["location_display"] == "Room A"
+
+    def test_no_mutation(self) -> None:
+        events = [{"id": "e1", "title": "Test"}]
+        result = enrich_events(events)
+        assert "participants_display" not in events[0]
+        assert "participants_display" in result[0]
+
+    def test_empty_participants_and_locations(self) -> None:
+        events = [{"id": "e1", "title": "Test"}]
+        result = enrich_events(events)
+        assert result[0]["participants_display"] == ""
+        assert result[0]["location_display"] == ""
 
 
 class TestOutputError:

@@ -178,6 +178,36 @@ class MorgenClient:
         self._cache_set(key, result, TTL_EVENTS)
         return result
 
+    def list_all_events(self, start: str, end: str) -> list[dict[str, Any]]:
+        """List events across all calendar-capable accounts, deduplicating synced copies.
+
+        Fans out list_events() per account, then filters out "(via Morgen)"
+        synced copies to avoid duplicates.
+        """
+        accounts = self.list_accounts()
+        calendars = self.list_calendars()
+
+        # Group calendars by accountId
+        cals_by_account: dict[str, list[str]] = {}
+        for cal in calendars:
+            aid = cal.get("accountId", "")
+            cid = cal.get("id", cal.get("calendarId", ""))
+            if aid and cid:
+                cals_by_account.setdefault(aid, []).append(cid)
+
+        all_events: list[dict[str, Any]] = []
+        for account in accounts:
+            if "calendars" not in account.get("integrationGroups", []):
+                continue
+            aid = account.get("id", "")
+            cal_ids = cals_by_account.get(aid, [])
+            if not cal_ids:
+                continue
+            all_events.extend(self.list_events(aid, cal_ids, start, end))
+
+        # Deduplicate: remove "(via Morgen)" synced copies
+        return [e for e in all_events if "(via Morgen)" not in e.get("title", "")]
+
     def create_event(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Create a new event."""
         data = self._request("POST", "/events/create", json=event_data)
