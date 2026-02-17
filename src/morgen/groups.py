@@ -114,14 +114,21 @@ def match_account(account: dict[str, Any], key: str) -> bool:
     """Check if an account matches an account key.
 
     Key format: "email:provider" or just "email".
-    Matches against preferredEmail and integrationId.
+    Matches against preferredEmail, emails list, and integrationId.
+    Google accounts often have preferredEmail=null, so we also check
+    the emails array.
     """
     parts = key.split(":", 1)
     email = parts[0]
     provider = parts[1] if len(parts) > 1 else None
 
-    if account.get("preferredEmail") != email:
-        return False
+    # Check provider first (cheap)
     if provider is not None and account.get("integrationId") != provider:
         return False
-    return True
+
+    # Check email: preferredEmail or emails list
+    preferred = account.get("preferredEmail")
+    if preferred == email:
+        return True
+    emails_list: list[str] = account.get("emails", [])
+    return email in emails_list
