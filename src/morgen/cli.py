@@ -712,6 +712,40 @@ def tasks_move(task_id: str, after: str | None, parent: str | None) -> None:
         output_error(e.error_type, str(e), e.suggestions)
 
 
+@tasks.command("schedule")
+@click.argument("task_id")
+@click.option("--start", required=True, help="Start datetime (ISO 8601).")
+@click.option("--duration", default=None, type=int, help="Duration in minutes (overrides task's estimatedDuration).")
+@click.option("--calendar-id", default=None, help="Calendar ID (auto-discovered if omitted).")
+@click.option("--account-id", default=None, help="Account ID (auto-discovered if omitted).")
+@click.option("--timezone", default=None, help="Time zone (e.g. Europe/Paris). Defaults to system timezone.")
+def tasks_schedule(
+    task_id: str,
+    start: str,
+    duration: int | None,
+    calendar_id: str | None,
+    account_id: str | None,
+    timezone: str | None,
+) -> None:
+    """Schedule a task as a linked calendar event."""
+    try:
+        client = _get_client()
+        if not account_id or not calendar_id:
+            account_id, cal_ids = _auto_discover(client)
+            calendar_id = calendar_id or cal_ids[0]
+        result = client.schedule_task(
+            task_id=task_id,
+            start=start,
+            calendar_id=calendar_id,
+            account_id=account_id,
+            duration_minutes=duration,
+            timezone=timezone,
+        )
+        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
 @tasks.command("delete")
 @click.argument("task_id")
 def tasks_delete(task_id: str) -> None:

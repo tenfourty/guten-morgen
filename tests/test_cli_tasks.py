@@ -238,6 +238,64 @@ class TestTasksSource:
         assert isinstance(data["morgen"], list)
 
 
+class TestTasksSchedule:
+    """Task 10: tasks schedule CLI command."""
+
+    def test_schedule_basic(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """tasks schedule creates a linked event from a task."""
+        result = runner.invoke(
+            cli,
+            [
+                "tasks",
+                "schedule",
+                "task-1",
+                "--start",
+                "2026-02-18T09:00:00",
+                "--calendar-id",
+                "cal-1",
+                "--account-id",
+                "acc-1",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["title"] == "Found item"
+        meta = data.get("morgen.so:metadata", {})
+        assert meta.get("taskId") == "task-1"
+
+    def test_schedule_with_duration(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--duration overrides the task's estimatedDuration."""
+        result = runner.invoke(
+            cli,
+            [
+                "tasks",
+                "schedule",
+                "task-1",
+                "--start",
+                "2026-02-18T09:00:00",
+                "--calendar-id",
+                "cal-1",
+                "--account-id",
+                "acc-1",
+                "--duration",
+                "60",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["duration"] == "PT60M"
+
+    def test_schedule_auto_discover(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Without --calendar-id/--account-id, auto-discovers from accounts."""
+        result = runner.invoke(
+            cli,
+            ["tasks", "schedule", "task-1", "--start", "2026-02-18T09:00:00"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "calendarId" in data
+
+
 class TestTasksDelete:
     def test_delete(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["tasks", "delete", "task-1"])
