@@ -133,16 +133,25 @@ def usage() -> None:
 ### Tasks
 - `morgen tasks list [--limit N] [--status open|completed|all] [--overdue] [--json]`
   `  [--due-before ISO] [--due-after ISO] [--priority N]`
-  List tasks. Filters combine with AND logic.
+  `  [--source morgen|linear|notion] [--group-by-source]`
+  List tasks from all connected sources. Filters combine with AND logic.
+  --source restricts to a single integration. --group-by-source returns
+  output grouped by source. Tasks are enriched with source, source_id,
+  source_url, source_status fields.
 
 - `morgen tasks get ID [--json]`
   Get a single task by ID.
 
-- `morgen tasks create --title TEXT [--due ISO] [--priority 0-4] [--description TEXT]`
-  Create a new task.
+- `morgen tasks create --title TEXT [--due ISO] [--priority 0-4] [--description TEXT] [--duration MINUTES]`
+  Create a new task. --duration sets estimatedDuration for AI time-blocking.
 
-- `morgen tasks update ID [--title TEXT] [--due ISO] [--priority 0-4] [--description TEXT]`
-  Update a task.
+- `morgen tasks update ID [--title TEXT] [--due ISO] [--priority 0-4] [--description TEXT] [--duration MINUTES]`
+  Update a task. --duration sets estimatedDuration.
+
+- `morgen tasks schedule ID --start ISO [--duration MINUTES] [--calendar-id ID] [--account-id ID]`
+  Schedule a task as a linked calendar event. Fetches the task to derive
+  title and duration, creates an event with morgen.so:metadata.taskId.
+  Auto-discovers calendar if not specified.
 
 - `morgen tasks close ID`
   Mark a task as completed.
@@ -210,6 +219,31 @@ def usage() -> None:
 3. `morgen tasks list --status open --overdue --json`  (overdue tasks)
 4. `morgen tasks create --title "..." --due ...`       (create task)
 5. `morgen tasks close <id>`                           (complete task)
+
+## Scenarios
+
+### Morning Triage
+```
+morgen today --json --response-format concise --no-frames
+morgen tasks list --status open --overdue --json --group-by-source
+```
+
+### Schedule a Linear Issue
+```
+morgen tasks list --source linear --json
+morgen tasks schedule <task-id> --start 2026-02-18T14:00:00
+```
+
+### Create and Time-Block a Task
+```
+morgen tasks create --title "Write design doc" --due 2026-02-20 --duration 90
+morgen tasks schedule <task-id> --start 2026-02-18T10:00:00
+```
+
+### Cross-Source Task Review
+```
+morgen tasks list --json --group-by-source --response-format concise
+```
 """
     click.echo(text)
 

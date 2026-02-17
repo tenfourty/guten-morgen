@@ -48,3 +48,17 @@ class TestUsage:
         assert "--status" in result.output
         assert "--overdue" in result.output
         assert "--no-frames" in result.output
+
+    def test_contains_multi_source_features(self, runner: CliRunner) -> None:
+        """Task 11: usage includes multi-source task features."""
+        result = runner.invoke(cli, ["usage"])
+        assert result.exit_code == 0
+        # --source and --group-by-source on tasks list
+        assert "--source" in result.output
+        assert "--group-by-source" in result.output
+        # --duration on tasks create/update
+        assert "--duration" in result.output
+        # tasks schedule command
+        assert "morgen tasks schedule" in result.output
+        # Scenarios section
+        assert "Morning Triage" in result.output or "Scenario" in result.output
