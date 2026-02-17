@@ -39,6 +39,7 @@ def output_options(f: Callable[..., Any]) -> Callable[..., Any]:
         help="Response verbosity: concise for ~1/3 tokens.",
     )
     @click.option("--short-ids", is_flag=True, default=False, help="Truncate IDs to 12 chars.")
+    @click.option("--no-frames", is_flag=True, default=False, help="Exclude Morgen scheduling frames.")
     @functools.wraps(f)
     def wrapper(
         *args: Any,
@@ -48,10 +49,12 @@ def output_options(f: Callable[..., Any]) -> Callable[..., Any]:
         jq_expr: str | None,
         response_format: str,
         short_ids: bool,
+        no_frames: bool,
         **kwargs: Any,
     ) -> Any:
-        # short_ids is read from click context in morgen_output(), not passed to commands
+        # short_ids and no_frames are read from click context where needed
         _ = short_ids
+        _ = no_frames
         if json_flag:
             fmt = "json"
         fields = [s.strip() for s in fields_str.split(",")] if fields_str else None
@@ -191,6 +194,7 @@ def usage() -> None:
 - `--jq <expression>` (jq filtering)
 - `--response-format detailed|concise` (concise uses ~1/3 tokens)
 - `--short-ids` (truncate IDs to 12 chars, saves tokens)
+- `--no-frames` (exclude Morgen scheduling frames/time-blocking windows)
 - `--no-cache` (bypass cache, fetch fresh from API)
 
 ### Cache Management
@@ -201,8 +205,8 @@ def usage() -> None:
   Show cache ages, TTLs, and sizes.
 
 ## Recommended Agent Workflow
-1. `morgen next --json --response-format concise`      (what's coming up?)
-2. `morgen today --json --response-format concise`     (full daily overview)
+1. `morgen next --json --response-format concise --no-frames`  (what's coming up?)
+2. `morgen today --json --response-format concise --no-frames` (full daily overview)
 3. `morgen tasks list --status open --overdue --json`  (overdue tasks)
 4. `morgen tasks create --title "..." --due ...`       (create task)
 5. `morgen tasks close <id>`                           (complete task)
@@ -276,21 +280,15 @@ def calendars(fmt: str, fields: list[str] | None, jq_expr: str | None, response_
 # events
 # ---------------------------------------------------------------------------
 
-EVENT_COLUMNS = ["id", "title", "start", "duration", "calendarId", "location", "attendees"]
-EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration", "location", "attendees"]
+# Note: API /v3/events/list doesn't return attendees or location
+EVENT_COLUMNS = ["id", "title", "start", "duration", "calendarId"]
+EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration"]
 
 
-def _format_attendees_concise(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Convert attendee lists to comma-separated name strings for concise output."""
-    result = []
-    for e in events:
-        e = dict(e)  # shallow copy
-        attendees = e.get("attendees")
-        if isinstance(attendees, list):
-            names = [a.get("name", a.get("email", "?")) for a in attendees]
-            e["attendees"] = ", ".join(names)
-        result.append(e)
-    return result
+def _is_frame_event(event: dict[str, Any]) -> bool:
+    """Check if an event is a Morgen scheduling frame (time-blocking window)."""
+    meta = event.get("morgen.so:metadata")
+    return isinstance(meta, dict) and "frameFilterMql" in meta
 
 
 @cli.group()
@@ -360,8 +358,10 @@ def events_list(
         else:
             account_id, cal_ids = _auto_discover(client)
         data = client.list_events(account_id, cal_ids, start, end)
+        ctx = click.get_current_context(silent=True)
+        if ctx and ctx.params.get("no_frames"):
+            data = [e for e in data if not _is_frame_event(e)]
         if response_format == "concise" and not fields:
-            data = _format_attendees_concise(data)
             fields = EVENT_CONCISE_FIELDS
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
     except MorgenError as e:
@@ -820,11 +820,13 @@ def next(
 
         # Filter to events starting after now and take first N
         upcoming = [e for e in events_data if e.get("start", "") >= now.isoformat()[:19]]
+        ctx = click.get_current_context(silent=True)
+        if ctx and ctx.params.get("no_frames"):
+            upcoming = [e for e in upcoming if not _is_frame_event(e)]
         upcoming.sort(key=lambda x: x.get("start", ""))
         upcoming = upcoming[:count]
 
         if response_format == "concise" and not fields:
-            upcoming = _format_attendees_concise(upcoming)
             fields = EVENT_CONCISE_FIELDS
         morgen_output(upcoming, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
     except MorgenError as e:
@@ -835,7 +837,7 @@ def next(
 # Quick views: today, this-week, this-month
 # ---------------------------------------------------------------------------
 
-VIEW_EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration", "location", "attendees"]
+VIEW_EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration"]
 VIEW_TASK_CONCISE_FIELDS = ["id", "title", "progress", "due"]
 
 
@@ -878,11 +880,13 @@ def _combined_view(
             account_id, cal_ids = _auto_discover(client)
             events_data = client.list_events(account_id, cal_ids, start, end)
             events_list: list[dict[str, Any]] = list(events_data)
+            ctx = click.get_current_context(silent=True)
+            if ctx and ctx.params.get("no_frames"):
+                events_list = [e for e in events_list if not _is_frame_event(e)]
             events_list.sort(key=lambda x: x.get("start", ""))
             if response_format == "concise" and not fields:
                 from morgen.output import select_fields
 
-                events_list = _format_attendees_concise(events_list)
                 events_list = select_fields(events_list, VIEW_EVENT_CONCISE_FIELDS)
             result["events"] = events_list
 

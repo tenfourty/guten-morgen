@@ -47,3 +47,4 @@ class TestUsage:
         assert "--short-ids" in result.output
         assert "--status" in result.output
         assert "--overdue" in result.output
+        assert "--no-frames" in result.output

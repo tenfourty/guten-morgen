@@ -80,6 +80,20 @@ FAKE_EVENTS = [
         "accountId": "acc-1",
         "location": "Café de Flore",
     },
+    {
+        "id": "evt-3",
+        "title": "Tasks and Deep Work",
+        "start": "2026-02-17T14:00:00",
+        "duration": "PT2H",
+        "calendarId": "cal-1",
+        "accountId": "acc-1",
+        "morgen.so:metadata": {
+            "frameFilterMql": '{"$or":[]}',
+            "isAutoScheduled": False,
+            "isFlexible": False,
+            "canBeCompleted": False,
+        },
+    },
 ]
 
 FAKE_TASKS = [

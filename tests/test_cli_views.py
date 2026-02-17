@@ -81,6 +81,15 @@ class TestToday:
         unscheduled_ids = [t["id"] for t in data["unscheduled_tasks"]]
         assert "task-2" in unscheduled_ids
 
+    def test_no_frames_on_today(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--no-frames excludes Morgen scheduling frames from today view."""
+        result = runner.invoke(cli, ["today", "--json", "--no-frames"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        titles = [e["title"] for e in data["events"]]
+        assert "Tasks and Deep Work" not in titles
+        assert "Standup" in titles
+
 
 class TestThisWeek:
     def test_json_output(self, runner: CliRunner, mock_client: MorgenClient) -> None:
