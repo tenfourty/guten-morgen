@@ -67,6 +67,26 @@ class TestFormatTable:
     def test_empty(self) -> None:
         assert format_table([]) == "No results."
 
+    def test_long_values_not_truncated_to_unusable(self) -> None:
+        """Table should handle long values without making other columns unreadable."""
+        rows = [
+            {"id": "a" * 200, "title": "Important Meeting", "start": "09:00"},
+        ]
+        result = format_table(rows, columns=["id", "title", "start"])
+        # Title should still be readable in the output
+        assert "Important Meeting" in result
+
+    def test_id_column_max_width(self) -> None:
+        """ID columns should be truncated in table format to save space."""
+        rows = [
+            {"id": "a" * 200, "title": "Test"},
+        ]
+        result = format_table(rows, columns=["id", "title"])
+        # The full 200-char ID should not appear
+        assert "a" * 200 not in result
+        # But a truncated version should
+        assert "a" * 12 in result
+
 
 class TestSelectFields:
     def test_list(self) -> None:
@@ -110,6 +130,37 @@ class TestRender:
     def test_jq(self) -> None:
         result = render(SAMPLE_ROWS, fmt="json", jq_expr=".[0].title")
         assert json.loads(result) == "Meeting"
+
+
+class TestTruncateIds:
+    def test_truncate_ids(self) -> None:
+        from morgen.output import truncate_ids
+
+        data = [{"id": "a" * 200, "title": "Test"}]
+        result = truncate_ids(data)
+        assert len(result[0]["id"]) == 12
+        assert result[0]["title"] == "Test"
+
+    def test_truncate_ids_short_id(self) -> None:
+        from morgen.output import truncate_ids
+
+        data = [{"id": "short", "title": "Test"}]
+        result = truncate_ids(data)
+        assert result[0]["id"] == "short"
+
+    def test_truncate_ids_nested(self) -> None:
+        from morgen.output import truncate_ids
+
+        data = {"id": "x" * 50, "name": "foo"}
+        result = truncate_ids(data)
+        assert len(result["id"]) == 12
+
+    def test_truncate_preserves_non_id(self) -> None:
+        from morgen.output import truncate_ids
+
+        data = [{"id": "abc123", "description": "a" * 200}]
+        result = truncate_ids(data)
+        assert len(result[0]["description"]) == 200
 
 
 class TestOutputError:

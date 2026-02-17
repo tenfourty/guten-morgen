@@ -89,6 +89,28 @@ class TestEventsList:
         assert "Bob" in standup["attendees"]
 
 
+class TestShortIds:
+    def test_short_ids_flag(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--short-ids truncates IDs in output."""
+        result = runner.invoke(
+            cli,
+            [
+                "events",
+                "list",
+                "--start",
+                "2026-02-17T00:00:00",
+                "--end",
+                "2026-02-17T23:59:59",
+                "--json",
+                "--short-ids",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        # Fake IDs are short (evt-1) so they stay as-is; test the flag works
+        assert "id" in data[0]
+
+
 class TestEventsCreate:
     def test_create(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(

@@ -42,12 +42,21 @@ def format_table(rows: list[dict[str, Any]], columns: list[str] | None = None) -
     cols = columns or list(rows[0].keys())
     table = Table(show_header=True, header_style="bold")
     for col in cols:
-        table.add_column(col)
-    for row in rows:
+        is_id_col = col == "id" or col.endswith("Id")
+        table.add_column(
+            col,
+            max_width=16 if is_id_col else None,
+            no_wrap=col in ("title", "start", "duration"),
+        )
+
+    # Auto-truncate IDs in table rows for readability
+    display_rows = truncate_ids(rows, length=16) if rows else rows
+
+    for row in display_rows:
         table.add_row(*[str(row.get(c, "")) for c in cols])
 
     buf = io.StringIO()
-    console = Console(file=buf, force_terminal=False, width=120)
+    console = Console(file=buf, force_terminal=False, width=160)
     console.print(table)
     return buf.getvalue()
 
@@ -73,6 +82,21 @@ def apply_jq(data: Any, expr: str) -> Any:
     import jq  # type: ignore[import-not-found]
 
     return jq.first(expr, data)
+
+
+def truncate_ids(data: Any, length: int = 12) -> Any:
+    """Truncate 'id' fields (and fields ending in 'Id') to a max length."""
+    if isinstance(data, list):
+        return [truncate_ids(item, length) for item in data]
+    if isinstance(data, dict):
+        result: dict[str, Any] = {}
+        for k, v in data.items():
+            if (k == "id" or k.endswith("Id")) and isinstance(v, str) and len(v) > length:
+                result[k] = v[:length]
+            else:
+                result[k] = v
+        return result
+    return data
 
 
 def render(
