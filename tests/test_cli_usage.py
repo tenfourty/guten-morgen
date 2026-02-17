@@ -5,6 +5,7 @@ from __future__ import annotations
 from click.testing import CliRunner
 
 from morgen.cli import cli
+from morgen.client import MorgenClient
 
 
 class TestUsage:
@@ -62,3 +63,11 @@ class TestUsage:
         assert "morgen tasks schedule" in result.output
         # Scenarios section
         assert "Morning Triage" in result.output or "Scenario" in result.output
+
+    def test_shows_connected_task_sources(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """usage dynamically discovers and shows connected task sources."""
+        result = runner.invoke(cli, ["usage"])
+        assert result.exit_code == 0
+        assert "Connected Task Sources" in result.output
+        assert "linear" in result.output
+        assert "notion" in result.output
