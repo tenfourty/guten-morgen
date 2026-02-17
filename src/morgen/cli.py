@@ -877,7 +877,7 @@ def next(
 # ---------------------------------------------------------------------------
 
 VIEW_EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration", "participants_display", "location_display"]
-VIEW_TASK_CONCISE_FIELDS = ["id", "title", "progress", "due"]
+VIEW_TASK_CONCISE_FIELDS = ["id", "title", "progress", "due", "source"]
 
 
 class _MutuallyExclusive(click.Option):
@@ -932,7 +932,10 @@ def _combined_view(
             result["events"] = events_list_enriched
 
         if not events_only:
-            tasks_data = client.list_tasks()
+            tasks_result = client.list_all_tasks()
+            from morgen.output import enrich_tasks
+
+            tasks_data = enrich_tasks(tasks_result["tasks"], label_defs=tasks_result.get("labelDefs", []))
             scheduled: list[dict[str, Any]] = []
             overdue: list[dict[str, Any]] = []
             unscheduled: list[dict[str, Any]] = []
