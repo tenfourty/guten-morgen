@@ -19,14 +19,16 @@ from morgen.config import Settings
 
 FAKE_ACCOUNTS = [
     {
-        "id": "acc-1", "name": "Work Google",
+        "id": "acc-1",
+        "name": "Work Google",
         "providerUserDisplayName": "Test User",
         "preferredEmail": "test@example.com",
         "integrationId": "google",
         "integrationGroups": ["calendars"],
     },
     {
-        "id": "acc-2", "name": "Personal",
+        "id": "acc-2",
+        "name": "Personal",
         "providerUserDisplayName": "Test Personal",
         "preferredEmail": "personal@example.com",
         "integrationId": "caldav",
@@ -36,12 +38,22 @@ FAKE_ACCOUNTS = [
 
 FAKE_CALENDARS = [
     {
-        "id": "cal-1", "calendarId": "cal-1", "accountId": "acc-1",
-        "name": "Work", "color": "#4285f4", "myRights": "rw", "writable": True,
+        "id": "cal-1",
+        "calendarId": "cal-1",
+        "accountId": "acc-1",
+        "name": "Work",
+        "color": "#4285f4",
+        "myRights": "rw",
+        "writable": True,
     },
     {
-        "id": "cal-2", "calendarId": "cal-2", "accountId": "acc-1",
-        "name": "Holidays", "color": "#0b8043", "myRights": "r", "writable": False,
+        "id": "cal-2",
+        "calendarId": "cal-2",
+        "accountId": "acc-1",
+        "name": "Holidays",
+        "color": "#0b8043",
+        "myRights": "r",
+        "writable": False,
     },
 ]
 

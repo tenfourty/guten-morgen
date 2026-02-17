@@ -24,9 +24,7 @@ class TestTasksList:
         assert "Review PR" in result.output
 
     def test_concise_format(self, runner: CliRunner, mock_client: MorgenClient) -> None:
-        result = runner.invoke(
-            cli, ["tasks", "list", "--json", "--response-format", "concise"]
-        )
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--response-format", "concise"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "id" in data[0]

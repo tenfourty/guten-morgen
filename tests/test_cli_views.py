@@ -21,9 +21,7 @@ class TestToday:
         assert "event" in types
 
     def test_concise_format(self, runner: CliRunner, mock_client: MorgenClient) -> None:
-        result = runner.invoke(
-            cli, ["today", "--json", "--response-format", "concise"]
-        )
+        result = runner.invoke(cli, ["today", "--json", "--response-format", "concise"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data) > 0

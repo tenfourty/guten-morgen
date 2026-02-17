@@ -198,9 +198,7 @@ ACCOUNT_CONCISE_FIELDS = ["id", "providerUserDisplayName", "integrationId"]
 
 @cli.command()
 @output_options
-def accounts(
-    fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str
-) -> None:
+def accounts(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
     """List connected calendar accounts."""
     try:
         client = _get_client()
@@ -222,9 +220,7 @@ CALENDAR_CONCISE_FIELDS = ["id", "name", "myRights"]
 
 @cli.command()
 @output_options
-def calendars(
-    fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str
-) -> None:
+def calendars(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
     """List all calendars across accounts."""
     try:
         client = _get_client()
@@ -261,9 +257,7 @@ def _auto_discover(client: MorgenClient) -> tuple[str, list[str]]:
         raise MorgenError("No connected accounts found", suggestions=["Connect an account in Morgen"])
 
     # Find the first calendar-capable account
-    calendar_accounts = [
-        a for a in accounts_data if "calendars" in a.get("integrationGroups", [])
-    ]
+    calendar_accounts = [a for a in accounts_data if "calendars" in a.get("integrationGroups", [])]
     account = calendar_accounts[0] if calendar_accounts else accounts_data[0]
     account_id: str = account.get("id", account.get("accountId", ""))
 
@@ -588,9 +582,7 @@ def tags() -> None:
 
 @tags.command("list")
 @output_options
-def tags_list(
-    fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str
-) -> None:
+def tags_list(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
     """List all tags."""
     try:
         client = _get_client()
@@ -719,9 +711,7 @@ def _combined_view(
 
 @cli.command()
 @output_options
-def today(
-    fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str
-) -> None:
+def today(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
     """Combined events + tasks for today."""
     from morgen.time_utils import today_range
 
@@ -731,9 +721,7 @@ def today(
 
 @cli.command("this-week")
 @output_options
-def this_week(
-    fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str
-) -> None:
+def this_week(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
     """Combined events + tasks for this week (Mon-Sun)."""
     from morgen.time_utils import this_week_range
 
@@ -743,9 +731,7 @@ def this_week(
 
 @cli.command("this-month")
 @output_options
-def this_month(
-    fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str
-) -> None:
+def this_month(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
     """Combined events + tasks for this month."""
     from morgen.time_utils import this_month_range
 

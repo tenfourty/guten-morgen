@@ -24,9 +24,7 @@ class TestTagsList:
         assert "urgent" in result.output
 
     def test_concise(self, runner: CliRunner, mock_client: MorgenClient) -> None:
-        result = runner.invoke(
-            cli, ["tags", "list", "--json", "--response-format", "concise"]
-        )
+        result = runner.invoke(cli, ["tags", "list", "--json", "--response-format", "concise"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "id" in data[0]
@@ -49,9 +47,7 @@ class TestTagsCreate:
         assert data["name"] == "work"
 
     def test_create_with_color(self, runner: CliRunner, mock_client: MorgenClient) -> None:
-        result = runner.invoke(
-            cli, ["tags", "create", "--name", "focus", "--color", "#0000ff"]
-        )
+        result = runner.invoke(cli, ["tags", "create", "--name", "focus", "--color", "#0000ff"])
         assert result.exit_code == 0
 
 
