@@ -15,7 +15,8 @@ class TestTasksList:
         result = runner.invoke(cli, ["tasks", "list", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert len(data) == 4
+        # 4 morgen-native + 1 linear + 1 notion = 6 total
+        assert len(data) == 6
         assert data[0]["title"] == "Review PR"
 
     def test_table_output(self, runner: CliRunner, mock_client: MorgenClient) -> None:
@@ -62,7 +63,8 @@ class TestTasksListFiltering:
         result = runner.invoke(cli, ["tasks", "list", "--json", "--status", "all"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert len(data) == 4
+        # 4 morgen-native + 1 linear + 1 notion = 6 total
+        assert len(data) == 6
 
     def test_due_before(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """--due-before filters tasks with due date before the given date."""
@@ -178,6 +180,62 @@ class TestTasksDuration:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data.get("estimatedDuration") == "PT45M"
+
+
+class TestTasksSource:
+    """Task 5: --source and --group-by-source flags."""
+
+    def test_list_all_sources(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Default list returns tasks from all sources with enrichment."""
+        result = runner.invoke(cli, ["tasks", "list", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        sources = {t.get("source") for t in data}
+        # Should have morgen-native, linear, and notion tasks
+        assert "morgen" in sources
+        assert "linear" in sources
+        assert "notion" in sources
+
+    def test_source_filter_morgen(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--source morgen returns only morgen-native tasks."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--source", "morgen"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        sources = {t.get("source") for t in data}
+        assert sources == {"morgen"}
+        # Should have the 4 morgen-native tasks
+        assert len(data) == 4
+
+    def test_source_filter_linear(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--source linear returns only linear tasks."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--source", "linear"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        sources = {t.get("source") for t in data}
+        assert sources == {"linear"}
+        assert data[0].get("source_id") == "ENG-1740"
+
+    def test_enrichment_fields(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Enriched tasks have source, source_id, source_url, source_status."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--source", "linear"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        task = data[0]
+        assert task["source"] == "linear"
+        assert task["source_id"] == "ENG-1740"
+        assert "linear.app" in task["source_url"]
+        assert task["source_status"] == "In Progress"
+
+    def test_group_by_source(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--group-by-source returns dict keyed by source."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--group-by-source"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, dict)
+        assert "morgen" in data
+        assert "linear" in data
+        assert "notion" in data
+        assert isinstance(data["morgen"], list)
 
 
 class TestTasksDelete:

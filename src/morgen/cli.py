@@ -478,8 +478,8 @@ def events_delete(event_id: str, calendar_id: str | None, account_id: str | None
 # tasks
 # ---------------------------------------------------------------------------
 
-TASK_COLUMNS = ["id", "title", "progress", "priority", "due", "taskListId"]
-TASK_CONCISE_FIELDS = ["id", "title", "progress", "due"]
+TASK_COLUMNS = ["id", "title", "progress", "priority", "due", "source", "source_id", "source_status"]
+TASK_CONCISE_FIELDS = ["id", "title", "progress", "due", "source"]
 
 
 @cli.group()
@@ -500,6 +500,8 @@ def tasks() -> None:
 @click.option("--due-after", default=None, help="Tasks due after this date (ISO 8601 or YYYY-MM-DD).")
 @click.option("--overdue", is_flag=True, default=False, help="Show only overdue tasks (due before now).")
 @click.option("--priority", "priority_filter", default=None, type=int, help="Filter by priority level (0-4).")
+@click.option("--source", default=None, help="Filter by task source (morgen, linear, notion, etc.).")
+@click.option("--group-by-source", is_flag=True, default=False, help="Group output by task source.")
 @output_options
 def tasks_list(
     limit: int,
@@ -508,6 +510,8 @@ def tasks_list(
     due_after: str | None,
     overdue: bool,
     priority_filter: int | None,
+    source: str | None,
+    group_by_source: bool,
     fmt: str,
     fields: list[str] | None,
     jq_expr: str | None,
@@ -516,7 +520,14 @@ def tasks_list(
     """List tasks."""
     try:
         client = _get_client()
-        data = client.list_tasks(limit=limit)
+        result = client.list_all_tasks(source=source, limit=limit)
+        data = result["tasks"]
+        label_defs = result.get("labelDefs", [])
+
+        # Enrich tasks with normalized source metadata
+        from morgen.output import enrich_tasks
+
+        data = enrich_tasks(data, label_defs=label_defs)
 
         # Apply client-side filters
         if overdue:
@@ -553,7 +564,23 @@ def tasks_list(
 
         if response_format == "concise" and not fields:
             fields = TASK_CONCISE_FIELDS
-        morgen_output(filtered, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=TASK_COLUMNS)
+
+        # Group by source if requested
+        if group_by_source:
+            grouped: dict[str, list[dict[str, Any]]] = {}
+            for t in filtered:
+                src = t.get("source", "morgen")
+                grouped.setdefault(src, []).append(t)
+
+            if fmt in ("json", "jsonl"):
+                morgen_output(grouped, fmt="json", fields=fields, jq_expr=jq_expr)
+            else:
+                for section, items in grouped.items():
+                    if items:
+                        click.echo(f"\n## {section}")
+                        morgen_output(items, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=TASK_COLUMNS)
+        else:
+            morgen_output(filtered, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=TASK_COLUMNS)
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
