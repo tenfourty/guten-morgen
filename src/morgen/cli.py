@@ -280,9 +280,8 @@ def calendars(fmt: str, fields: list[str] | None, jq_expr: str | None, response_
 # events
 # ---------------------------------------------------------------------------
 
-# Note: API /v3/events/list doesn't return attendees or location
-EVENT_COLUMNS = ["id", "title", "start", "duration", "calendarId"]
-EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration"]
+EVENT_COLUMNS = ["id", "title", "start", "duration", "participants_display", "location_display", "calendarId"]
+EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration", "participants_display", "location_display"]
 
 
 def _is_frame_event(event: dict[str, Any]) -> bool:
@@ -355,12 +354,15 @@ def events_list(
         client = _get_client()
         if account_id and calendar_ids_str:
             cal_ids = [s.strip() for s in calendar_ids_str.split(",")]
+            data = client.list_events(account_id, cal_ids, start, end)
         else:
-            account_id, cal_ids = _auto_discover(client)
-        data = client.list_events(account_id, cal_ids, start, end)
+            data = client.list_all_events(start, end)
         ctx = click.get_current_context(silent=True)
         if ctx and ctx.params.get("no_frames"):
             data = [e for e in data if not _is_frame_event(e)]
+        from morgen.output import enrich_events
+
+        data = enrich_events(data)
         if response_format == "concise" and not fields:
             fields = EVENT_CONCISE_FIELDS
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
@@ -811,12 +813,11 @@ def next(
 
     try:
         client = _get_client()
-        account_id, cal_ids = _auto_discover(client)
 
         now = _now_utc()
         end = now + timedelta(hours=hours)
 
-        events_data = client.list_events(account_id, cal_ids, now.isoformat(), end.isoformat())
+        events_data = client.list_all_events(now.isoformat(), end.isoformat())
 
         # Filter to events starting after now and take first N
         upcoming = [e for e in events_data if e.get("start", "") >= now.isoformat()[:19]]
@@ -826,6 +827,9 @@ def next(
         upcoming.sort(key=lambda x: x.get("start", ""))
         upcoming = upcoming[:count]
 
+        from morgen.output import enrich_events
+
+        upcoming = enrich_events(upcoming)
         if response_format == "concise" and not fields:
             fields = EVENT_CONCISE_FIELDS
         morgen_output(upcoming, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
@@ -837,7 +841,7 @@ def next(
 # Quick views: today, this-week, this-month
 # ---------------------------------------------------------------------------
 
-VIEW_EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration"]
+VIEW_EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration", "participants_display", "location_display"]
 VIEW_TASK_CONCISE_FIELDS = ["id", "title", "progress", "due"]
 
 
@@ -877,18 +881,20 @@ def _combined_view(
         result: dict[str, Any] = {}
 
         if not tasks_only:
-            account_id, cal_ids = _auto_discover(client)
-            events_data = client.list_events(account_id, cal_ids, start, end)
-            events_list: list[dict[str, Any]] = list(events_data)
+            events_data = client.list_all_events(start, end)
+            events_list_raw: list[dict[str, Any]] = list(events_data)
             ctx = click.get_current_context(silent=True)
             if ctx and ctx.params.get("no_frames"):
-                events_list = [e for e in events_list if not _is_frame_event(e)]
-            events_list.sort(key=lambda x: x.get("start", ""))
+                events_list_raw = [e for e in events_list_raw if not _is_frame_event(e)]
+            events_list_raw.sort(key=lambda x: x.get("start", ""))
+            from morgen.output import enrich_events
+
+            events_list_enriched = enrich_events(events_list_raw)
             if response_format == "concise" and not fields:
                 from morgen.output import select_fields
 
-                events_list = select_fields(events_list, VIEW_EVENT_CONCISE_FIELDS)
-            result["events"] = events_list
+                events_list_enriched = select_fields(events_list_enriched, VIEW_EVENT_CONCISE_FIELDS)
+            result["events"] = events_list_enriched
 
         if not events_only:
             tasks_data = client.list_tasks()

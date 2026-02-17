@@ -17,7 +17,7 @@ class TestEventsList:
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert len(data) == 3
+        assert len(data) == 4  # 3 from acc-1 + Dentist from acc-2 (synced copy deduped)
         assert data[0]["title"] == "Standup"
 
     def test_table_output(self, runner: CliRunner, mock_client: MorgenClient) -> None:
@@ -47,12 +47,36 @@ class TestEventsList:
         assert "id" in data[0]
         assert "calendarId" not in data[0]
 
-    def test_concise_excludes_attendees_and_location(self, runner: CliRunner, mock_client: MorgenClient) -> None:
-        """Concise format does not include attendees or location (API doesn't return them)."""
+    def test_concise_includes_display_fields(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Concise format includes participants_display and location_display."""
         from morgen.cli import EVENT_CONCISE_FIELDS
 
-        assert "attendees" not in EVENT_CONCISE_FIELDS
-        assert "location" not in EVENT_CONCISE_FIELDS
+        assert "participants_display" in EVENT_CONCISE_FIELDS
+        assert "location_display" in EVENT_CONCISE_FIELDS
+
+    def test_enrichment_adds_display_fields(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Events are enriched with participants_display and location_display."""
+        result = runner.invoke(
+            cli, ["events", "list", "--start", "2026-02-17T00:00:00", "--end", "2026-02-17T23:59:59", "--json"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        standup = next(e for e in data if e["title"] == "Standup")
+        assert "Alice" in standup["participants_display"]
+        assert "Bob" in standup["participants_display"]
+        assert "Room 42" not in standup["participants_display"]  # resource filtered
+        assert "meet.google.com" in standup["location_display"]
+
+    def test_dedup_via_morgen(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Synced copies with '(via Morgen)' are removed."""
+        result = runner.invoke(
+            cli, ["events", "list", "--start", "2026-02-17T00:00:00", "--end", "2026-02-17T23:59:59", "--json"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        titles = [e["title"] for e in data]
+        assert "Standup (via Morgen)" not in titles
+        assert "Dentist" in titles
 
 
 class TestNoRoutines:
@@ -73,10 +97,11 @@ class TestNoRoutines:
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert len(data) == 2
+        assert len(data) == 3  # Standup, Lunch (acc-1) + Dentist (acc-2), frame filtered out
         titles = [e["title"] for e in data]
         assert "Standup" in titles
         assert "Lunch" in titles
+        assert "Dentist" in titles
         assert "Tasks and Deep Work" not in titles
 
     def test_default_includes_routine_events(self, runner: CliRunner, mock_client: MorgenClient) -> None:

@@ -109,6 +109,51 @@ def truncate_ids(data: Any, length: int = 12) -> Any:
     return data
 
 
+def format_participants(participants: dict[str, Any] | None) -> str:
+    """Format JSCalendar participants dict to a display string.
+
+    Filters out resource participants (rooms, equipment).
+    Falls back to email if name is missing.
+    """
+    if not participants:
+        return ""
+    names: list[str] = []
+    for p in participants.values():
+        if not isinstance(p, dict):
+            continue
+        if p.get("kind") == "resource":
+            continue
+        name = p.get("name") or p.get("email", "")
+        if name:
+            names.append(name)
+    return ", ".join(names)
+
+
+def format_locations(locations: dict[str, Any] | None) -> str:
+    """Format JSCalendar locations dict to a display string."""
+    if not locations:
+        return ""
+    names: list[str] = []
+    for loc in locations.values():
+        if not isinstance(loc, dict):
+            continue
+        name = loc.get("name", "")
+        if name:
+            names.append(name)
+    return ", ".join(names)
+
+
+def enrich_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Add participants_display and location_display to events (shallow copy)."""
+    enriched: list[dict[str, Any]] = []
+    for event in events:
+        e = {**event}
+        e["participants_display"] = format_participants(e.get("participants"))
+        e["location_display"] = format_locations(e.get("locations"))
+        enriched.append(e)
+    return enriched
+
+
 def render(
     data: Any,
     fmt: str = "table",

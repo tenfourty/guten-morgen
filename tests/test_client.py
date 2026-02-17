@@ -1,4 +1,4 @@
-"""Tests for MorgenClient error handling."""
+"""Tests for MorgenClient."""
 
 from __future__ import annotations
 
@@ -61,3 +61,27 @@ class TestRequestErrorMapping:
         client = _make_client(_mock_transport(204))
         result = client._request("GET", "/test")
         assert result is None
+
+
+class TestListAllEvents:
+    """Tests for list_all_events — multi-account fan-out + dedup."""
+
+    def test_queries_both_accounts(self, client: MorgenClient) -> None:
+        """Events from all calendar-capable accounts are returned."""
+        events = client.list_all_events("2026-02-17T00:00:00", "2026-02-17T23:59:59")
+        titles = [e["title"] for e in events]
+        assert "Standup" in titles
+        assert "Dentist" in titles
+
+    def test_deduplicates_via_morgen(self, client: MorgenClient) -> None:
+        """Synced copies with '(via Morgen)' in title are removed."""
+        events = client.list_all_events("2026-02-17T00:00:00", "2026-02-17T23:59:59")
+        titles = [e["title"] for e in events]
+        assert "Standup (via Morgen)" not in titles
+
+    def test_keeps_all_originals(self, client: MorgenClient) -> None:
+        """Original events from both accounts are preserved."""
+        events = client.list_all_events("2026-02-17T00:00:00", "2026-02-17T23:59:59")
+        # acc-1: Standup, Lunch, Tasks and Deep Work
+        # acc-2: Dentist (synced copy removed)
+        assert len(events) == 4
