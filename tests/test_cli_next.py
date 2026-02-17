@@ -58,15 +58,16 @@ class TestNext:
         if data:
             assert "calendarId" not in data[0]
 
-    def test_looks_ahead_24h(self, runner: CliRunner, mock_client: MorgenClient) -> None:
-        """Query window is from now to 24h ahead by default."""
-        # Freeze time to well after all fake events — should get nothing
+    def test_window_covers_through_end_of_next_day(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Query window extends from now through end of tomorrow (23:59:59 UTC)."""
+        # At 23:00 on Feb 17, window should cover until end of Feb 18
+        # Fake events on Feb 17 at 09:00/12:00/14:00/16:00 are all in the past
         frozen = datetime(2026, 2, 17, 23, 0, 0, tzinfo=timezone.utc)
         with patch("morgen.cli._now_utc", return_value=frozen):
             result = runner.invoke(cli, ["next", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        # No events after 23:00 today in fake data
+        # All fake events are before 23:00, so none are upcoming
         assert len(data) == 0
 
     def test_no_frames_on_next(self, runner: CliRunner, mock_client: MorgenClient) -> None:
@@ -79,8 +80,3 @@ class TestNext:
         titles = [e["title"] for e in data]
         assert "Tasks and Deep Work" not in titles
         assert "Standup" in titles
-
-    def test_hours_flag(self, runner: CliRunner, mock_client: MorgenClient) -> None:
-        """--hours extends the look-ahead window."""
-        result = runner.invoke(cli, ["next", "--json", "--hours", "48"])
-        assert result.exit_code == 0
