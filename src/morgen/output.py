@@ -85,14 +85,24 @@ def apply_jq(data: Any, expr: str) -> Any:
 
 
 def truncate_ids(data: Any, length: int = 12) -> Any:
-    """Truncate 'id' fields (and fields ending in 'Id') to a max length."""
+    """Truncate 'id' fields (and fields ending in 'Id') to a max length.
+
+    Recursively handles nested dicts and lists (e.g. {"events": [...]}).
+    Uses a short hash for long IDs since CalDAV base64 IDs share both
+    prefix and suffix.
+    """
+    import hashlib
+
     if isinstance(data, list):
         return [truncate_ids(item, length) for item in data]
     if isinstance(data, dict):
         result: dict[str, Any] = {}
         for k, v in data.items():
             if (k == "id" or k.endswith("Id")) and isinstance(v, str) and len(v) > length:
-                result[k] = v[:length]
+                short = hashlib.sha256(v.encode()).hexdigest()[:length]
+                result[k] = short
+            elif isinstance(v, list | dict):
+                result[k] = truncate_ids(v, length)
             else:
                 result[k] = v
         return result
