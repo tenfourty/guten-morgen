@@ -13,6 +13,7 @@ from morgen.cache import (
     TTL_EVENTS,
     TTL_SINGLE,
     TTL_TAGS,
+    TTL_TASK_ACCOUNTS,
     TTL_TASKS,
 )
 from morgen.config import Settings
@@ -135,6 +136,16 @@ class MorgenClient:
         data = self._request("GET", "/integrations/accounts/list")
         result = _extract_list(data, "accounts")
         self._cache_set("accounts", result, TTL_ACCOUNTS)
+        return result
+
+    def list_task_accounts(self) -> list[dict[str, Any]]:
+        """List accounts with task integrations (Linear, Notion, etc.)."""
+        cached = self._cache_get("task_accounts")
+        if cached is not None:
+            return cast(list[dict[str, Any]], cached)
+        accounts = self.list_accounts()
+        result = [a for a in accounts if "tasks" in a.get("integrationGroups", [])]
+        self._cache_set("task_accounts", result, TTL_TASK_ACCOUNTS)
         return result
 
     # ----- Calendars -----
