@@ -15,7 +15,7 @@ class TestAccounts:
         result = runner.invoke(cli, ["accounts", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert len(data) == 2
+        assert len(data) == 4
         assert data[0]["id"] == "acc-1"
 
     def test_table_output(self, runner: CliRunner, mock_client: MorgenClient) -> None:

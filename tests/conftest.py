@@ -165,6 +165,115 @@ FAKE_TAGS = [
     {"id": "tag-2", "name": "personal", "color": "#00ff00"},
 ]
 
+# Task-integration accounts (Linear, Notion)
+FAKE_TASK_ACCOUNTS = [
+    {
+        "id": "acc-linear",
+        "providerUserDisplayName": "test@company.com",
+        "preferredEmail": "test@company.com",
+        "integrationId": "linear",
+        "integrationGroups": ["tasks"],
+    },
+    {
+        "id": "acc-notion",
+        "providerUserDisplayName": "Test User",
+        "preferredEmail": "test@example.com",
+        "integrationId": "notion",
+        "integrationGroups": ["tasks"],
+    },
+]
+
+FAKE_LINEAR_TASKS = {
+    "data": {
+        "tasks": [
+            {
+                "@type": "Task",
+                "id": "linear-task-1",
+                "title": "Budget planning",
+                "progress": "needs-action",
+                "priority": 0,
+                "due": "2026-02-20",
+                "integrationId": "linear",
+                "accountId": "acc-linear",
+                "links": {
+                    "original": {
+                        "@type": "Link",
+                        "href": "https://linear.app/company/issue/ENG-1740/budget-planning",
+                        "title": "Open in Linear",
+                    }
+                },
+                "labels": [
+                    {"id": "identifier", "value": "ENG-1740"},
+                    {"id": "state", "value": "state-uuid-1"},
+                ],
+            },
+        ],
+        "labelDefs": [
+            {
+                "id": "state",
+                "label": "Status",
+                "type": "enum",
+                "values": [
+                    {"value": "state-uuid-1", "label": "In Progress"},
+                ],
+            },
+        ],
+        "spaces": [],
+    }
+}
+
+FAKE_NOTION_TASKS = {
+    "data": {
+        "tasks": [
+            {
+                "@type": "Task",
+                "id": "notion-task-1",
+                "title": "Update Career Ladder",
+                "progress": "needs-action",
+                "priority": 5,
+                "due": "2026-03-01",
+                "integrationId": "notion",
+                "accountId": "acc-notion",
+                "links": {
+                    "original": {
+                        "@type": "Link",
+                        "href": "https://www.notion.so/14ca119c1d9f80ce943a",
+                        "title": "Open in Notion",
+                    }
+                },
+                "labels": [
+                    {"id": "notion%3A%2F%2Fprojects%2Fstatus_property", "value": "planned"},
+                    {"id": "notion%3A%2F%2Fprojects%2Fpriority_property", "value": "priority_high"},
+                ],
+            },
+        ],
+        "labelDefs": [
+            {
+                "id": "notion%3A%2F%2Fprojects%2Fstatus_property",
+                "label": "Status",
+                "type": "enum",
+                "values": [
+                    {"value": "planned", "label": "Planning"},
+                    {"value": "in-progress", "label": "In Progress"},
+                ],
+            },
+            {
+                "id": "notion%3A%2F%2Fprojects%2Fpriority_property",
+                "label": "Priority",
+                "type": "enum",
+                "values": [
+                    {"value": "priority_high", "label": "High"},
+                    {"value": "priority_medium", "label": "Medium"},
+                ],
+            },
+        ],
+        "spaces": [{"id": "space-1", "name": "Projects"}],
+    }
+}
+
+# Extend FAKE_ACCOUNTS so list_accounts() returns task-integration accounts too
+FAKE_ACCOUNTS.extend(FAKE_TASK_ACCOUNTS)
+
 
 # ---------------------------------------------------------------------------
 # Mock transport
@@ -204,6 +313,15 @@ def mock_transport_handler(request: httpx.Request) -> httpx.Response:
         account_id = dict(request.url.params).get("accountId", "acc-1")
         events = _EVENTS_BY_ACCOUNT.get(account_id, [])
         return httpx.Response(200, json={"data": {"events": events}})
+
+    # Route tasks by accountId query param (external integrations)
+    if path == "/v3/tasks/list":
+        account_id = dict(request.url.params).get("accountId")
+        if account_id == "acc-linear":
+            return httpx.Response(200, json=FAKE_LINEAR_TASKS)
+        if account_id == "acc-notion":
+            return httpx.Response(200, json=FAKE_NOTION_TASKS)
+        # Fall through to ROUTES for default (morgen-native tasks)
 
     if path in ROUTES:
         return httpx.Response(200, json=ROUTES[path])
