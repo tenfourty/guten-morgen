@@ -882,12 +882,10 @@ def _now_utc() -> Any:
 
 @cli.command()
 @click.option("--count", default=20, type=int, help="Number of upcoming events (default: 20).")
-@click.option("--hours", default=24, type=int, help="Look-ahead window in hours (default: 24).")
 @output_options
 @calendar_filter_options
 def next(
     count: int,
-    hours: int,
     fmt: str,
     fields: list[str] | None,
     jq_expr: str | None,
@@ -895,17 +893,17 @@ def next(
     group_name: str | None,
     all_calendars: bool,
 ) -> None:
-    """Show the next upcoming events."""
-    from datetime import timedelta
+    """Show upcoming events from now through end of tomorrow."""
+    from morgen.time_utils import end_of_next_day
 
     try:
         client = _get_client()
         cf = _resolve_calendar_filter(group_name, all_calendars)
 
         now = _now_utc()
-        end = now + timedelta(hours=hours)
+        end = end_of_next_day(now)
 
-        events_data = client.list_all_events(now.isoformat(), end.isoformat(), **_filter_kwargs(cf))
+        events_data = client.list_all_events(now.isoformat(), end, **_filter_kwargs(cf))
 
         # Filter to events starting after now and take first N
         upcoming = [e for e in events_data if e.get("start", "") >= now.isoformat()[:19]]

@@ -5,6 +5,16 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 
+def end_of_next_day(ref: datetime | None = None) -> str:
+    """Return ISO string for end of tomorrow (23:59:59) in UTC.
+
+    If *ref* is given, compute relative to that instant instead of now.
+    """
+    now = ref if ref is not None else datetime.now(timezone.utc)
+    tomorrow_end = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=2) - timedelta(seconds=1)
+    return tomorrow_end.isoformat()
+
+
 def today_range() -> tuple[str, str]:
     """Return (start, end) ISO strings for today in UTC."""
     now = datetime.now(timezone.utc)
