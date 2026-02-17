@@ -363,6 +363,44 @@ class MorgenClient:
         self._request("POST", "/tasks/delete", json={"id": task_id})
         self._cache_invalidate("tasks")
 
+    def schedule_task(
+        self,
+        task_id: str,
+        start: str,
+        calendar_id: str,
+        account_id: str,
+        *,
+        duration_minutes: int | None = None,
+        timezone: str | None = None,
+    ) -> dict[str, Any]:
+        """Schedule a task as a linked calendar event.
+
+        Fetches the task to derive title and duration, then creates an event
+        with morgen.so:metadata.taskId linking it back to the task.
+        """
+        task = self.get_task(task_id)
+        title = task.get("title", "Untitled task")
+
+        # Duration: explicit override > task's estimatedDuration > 30min default
+        if duration_minutes is not None:
+            duration = f"PT{duration_minutes}M"
+        else:
+            duration = task.get("estimatedDuration", "PT30M")
+
+        event_data: dict[str, Any] = {
+            "title": title,
+            "start": start,
+            "duration": duration,
+            "calendarId": calendar_id,
+            "accountId": account_id,
+            "showWithoutTime": False,
+            "morgen.so:metadata": {"taskId": task_id},
+        }
+        if timezone:
+            event_data["timeZone"] = timezone
+
+        return self.create_event(event_data)
+
     # ----- Tags -----
 
     def list_tags(self) -> list[dict[str, Any]]:
