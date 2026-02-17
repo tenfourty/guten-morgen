@@ -113,24 +113,41 @@ ROUTES: dict[str, Any] = {
 }
 
 
+def _item_key_from_path(path: str) -> str:
+    """Derive the singular item key from an API path (e.g. /v3/tasks/create -> task)."""
+    # Strip /v3/ prefix and get the resource name
+    parts = path.replace("/v3/", "").split("/")
+    resource = parts[0] if parts else "item"
+    # Singular: tasks -> task, events -> event, tags -> tag
+    if resource.endswith("s"):
+        return resource[:-1]
+    return resource
+
+
 def mock_transport_handler(request: httpx.Request) -> httpx.Response:
     """Route mock API requests to fake data."""
     path = request.url.path
     if path in ROUTES:
         return httpx.Response(200, json=ROUTES[path])
 
-    # POST endpoints for create/update/delete — echo back with an id
+    # POST endpoints for create/update/delete — echo back wrapped in envelope
     if request.method == "POST":
         try:
             body = json.loads(request.content)
         except (json.JSONDecodeError, ValueError):
             body = {}
         body.setdefault("id", "new-id")
-        return httpx.Response(200, json=body)
+        # Determine the wrapper key from the path
+        item_key = _item_key_from_path(path)
+        if "/delete" in path:
+            return httpx.Response(200, json=body)
+        return httpx.Response(200, json={"data": {item_key: body}})
 
-    # GET with ?id= parameter
+    # GET with ?id= parameter — wrap in envelope
     if "id=" in str(request.url):
-        return httpx.Response(200, json={"id": "found-id", "title": "Found item"})
+        item_key = _item_key_from_path(path)
+        item = {"id": "found-id", "title": "Found item"}
+        return httpx.Response(200, json={"data": {item_key: item}})
 
     return httpx.Response(404, json={"error": "not found"})
 

@@ -321,6 +321,7 @@ def events_list(
 @click.option("--calendar-id", default=None, help="Calendar ID (auto-discovered if omitted).")
 @click.option("--account-id", default=None, help="Account ID (auto-discovered if omitted).")
 @click.option("--description", default=None, help="Event description.")
+@click.option("--timezone", default=None, help="Time zone (e.g. Europe/Paris). Defaults to system timezone.")
 def events_create(
     title: str,
     start: str,
@@ -328,6 +329,7 @@ def events_create(
     calendar_id: str | None,
     account_id: str | None,
     description: str | None,
+    timezone: str | None,
 ) -> None:
     """Create a new event."""
     try:
@@ -335,12 +337,18 @@ def events_create(
         if not account_id or not calendar_id:
             account_id, cal_ids = _auto_discover(client)
             calendar_id = calendar_id or cal_ids[0]
+        if not timezone:
+            from morgen.time_utils import get_local_timezone
+
+            timezone = get_local_timezone()
         event_data: dict[str, Any] = {
             "title": title,
             "start": start,
             "duration": f"PT{duration}M",
             "calendarId": calendar_id,
             "accountId": account_id,
+            "showWithoutTime": False,
+            "timeZone": timezone,
         }
         if description:
             event_data["description"] = description
@@ -387,7 +395,8 @@ def events_update(
         if description is not None:
             event_data["description"] = description
         result = client.update_event(event_data)
-        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+        output = result or {"status": "updated", "id": event_id}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -517,7 +526,8 @@ def tasks_update(
         if description is not None:
             task_data["description"] = description
         result = client.update_task(task_data)
-        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+        output = result or {"status": "updated", "id": task_id}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -529,7 +539,7 @@ def tasks_close(task_id: str) -> None:
     try:
         client = _get_client()
         result = client.close_task(task_id)
-        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+        click.echo(json.dumps(result or {"status": "closed", "id": task_id}, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -541,7 +551,8 @@ def tasks_reopen(task_id: str) -> None:
     try:
         client = _get_client()
         result = client.reopen_task(task_id)
-        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+        output = result or {"status": "reopened", "id": task_id}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -555,7 +566,7 @@ def tasks_move(task_id: str, after: str | None, parent: str | None) -> None:
     try:
         client = _get_client()
         result = client.move_task(task_id, after=after, parent=parent)
-        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+        click.echo(json.dumps(result or {"status": "moved", "id": task_id}, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -650,7 +661,7 @@ def tags_update(tag_id: str, name: str | None, color: str | None) -> None:
         if color is not None:
             tag_data["color"] = color
         result = client.update_tag(tag_data)
-        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+        click.echo(json.dumps(result or {"status": "updated", "id": tag_id}, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
