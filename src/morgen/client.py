@@ -206,12 +206,12 @@ class MorgenClient:
         if account_keys:
             accounts = [a for a in accounts if any(match_account(a, k) for k in account_keys)]
 
-        # Filter calendars
-        if active_only:
-            calendars = [c for c in calendars if c.get("isActiveByDefault") is True]
+        # Filter calendars: explicit name whitelist takes priority over active_only
         if calendar_names:
             name_set = set(calendar_names)
             calendars = [c for c in calendars if c.get("name") in name_set]
+        elif active_only:
+            calendars = [c for c in calendars if c.get("isActiveByDefault") is True]
 
         # Group calendars by accountId
         cals_by_account: dict[str, list[str]] = {}
