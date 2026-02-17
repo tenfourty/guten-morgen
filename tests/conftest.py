@@ -254,6 +254,11 @@ def runner() -> CliRunner:
 
 @pytest.fixture
 def mock_client(client: MorgenClient):  # type: ignore[no-untyped-def]
-    """Patch _get_client to return mock-backed client."""
-    with patch("morgen.cli._get_client", return_value=client):
+    """Patch _get_client and config to return mock-backed client with no-op filter."""
+    from morgen.groups import MorgenConfig
+
+    with (
+        patch("morgen.cli._get_client", return_value=client),
+        patch("morgen.cli.load_morgen_config", return_value=MorgenConfig()),
+    ):
         yield client
