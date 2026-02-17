@@ -166,6 +166,20 @@ class TestTasksMove:
         assert result.exit_code == 0
 
 
+class TestTasksDuration:
+    def test_create_with_duration(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "create", "--title", "Quick task", "--duration", "30"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data.get("estimatedDuration") == "PT30M"
+
+    def test_update_with_duration(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "update", "task-1", "--duration", "45"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data.get("estimatedDuration") == "PT45M"
+
+
 class TestTasksDelete:
     def test_delete(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["tasks", "delete", "task-1"])
