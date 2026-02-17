@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import httpx
 import pytest
@@ -146,6 +147,30 @@ class TestListAllEventsFiltering:
         titles = [e["title"] for e in events]
         assert "Standup" in titles
         assert "Lunch" in titles
+
+    def test_calendar_names_bypass_active_only(self, client: MorgenClient) -> None:
+        """Explicit calendar_names includes inactive calendars despite active_only=True."""
+        # cal-2 "Holidays" has isActiveByDefault=False — verify it's still queried
+        from unittest.mock import patch
+
+        call_args: list[tuple[str, list[str]]] = []
+        original = client.list_events
+
+        def spy(account_id: str, calendar_ids: list[str], *a: object, **kw: object) -> list[dict[str, Any]]:
+            call_args.append((account_id, calendar_ids))
+            return original(account_id, calendar_ids, *a, **kw)  # type: ignore[arg-type]
+
+        with patch.object(client, "list_events", side_effect=spy):
+            client.list_all_events(
+                "2026-02-17T00:00:00",
+                "2026-02-17T23:59:59",
+                calendar_names=["Holidays"],
+                active_only=True,
+            )
+        # cal-2 ("Holidays", inactive) should have been included in the query
+        acc1_calls = [cids for aid, cids in call_args if aid == "acc-1"]
+        assert acc1_calls, "acc-1 should have been queried"
+        assert "cal-2" in acc1_calls[0]
 
     def test_no_matching_accounts_returns_empty(self, client: MorgenClient) -> None:
         """Non-matching account key returns no events."""

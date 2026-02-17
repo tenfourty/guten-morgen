@@ -3,14 +3,14 @@ active_only = true
 
 [groups.work]
 accounts = ["user@example.com:google"]
+calendars = ["Jeremy Brown", "Holidays in France"]
 
 [groups.personal]
-# Fastmail personal calendars — also included in family group
 accounts = ["personal@example.com:fastmail"]
+calendars = ["👱‍♂️ Jeremy"]
 
 [groups.family]
-# Personal fastmail + google family calendars
-accounts = ["personal@example.com:fastmail", "personal@example.com:google", "family@example.com:google"]
-calendars = ["Personal & Family", "Family", "👦 Child", "👱‍♂️ Jeremy"]
+accounts = ["personal@example.com:fastmail"]
+calendars = ["👦 Child", "Personal & Family", "👱‍♂️ Jeremy"]
 
 # "all" is built-in — no filtering
