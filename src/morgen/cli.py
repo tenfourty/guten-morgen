@@ -236,13 +236,22 @@ def calendars(fmt: str, fields: list[str] | None, jq_expr: str | None, response_
 # events
 # ---------------------------------------------------------------------------
 
-EVENT_COLUMNS = ["id", "title", "start", "end", "showAs", "calendarId"]
-EVENT_CONCISE_FIELDS = ["id", "title", "start", "end"]
+EVENT_COLUMNS = ["id", "title", "start", "duration", "calendarId"]
+EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration"]
 
 
 @cli.group()
 def events() -> None:
     """Manage calendar events."""
+
+
+def _is_writable(cal: dict[str, Any]) -> bool:
+    """Check if a calendar is writable based on myRights or writable field."""
+    rights = cal.get("myRights")
+    if isinstance(rights, dict):
+        return bool(rights.get("mayWriteAll") or rights.get("mayWriteOwn"))
+    # Legacy or mock data fallback
+    return bool(cal.get("writable"))
 
 
 def _auto_discover(client: MorgenClient) -> tuple[str, list[str]]:
@@ -264,12 +273,8 @@ def _auto_discover(client: MorgenClient) -> tuple[str, list[str]]:
     calendars_data = client.list_calendars()
     # Filter to calendars belonging to this account
     account_cals = [c for c in calendars_data if c.get("accountId") == account_id]
-    # Prefer writable calendars (myRights contains write permissions)
-    writable = [
-        c.get("id", c.get("calendarId", ""))
-        for c in account_cals
-        if "w" in str(c.get("myRights", "")) or c.get("writable")
-    ]
+    # Prefer writable calendars (myRights is a dict with mayWriteAll, mayWriteOwn, etc.)
+    writable = [c.get("id", c.get("calendarId", "")) for c in account_cals if _is_writable(c)]
     if not writable:
         # Fall back to all calendars for the account
         writable = [c.get("id", c.get("calendarId", "")) for c in account_cals]
@@ -666,7 +671,7 @@ def tags_delete(tag_id: str) -> None:
 # Quick views: today, this-week, this-month
 # ---------------------------------------------------------------------------
 
-VIEW_CONCISE_FIELDS = ["type", "id", "title", "start", "end", "progress", "due"]
+VIEW_CONCISE_FIELDS = ["type", "id", "title", "start", "duration", "progress", "due"]
 
 
 def _combined_view(
