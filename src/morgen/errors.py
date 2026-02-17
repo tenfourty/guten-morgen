@@ -59,6 +59,12 @@ class ConfigError(MorgenError):
     ]
 
 
+class GroupNotFoundError(MorgenError):
+    """Unknown calendar group name."""
+
+    error_type = "group_not_found"
+
+
 def output_error(error_type: str, message: str, suggestions: list[str] | None = None, exit_code: int = 1) -> None:
     """Write a structured error to stderr and exit."""
     err: dict[str, dict[str, str | list[str]]] = {"error": {"type": error_type, "message": message}}

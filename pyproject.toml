@@ -9,6 +9,7 @@ dependencies = [
     "rich>=13.0",
     "jq>=1.8",
     "python-dotenv>=1.0",
+    "tomli>=2.0; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
