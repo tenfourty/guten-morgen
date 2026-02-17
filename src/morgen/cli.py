@@ -881,7 +881,7 @@ def _now_utc() -> Any:
 
 
 @cli.command()
-@click.option("--count", default=3, type=int, help="Number of upcoming events (default: 3).")
+@click.option("--count", default=20, type=int, help="Number of upcoming events (default: 20).")
 @click.option("--hours", default=24, type=int, help="Look-ahead window in hours (default: 24).")
 @output_options
 @calendar_filter_options

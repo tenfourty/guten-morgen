@@ -35,8 +35,8 @@ class TestNext:
             result = runner.invoke(cli, ["next", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        # All three fake events (09:00, 12:00, 14:00) are after 08:00
-        assert len(data) == 3
+        # All fake events (09:00, 12:00, 14:00 on acc-1 + 16:00 on acc-2) are after 08:00
+        assert len(data) == 4
 
     def test_filters_past_events_mid_day(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """Events that have already started are excluded."""
