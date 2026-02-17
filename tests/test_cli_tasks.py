@@ -251,6 +251,30 @@ class TestTasksSource:
             assert "title" in task
 
 
+class TestNormalizeDue:
+    """Due date normalization for the Morgen API (exactly 19 chars)."""
+
+    def test_date_only(self) -> None:
+        from morgen.cli import _normalize_due
+
+        assert _normalize_due("2026-02-20") == "2026-02-20T23:59:59"
+
+    def test_with_trailing_z(self) -> None:
+        from morgen.cli import _normalize_due
+
+        assert _normalize_due("2026-02-20T23:59:59Z") == "2026-02-20T23:59:59"
+
+    def test_already_correct(self) -> None:
+        from morgen.cli import _normalize_due
+
+        assert _normalize_due("2026-02-20T23:59:59") == "2026-02-20T23:59:59"
+
+    def test_with_timezone_offset(self) -> None:
+        from morgen.cli import _normalize_due
+
+        assert _normalize_due("2026-02-20T23:59:59+01:00") == "2026-02-20T23:59:59"
+
+
 class TestTasksSchedule:
     """Task 10: tasks schedule CLI command."""
 

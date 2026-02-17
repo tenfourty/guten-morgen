@@ -387,6 +387,12 @@ class MorgenClient:
         else:
             duration = task.get("estimatedDuration", "PT30M")
 
+        # Default to system timezone if not specified (API requires it for timed events)
+        if not timezone:
+            from morgen.time_utils import get_local_timezone
+
+            timezone = get_local_timezone()
+
         event_data: dict[str, Any] = {
             "title": title,
             "start": start,
@@ -394,10 +400,9 @@ class MorgenClient:
             "calendarId": calendar_id,
             "accountId": account_id,
             "showWithoutTime": False,
+            "timeZone": timezone,
             "morgen.so:metadata": {"taskId": task_id},
         }
-        if timezone:
-            event_data["timeZone"] = timezone
 
         return self.create_event(event_data)
 

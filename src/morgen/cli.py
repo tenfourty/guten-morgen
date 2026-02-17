@@ -354,6 +354,26 @@ def _is_writable(cal: dict[str, Any]) -> bool:
     return bool(cal.get("writable"))
 
 
+def _normalize_due(due: str) -> str:
+    """Normalize due date to 19-char ISO 8601 (YYYY-MM-DDTHH:MM:SS).
+
+    The Morgen API requires exactly this format. Accepts:
+    - "2026-02-20" -> "2026-02-20T23:59:59"
+    - "2026-02-20T23:59:59Z" -> "2026-02-20T23:59:59"
+    - "2026-02-20T23:59:59" -> "2026-02-20T23:59:59" (unchanged)
+    """
+    # Strip trailing Z or timezone offset
+    if due.endswith("Z"):
+        due = due[:-1]
+    elif "+" in due[10:]:
+        due = due[: due.index("+", 10)]
+    # Date-only: append end-of-day time
+    if len(due) == 10:
+        due = f"{due}T23:59:59"
+    # Truncate to 19 chars if longer
+    return due[:19]
+
+
 def _auto_discover(client: MorgenClient) -> tuple[str, list[str]]:
     """Auto-discover first calendar account and its writable calendars.
 
@@ -680,7 +700,7 @@ def tasks_create(
         client = _get_client()
         task_data: dict[str, Any] = {"title": title}
         if due:
-            task_data["due"] = due
+            task_data["due"] = _normalize_due(due)
         if priority is not None:
             task_data["priority"] = priority
         if description:
@@ -715,7 +735,7 @@ def tasks_update(
         if title is not None:
             task_data["title"] = title
         if due is not None:
-            task_data["due"] = due
+            task_data["due"] = _normalize_due(due)
         if priority is not None:
             task_data["priority"] = priority
         if description is not None:
