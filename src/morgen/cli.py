@@ -215,10 +215,11 @@ def usage() -> None:
 
 ## Recommended Agent Workflow
 1. `morgen next --json --response-format concise --no-frames`  (what's coming up?)
-2. `morgen today --json --response-format concise --no-frames` (full daily overview)
-3. `morgen tasks list --status open --overdue --json`  (overdue tasks)
-4. `morgen tasks create --title "..." --due ...`       (create task)
-5. `morgen tasks close <id>`                           (complete task)
+2. `morgen today --json --response-format concise --no-frames` (full daily overview, all sources)
+3. `morgen tasks list --status open --overdue --json`          (overdue across all sources)
+4. `morgen tasks create --title "..." --due ... --duration 30` (create with good metadata)
+5. `morgen tasks schedule <id> --start ISO`                    (time-block a task)
+6. `morgen tasks close <id>`                                   (complete a task)
 
 ## Scenarios
 
@@ -246,6 +247,21 @@ morgen tasks list --json --group-by-source --response-format concise
 ```
 """
     click.echo(text)
+
+    # Dynamic task source discovery
+    try:
+        client = _get_client()
+        task_accounts = client.list_task_accounts()
+        source_lines = ["  - morgen (native tasks)"]
+        for acc in task_accounts:
+            name = acc.get("providerUserDisplayName", "")
+            iid = acc.get("integrationId", "")
+            source_lines.append(f"  - {iid} ({name})")
+        sources_section = "\n".join(source_lines)
+    except Exception:
+        sources_section = "  (run `morgen accounts` to check connections)"
+
+    click.echo(f"\n## Connected Task Sources\n{sources_section}\n")
 
 
 def _get_cache_store() -> CacheStore:
@@ -606,8 +622,14 @@ def tasks_list(
                 src = t.get("source", "morgen")
                 grouped.setdefault(src, []).append(t)
 
+            # Apply field selection per-group (not on the grouped dict itself)
+            if fields:
+                from morgen.output import select_fields
+
+                grouped = {k: select_fields(v, fields) for k, v in grouped.items()}
+
             if fmt in ("json", "jsonl"):
-                morgen_output(grouped, fmt="json", fields=fields, jq_expr=jq_expr)
+                morgen_output(grouped, fmt="json", jq_expr=jq_expr)
             else:
                 for section, items in grouped.items():
                     if items:

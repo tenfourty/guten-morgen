@@ -237,6 +237,19 @@ class TestTasksSource:
         assert "notion" in data
         assert isinstance(data["morgen"], list)
 
+    def test_group_by_source_concise(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--group-by-source with --response-format concise applies field selection per group."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--group-by-source", "--response-format", "concise"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, dict)
+        assert "morgen" in data
+        assert "linear" in data
+        # Concise fields should be applied to tasks within each group
+        for task in data["linear"]:
+            assert "source" in task
+            assert "title" in task
+
 
 class TestTasksSchedule:
     """Task 10: tasks schedule CLI command."""
