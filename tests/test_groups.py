@@ -127,3 +127,22 @@ class TestMatchAccount:
     def test_no_match(self) -> None:
         account = {"preferredEmail": "other@example.com", "integrationId": "google"}
         assert match_account(account, "test@example.com:google") is False
+
+    def test_null_preferred_email_falls_back_to_emails_list(self) -> None:
+        """Google accounts often have preferredEmail=null; match via emails list."""
+        account = {
+            "preferredEmail": None,
+            "emails": ["user@example.com", "group@calendar.google.com"],
+            "integrationId": "google",
+        }
+        assert match_account(account, "user@example.com:google") is True
+        assert match_account(account, "user@example.com") is True
+        assert match_account(account, "nobody@example.com:google") is False
+
+    def test_emails_list_with_provider_mismatch(self) -> None:
+        account = {
+            "preferredEmail": None,
+            "emails": ["user@example.com"],
+            "integrationId": "google",
+        }
+        assert match_account(account, "user@example.com:caldav") is False
