@@ -15,6 +15,7 @@ import click
 
 from morgen.config import load_settings
 from morgen.errors import MorgenError, output_error
+from morgen.groups import CalendarFilter, load_morgen_config, resolve_filter
 from morgen.output import render
 
 # ---------------------------------------------------------------------------
@@ -85,6 +86,43 @@ def morgen_output(
 
 
 # ---------------------------------------------------------------------------
+# Calendar group filtering
+# ---------------------------------------------------------------------------
+
+
+def calendar_filter_options(f: Callable[..., Any]) -> Callable[..., Any]:
+    """Decorator adding --group and --all-calendars options."""
+
+    @click.option("--group", "group_name", default=None, help="Calendar group name (from .config.toml), or 'all'.")
+    @click.option("--all-calendars", is_flag=True, default=False, help="Include inactive calendars.")
+    @functools.wraps(f)
+    def wrapper(*args: Any, group_name: str | None, all_calendars: bool, **kwargs: Any) -> Any:
+        kwargs["group_name"] = group_name
+        kwargs["all_calendars"] = all_calendars
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
+def _resolve_calendar_filter(group_name: str | None = None, all_calendars: bool = False) -> CalendarFilter:
+    """Load config and resolve to a CalendarFilter."""
+    config = load_morgen_config()
+    return resolve_filter(config, group=group_name, all_calendars=all_calendars)
+
+
+def _filter_kwargs(cf: CalendarFilter) -> dict[str, Any]:
+    """Convert CalendarFilter to kwargs for list_all_events."""
+    kw: dict[str, Any] = {}
+    if cf.account_keys is not None:
+        kw["account_keys"] = cf.account_keys
+    if cf.calendar_names is not None:
+        kw["calendar_names"] = cf.calendar_names
+    if cf.active_only:
+        kw["active_only"] = True
+    return kw
+
+
+# ---------------------------------------------------------------------------
 # CLI group
 # ---------------------------------------------------------------------------
 
@@ -106,7 +144,22 @@ def cli(ctx: click.Context, no_cache: bool) -> None:
 @cli.command()
 def usage() -> None:
     """Self-documentation for AI agents."""
-    text = """# morgen — Calendar & Task Management CLI
+    config = load_morgen_config()
+    config_path = _config_file_path()
+
+    groups_section = ""
+    if config.groups:
+        lines: list[str] = []
+        for name, g in sorted(config.groups.items()):
+            line = f"  - **{name}**: accounts={g.accounts}"
+            if g.calendars:
+                line += f", calendars={g.calendars}"
+            lines.append(line)
+        groups_section = "\n".join(lines)
+    else:
+        groups_section = "  (none configured)"
+
+    text = f"""# morgen — Calendar & Task Management CLI
 
 ## Commands
 
@@ -118,7 +171,7 @@ def usage() -> None:
   List all calendars across accounts.
 
 ### Events
-- `morgen events list --start ISO --end ISO [--json]`
+- `morgen events list --start ISO --end ISO [--group NAME] [--all-calendars] [--json]`
   List events in a date range. Auto-discovers account/calendar.
 
 - `morgen events create --title TEXT --start ISO --duration MINUTES [--calendar-id ID] [--description TEXT]`
@@ -173,19 +226,23 @@ def usage() -> None:
   Delete a tag.
 
 ### Quick Views
-- `morgen today [--json] [--response-format concise] [--events-only] [--tasks-only]`
+- `morgen today [--json] [--response-format concise] [--events-only] [--tasks-only] [--group NAME]`
   Combined events + tasks for today. Returns categorised output:
   events, scheduled_tasks, overdue_tasks, unscheduled_tasks.
 
-- `morgen this-week [--json] [--response-format concise] [--events-only] [--tasks-only]`
+- `morgen this-week [--json] [--response-format concise] [--events-only] [--tasks-only] [--group NAME]`
   Combined events + tasks for this week (Mon-Sun). Same categories.
 
-- `morgen this-month [--json] [--response-format concise] [--events-only] [--tasks-only]`
+- `morgen this-month [--json] [--response-format concise] [--events-only] [--tasks-only] [--group NAME]`
   Combined events + tasks for this month. Same categories.
 
-- `morgen next [--count N] [--hours N] [--json] [--response-format concise]`
+- `morgen next [--count N] [--hours N] [--json] [--response-format concise] [--group NAME]`
   Show next N upcoming events (default: 3, look-ahead: 24h).
   Much cheaper than `today` for "what's next?" queries.
+
+### Calendar Groups
+- `morgen groups [--json]`
+  Show configured calendar groups and config file path.
 
 ## Global Options
 - `--format table|json|jsonl|csv` (default: table)
@@ -196,6 +253,8 @@ def usage() -> None:
 - `--short-ids` (truncate IDs to 12 chars, saves tokens)
 - `--no-frames` (exclude Morgen scheduling frames/time-blocking windows)
 - `--no-cache` (bypass cache, fetch fresh from API)
+- `--group NAME` (filter events by calendar group; use 'all' for no filtering)
+- `--all-calendars` (include inactive calendars, overrides active_only config)
 
 ### Cache Management
 - `morgen cache clear`
@@ -203,6 +262,15 @@ def usage() -> None:
 
 - `morgen cache stats`
   Show cache ages, TTLs, and sizes.
+
+## Calendar Groups
+
+Config file: `{config_path}`
+Default group: `{config.default_group or "(none)"}`
+Active-only: `{config.active_only}`
+
+Configured groups:
+{groups_section}
 
 ## Recommended Agent Workflow
 1. `morgen next --json --response-format concise --no-frames`  (what's coming up?)
@@ -212,6 +280,18 @@ def usage() -> None:
 5. `morgen tasks close <id>`                           (complete task)
 """
     click.echo(text)
+
+
+def _config_file_path() -> str:
+    """Return the resolved config file path for display."""
+    import os
+
+    from morgen.groups import _PROJECT_ROOT
+
+    env_path = os.environ.get("MORGEN_CONFIG")
+    if env_path:
+        return env_path
+    return str(_PROJECT_ROOT / ".config.toml")
 
 
 def _get_cache_store() -> CacheStore:
@@ -339,6 +419,7 @@ def _auto_discover(client: MorgenClient) -> tuple[str, list[str]]:
 @click.option("--account-id", default=None, help="Account ID (auto-discovered if omitted).")
 @click.option("--calendar-id", "calendar_ids_str", default=None, help="Comma-separated calendar IDs.")
 @output_options
+@calendar_filter_options
 def events_list(
     start: str,
     end: str,
@@ -348,6 +429,8 @@ def events_list(
     fields: list[str] | None,
     jq_expr: str | None,
     response_format: str,
+    group_name: str | None,
+    all_calendars: bool,
 ) -> None:
     """List events in a date range."""
     try:
@@ -356,7 +439,8 @@ def events_list(
             cal_ids = [s.strip() for s in calendar_ids_str.split(",")]
             data = client.list_events(account_id, cal_ids, start, end)
         else:
-            data = client.list_all_events(start, end)
+            cf = _resolve_calendar_filter(group_name, all_calendars)
+            data = client.list_all_events(start, end, **_filter_kwargs(cf))
         ctx = click.get_current_context(silent=True)
         if ctx and ctx.params.get("no_frames"):
             data = [e for e in data if not _is_frame_event(e)]
@@ -800,6 +884,7 @@ def _now_utc() -> Any:
 @click.option("--count", default=3, type=int, help="Number of upcoming events (default: 3).")
 @click.option("--hours", default=24, type=int, help="Look-ahead window in hours (default: 24).")
 @output_options
+@calendar_filter_options
 def next(
     count: int,
     hours: int,
@@ -807,17 +892,20 @@ def next(
     fields: list[str] | None,
     jq_expr: str | None,
     response_format: str,
+    group_name: str | None,
+    all_calendars: bool,
 ) -> None:
     """Show the next upcoming events."""
     from datetime import timedelta
 
     try:
         client = _get_client()
+        cf = _resolve_calendar_filter(group_name, all_calendars)
 
         now = _now_utc()
         end = now + timedelta(hours=hours)
 
-        events_data = client.list_all_events(now.isoformat(), end.isoformat())
+        events_data = client.list_all_events(now.isoformat(), end.isoformat(), **_filter_kwargs(cf))
 
         # Filter to events starting after now and take first N
         upcoming = [e for e in events_data if e.get("start", "") >= now.isoformat()[:19]]
@@ -872,16 +960,19 @@ def _combined_view(
     response_format: str,
     events_only: bool = False,
     tasks_only: bool = False,
+    group_name: str | None = None,
+    all_calendars: bool = False,
 ) -> None:
     """Fetch events + tasks and output a categorised view."""
 
     try:
         client = _get_client()
+        cf = _resolve_calendar_filter(group_name, all_calendars)
 
         result: dict[str, Any] = {}
 
         if not tasks_only:
-            events_data = client.list_all_events(start, end)
+            events_data = client.list_all_events(start, end, **_filter_kwargs(cf))
             events_list_raw: list[dict[str, Any]] = list(events_data)
             ctx = click.get_current_context(silent=True)
             if ctx and ctx.params.get("no_frames"):
@@ -985,6 +1076,7 @@ def _view_options(f: Callable[..., Any]) -> Callable[..., Any]:
 @cli.command()
 @output_options
 @_view_options
+@calendar_filter_options
 def today(
     fmt: str,
     fields: list[str] | None,
@@ -992,17 +1084,31 @@ def today(
     response_format: str,
     events_only: bool,
     tasks_only: bool,
+    group_name: str | None,
+    all_calendars: bool,
 ) -> None:
     """Combined events + tasks for today."""
     from morgen.time_utils import today_range
 
     start, end = today_range()
-    _combined_view(start, end, fmt, fields, jq_expr, response_format, events_only=events_only, tasks_only=tasks_only)
+    _combined_view(
+        start,
+        end,
+        fmt,
+        fields,
+        jq_expr,
+        response_format,
+        events_only=events_only,
+        tasks_only=tasks_only,
+        group_name=group_name,
+        all_calendars=all_calendars,
+    )
 
 
 @cli.command("this-week")
 @output_options
 @_view_options
+@calendar_filter_options
 def this_week(
     fmt: str,
     fields: list[str] | None,
@@ -1010,17 +1116,31 @@ def this_week(
     response_format: str,
     events_only: bool,
     tasks_only: bool,
+    group_name: str | None,
+    all_calendars: bool,
 ) -> None:
     """Combined events + tasks for this week (Mon-Sun)."""
     from morgen.time_utils import this_week_range
 
     start, end = this_week_range()
-    _combined_view(start, end, fmt, fields, jq_expr, response_format, events_only=events_only, tasks_only=tasks_only)
+    _combined_view(
+        start,
+        end,
+        fmt,
+        fields,
+        jq_expr,
+        response_format,
+        events_only=events_only,
+        tasks_only=tasks_only,
+        group_name=group_name,
+        all_calendars=all_calendars,
+    )
 
 
 @cli.command("this-month")
 @output_options
 @_view_options
+@calendar_filter_options
 def this_month(
     fmt: str,
     fields: list[str] | None,
@@ -1028,12 +1148,51 @@ def this_month(
     response_format: str,
     events_only: bool,
     tasks_only: bool,
+    group_name: str | None,
+    all_calendars: bool,
 ) -> None:
     """Combined events + tasks for this month."""
     from morgen.time_utils import this_month_range
 
     start, end = this_month_range()
-    _combined_view(start, end, fmt, fields, jq_expr, response_format, events_only=events_only, tasks_only=tasks_only)
+    _combined_view(
+        start,
+        end,
+        fmt,
+        fields,
+        jq_expr,
+        response_format,
+        events_only=events_only,
+        tasks_only=tasks_only,
+        group_name=group_name,
+        all_calendars=all_calendars,
+    )
+
+
+# ---------------------------------------------------------------------------
+# groups
+# ---------------------------------------------------------------------------
+
+
+@cli.command()
+@output_options
+def groups(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
+    """Show configured calendar groups."""
+    config = load_morgen_config()
+    config_path = _config_file_path()
+    result: dict[str, Any] = {
+        "config_file": config_path,
+        "default_group": config.default_group,
+        "active_only": config.active_only,
+        "groups": {
+            name: {
+                "accounts": g.accounts,
+                **({"calendars": g.calendars} if g.calendars else {}),
+            }
+            for name, g in sorted(config.groups.items())
+        },
+    }
+    morgen_output(result, fmt="json", fields=fields, jq_expr=jq_expr)
 
 
 # ---------------------------------------------------------------------------
