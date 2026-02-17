@@ -35,6 +35,41 @@ def this_month_range() -> tuple[str, str]:
     return start.isoformat(), end.isoformat()
 
 
+def get_local_timezone() -> str:
+    """Get the local system IANA timezone name (e.g. 'Europe/Paris')."""
+    import os
+    import subprocess
+
+    # macOS: read from systemsetup or /etc/localtime symlink
+    try:
+        link = os.readlink("/etc/localtime")
+        # /var/db/timezone/zoneinfo/Europe/Paris -> Europe/Paris
+        if "zoneinfo/" in link:
+            return link.split("zoneinfo/", 1)[1]
+    except OSError:
+        pass
+
+    # Fallback: try systemsetup on macOS
+    try:
+        result = subprocess.run(
+            ["systemsetup", "-gettimezone"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and ":" in result.stdout:
+            return result.stdout.split(":", 1)[1].strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # TZ environment variable
+    tz = os.environ.get("TZ")
+    if tz:
+        return tz
+
+    return "UTC"
+
+
 def format_duration_human(minutes: int) -> str:
     """Format duration in minutes to human-readable string."""
     if minutes < 60:
