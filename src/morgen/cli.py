@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import functools
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -259,8 +259,21 @@ def calendars(fmt: str, fields: list[str] | None, jq_expr: str | None, response_
 # events
 # ---------------------------------------------------------------------------
 
-EVENT_COLUMNS = ["id", "title", "start", "duration", "calendarId"]
-EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration"]
+EVENT_COLUMNS = ["id", "title", "start", "duration", "calendarId", "location", "attendees"]
+EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration", "location", "attendees"]
+
+
+def _format_attendees_concise(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert attendee lists to comma-separated name strings for concise output."""
+    result = []
+    for e in events:
+        e = dict(e)  # shallow copy
+        attendees = e.get("attendees")
+        if isinstance(attendees, list):
+            names = [a.get("name", a.get("email", "?")) for a in attendees]
+            e["attendees"] = ", ".join(names)
+        result.append(e)
+    return result
 
 
 @cli.group()
@@ -331,6 +344,7 @@ def events_list(
             account_id, cal_ids = _auto_discover(client)
         data = client.list_events(account_id, cal_ids, start, end)
         if response_format == "concise" and not fields:
+            data = _format_attendees_concise(data)
             fields = EVENT_CONCISE_FIELDS
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
     except MorgenError as e:
@@ -456,9 +470,25 @@ def tasks() -> None:
 
 @tasks.command("list")
 @click.option("--limit", default=100, type=int, help="Max number of tasks to return.")
+@click.option(
+    "--status",
+    "status_filter",
+    type=click.Choice(["open", "completed", "all"]),
+    default="all",
+    help="Filter by status (default: all).",
+)
+@click.option("--due-before", default=None, help="Tasks due before this date (ISO 8601 or YYYY-MM-DD).")
+@click.option("--due-after", default=None, help="Tasks due after this date (ISO 8601 or YYYY-MM-DD).")
+@click.option("--overdue", is_flag=True, default=False, help="Show only overdue tasks (due before now).")
+@click.option("--priority", "priority_filter", default=None, type=int, help="Filter by priority level (0-4).")
 @output_options
 def tasks_list(
     limit: int,
+    status_filter: str,
+    due_before: str | None,
+    due_after: str | None,
+    overdue: bool,
+    priority_filter: int | None,
     fmt: str,
     fields: list[str] | None,
     jq_expr: str | None,
@@ -468,9 +498,43 @@ def tasks_list(
     try:
         client = _get_client()
         data = client.list_tasks(limit=limit)
+
+        # Apply client-side filters
+        if overdue:
+            from datetime import datetime, timezone
+
+            due_before = datetime.now(timezone.utc).isoformat()
+
+        filtered: list[dict[str, Any]] = []
+        for t in data:
+            # Status filter
+            progress = t.get("progress", "")
+            if status_filter == "open" and progress == "completed":
+                continue
+            if status_filter == "completed" and progress != "completed":
+                continue
+
+            # Due date filters
+            due = t.get("due", "")
+            if due_before and due:
+                if due[:10] >= due_before[:10]:
+                    continue
+            if due_after and due:
+                if due[:10] <= due_after[:10]:
+                    continue
+            # If due_before or due_after specified and task has no due date, skip it
+            if (due_before or due_after) and not due:
+                continue
+
+            # Priority filter
+            if priority_filter is not None and t.get("priority") != priority_filter:
+                continue
+
+            filtered.append(t)
+
         if response_format == "concise" and not fields:
             fields = TASK_CONCISE_FIELDS
-        morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=TASK_COLUMNS)
+        morgen_output(filtered, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=TASK_COLUMNS)
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -705,7 +769,26 @@ def tags_delete(tag_id: str) -> None:
 # Quick views: today, this-week, this-month
 # ---------------------------------------------------------------------------
 
-VIEW_CONCISE_FIELDS = ["type", "id", "title", "start", "duration", "progress", "due"]
+VIEW_EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration", "location", "attendees"]
+VIEW_TASK_CONCISE_FIELDS = ["id", "title", "progress", "due"]
+
+
+class _MutuallyExclusive(click.Option):
+    """Click option that is mutually exclusive with another option."""
+
+    def __init__(self, *args: Any, mutually_exclusive: list[str] | None = None, **kwargs: Any) -> None:
+        self._mutually_exclusive = mutually_exclusive or []
+        super().__init__(*args, **kwargs)
+
+    def handle_parse_result(self, ctx: click.Context, opts: Mapping[str, Any], args: list[str]) -> Any:
+        name = self.name or ""
+        for other in self._mutually_exclusive:
+            if name in opts and other in opts:
+                flag_a = name.replace("_", "-")
+                flag_b = other.replace("_", "-")
+                msg = f"--{flag_a} and --{flag_b} are mutually exclusive."
+                raise click.UsageError(msg)
+        return super().handle_parse_result(ctx, opts, args)
 
 
 def _combined_view(
@@ -715,67 +798,166 @@ def _combined_view(
     fields: list[str] | None,
     jq_expr: str | None,
     response_format: str,
+    events_only: bool = False,
+    tasks_only: bool = False,
 ) -> None:
-    """Fetch events + tasks and output a combined timeline."""
+    """Fetch events + tasks and output a categorised view."""
 
     try:
         client = _get_client()
-        account_id, cal_ids = _auto_discover(client)
 
-        events_data = client.list_events(account_id, cal_ids, start, end)
-        tasks_data = client.list_tasks()
+        result: dict[str, Any] = {}
 
-        # Tag each item with type
-        timeline: list[dict[str, Any]] = []
-        for e in events_data:
-            timeline.append({"type": "event", **e})
-        for t in tasks_data:
-            due = t.get("due", "")
-            if due and start <= due <= end:
-                timeline.append({"type": "task", **t})
-            elif not due:
-                # Include tasks without due date
-                timeline.append({"type": "task", **t})
+        if not tasks_only:
+            account_id, cal_ids = _auto_discover(client)
+            events_data = client.list_events(account_id, cal_ids, start, end)
+            events_list: list[dict[str, Any]] = list(events_data)
+            events_list.sort(key=lambda x: x.get("start", ""))
+            if response_format == "concise" and not fields:
+                from morgen.output import select_fields
 
-        # Sort: events by start, tasks at end
-        timeline.sort(key=lambda x: x.get("start", x.get("due", "9999")))
+                events_list = _format_attendees_concise(events_list)
+                events_list = select_fields(events_list, VIEW_EVENT_CONCISE_FIELDS)
+            result["events"] = events_list
 
-        if response_format == "concise" and not fields:
-            fields = VIEW_CONCISE_FIELDS
+        if not events_only:
+            tasks_data = client.list_tasks()
+            scheduled: list[dict[str, Any]] = []
+            overdue: list[dict[str, Any]] = []
+            unscheduled: list[dict[str, Any]] = []
+            # Compare date portion only (YYYY-MM-DD) to avoid Z vs +00:00 issues
+            start_date = start[:10]
+            end_date = end[:10]
+            for t in tasks_data:
+                due = t.get("due", "")
+                if due:
+                    due_date = due[:10]
+                    if start_date <= due_date <= end_date:
+                        scheduled.append(t)
+                    elif due_date < start_date:
+                        overdue.append(t)
+                    # Tasks with due > end are outside the range — skip them
+                else:
+                    unscheduled.append(t)
 
-        morgen_output(timeline, fmt=fmt, fields=fields, jq_expr=jq_expr)
+            task_fields = VIEW_TASK_CONCISE_FIELDS if (response_format == "concise" and not fields) else None
+            if task_fields:
+                from morgen.output import select_fields
+
+                scheduled = select_fields(scheduled, task_fields)
+                overdue = select_fields(overdue, task_fields)
+                unscheduled = select_fields(unscheduled, task_fields)
+
+            result["scheduled_tasks"] = scheduled
+            result["overdue_tasks"] = overdue
+            result["unscheduled_tasks"] = unscheduled
+
+        if fields:
+            # Apply field selection to each list in result
+            from morgen.output import select_fields
+
+            for key in result:
+                if isinstance(result[key], list):
+                    result[key] = select_fields(result[key], fields)
+
+        if jq_expr:
+            from morgen.output import apply_jq
+
+            result = apply_jq(result, jq_expr)
+
+        if fmt in ("json", "jsonl"):
+            morgen_output(result, fmt="json")
+        else:
+            # For table/csv, render each section separately
+            for section, items in result.items():
+                if items:
+                    click.echo(f"\n## {section.replace('_', ' ').title()}")
+                    morgen_output(items, fmt=fmt)
+
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
 
+def _view_options(f: Callable[..., Any]) -> Callable[..., Any]:
+    """Add --events-only / --tasks-only flags to view commands."""
+
+    @click.option(
+        "--events-only",
+        is_flag=True,
+        default=False,
+        cls=_MutuallyExclusive,
+        mutually_exclusive=["tasks_only"],
+        help="Show only events.",
+    )
+    @click.option(
+        "--tasks-only",
+        is_flag=True,
+        default=False,
+        cls=_MutuallyExclusive,
+        mutually_exclusive=["events_only"],
+        help="Show only tasks.",
+    )
+    @functools.wraps(f)
+    def wrapper(*args: Any, events_only: bool, tasks_only: bool, **kwargs: Any) -> Any:
+        kwargs["events_only"] = events_only
+        kwargs["tasks_only"] = tasks_only
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
 @cli.command()
 @output_options
-def today(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
+@_view_options
+def today(
+    fmt: str,
+    fields: list[str] | None,
+    jq_expr: str | None,
+    response_format: str,
+    events_only: bool,
+    tasks_only: bool,
+) -> None:
     """Combined events + tasks for today."""
     from morgen.time_utils import today_range
 
     start, end = today_range()
-    _combined_view(start, end, fmt, fields, jq_expr, response_format)
+    _combined_view(start, end, fmt, fields, jq_expr, response_format, events_only=events_only, tasks_only=tasks_only)
 
 
 @cli.command("this-week")
 @output_options
-def this_week(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
+@_view_options
+def this_week(
+    fmt: str,
+    fields: list[str] | None,
+    jq_expr: str | None,
+    response_format: str,
+    events_only: bool,
+    tasks_only: bool,
+) -> None:
     """Combined events + tasks for this week (Mon-Sun)."""
     from morgen.time_utils import this_week_range
 
     start, end = this_week_range()
-    _combined_view(start, end, fmt, fields, jq_expr, response_format)
+    _combined_view(start, end, fmt, fields, jq_expr, response_format, events_only=events_only, tasks_only=tasks_only)
 
 
 @cli.command("this-month")
 @output_options
-def this_month(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
+@_view_options
+def this_month(
+    fmt: str,
+    fields: list[str] | None,
+    jq_expr: str | None,
+    response_format: str,
+    events_only: bool,
+    tasks_only: bool,
+) -> None:
     """Combined events + tasks for this month."""
     from morgen.time_utils import this_month_range
 
     start, end = this_month_range()
-    _combined_view(start, end, fmt, fields, jq_expr, response_format)
+    _combined_view(start, end, fmt, fields, jq_expr, response_format, events_only=events_only, tasks_only=tasks_only)
 
 
 # ---------------------------------------------------------------------------

@@ -65,6 +65,11 @@ FAKE_EVENTS = [
         "duration": "PT30M",
         "calendarId": "cal-1",
         "accountId": "acc-1",
+        "attendees": [
+            {"name": "Alice", "email": "alice@example.com"},
+            {"name": "Bob", "email": "bob@example.com"},
+        ],
+        "location": "https://meet.google.com/abc-defg-hij",
     },
     {
         "id": "evt-2",
@@ -73,6 +78,7 @@ FAKE_EVENTS = [
         "duration": "PT1H",
         "calendarId": "cal-1",
         "accountId": "acc-1",
+        "location": "Café de Flore",
     },
 ]
 
@@ -90,6 +96,22 @@ FAKE_TASKS = [
         "title": "Write docs",
         "progress": "needs-action",
         "priority": 1,
+        "taskListId": "inbox",
+    },
+    {
+        "id": "task-3",
+        "title": "Old overdue task",
+        "progress": "needs-action",
+        "priority": 3,
+        "due": "2025-10-15T23:59:59Z",
+        "taskListId": "inbox",
+    },
+    {
+        "id": "task-4",
+        "title": "Completed task",
+        "progress": "completed",
+        "priority": 0,
+        "due": "2026-02-16T23:59:59Z",
         "taskListId": "inbox",
     },
 ]
