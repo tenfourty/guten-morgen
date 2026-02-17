@@ -38,6 +38,7 @@ def output_options(f: Callable[..., Any]) -> Callable[..., Any]:
         default="detailed",
         help="Response verbosity: concise for ~1/3 tokens.",
     )
+    @click.option("--short-ids", is_flag=True, default=False, help="Truncate IDs to 12 chars.")
     @functools.wraps(f)
     def wrapper(
         *args: Any,
@@ -46,8 +47,11 @@ def output_options(f: Callable[..., Any]) -> Callable[..., Any]:
         fields_str: str | None,
         jq_expr: str | None,
         response_format: str,
+        short_ids: bool,
         **kwargs: Any,
     ) -> Any:
+        # short_ids is read from click context in morgen_output(), not passed to commands
+        _ = short_ids
         if json_flag:
             fmt = "json"
         fields = [s.strip() for s in fields_str.split(",")] if fields_str else None
@@ -67,7 +71,12 @@ def morgen_output(
     jq_expr: str | None = None,
     columns: list[str] | None = None,
 ) -> None:
-    """Render data to stdout."""
+    """Render data to stdout, applying --short-ids if active."""
+    ctx = click.get_current_context(silent=True)
+    if ctx and ctx.params.get("short_ids"):
+        from morgen.output import truncate_ids
+
+        data = truncate_ids(data)
     text = render(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=columns)
     click.echo(text)
 
@@ -119,8 +128,9 @@ def usage() -> None:
   Delete an event.
 
 ### Tasks
-- `morgen tasks list [--limit N] [--json]`
-  List tasks.
+- `morgen tasks list [--limit N] [--status open|completed|all] [--overdue] [--json]`
+  `  [--due-before ISO] [--due-after ISO] [--priority N]`
+  List tasks. Filters combine with AND logic.
 
 - `morgen tasks get ID [--json]`
   Get a single task by ID.
@@ -160,14 +170,19 @@ def usage() -> None:
   Delete a tag.
 
 ### Quick Views
-- `morgen today [--json] [--response-format concise]`
-  Combined events + tasks for today.
+- `morgen today [--json] [--response-format concise] [--events-only] [--tasks-only]`
+  Combined events + tasks for today. Returns categorised output:
+  events, scheduled_tasks, overdue_tasks, unscheduled_tasks.
 
-- `morgen this-week [--json] [--response-format concise]`
-  Combined events + tasks for this week (Mon-Sun).
+- `morgen this-week [--json] [--response-format concise] [--events-only] [--tasks-only]`
+  Combined events + tasks for this week (Mon-Sun). Same categories.
 
-- `morgen this-month [--json] [--response-format concise]`
-  Combined events + tasks for this month.
+- `morgen this-month [--json] [--response-format concise] [--events-only] [--tasks-only]`
+  Combined events + tasks for this month. Same categories.
+
+- `morgen next [--count N] [--hours N] [--json] [--response-format concise]`
+  Show next N upcoming events (default: 3, look-ahead: 24h).
+  Much cheaper than `today` for "what's next?" queries.
 
 ## Global Options
 - `--format table|json|jsonl|csv` (default: table)
@@ -175,6 +190,7 @@ def usage() -> None:
 - `--fields <comma-separated>` (select specific fields)
 - `--jq <expression>` (jq filtering)
 - `--response-format detailed|concise` (concise uses ~1/3 tokens)
+- `--short-ids` (truncate IDs to 12 chars, saves tokens)
 - `--no-cache` (bypass cache, fetch fresh from API)
 
 ### Cache Management
@@ -184,11 +200,12 @@ def usage() -> None:
 - `morgen cache stats`
   Show cache ages, TTLs, and sizes.
 
-## Recommended Workflow
-1. `morgen today --json --response-format concise`     (daily overview)
-2. `morgen events list --start ... --end ... --json`   (date range query)
-3. `morgen tasks create --title "..." --due ...`       (create task)
-4. `morgen tasks close <id>`                           (complete task)
+## Recommended Agent Workflow
+1. `morgen next --json --response-format concise`      (what's coming up?)
+2. `morgen today --json --response-format concise`     (full daily overview)
+3. `morgen tasks list --status open --overdue --json`  (overdue tasks)
+4. `morgen tasks create --title "..." --due ...`       (create task)
+5. `morgen tasks close <id>`                           (complete task)
 """
     click.echo(text)
 
@@ -761,6 +778,55 @@ def tags_delete(tag_id: str) -> None:
         client = _get_client()
         client.delete_tag(tag_id)
         click.echo(json.dumps({"status": "deleted", "id": tag_id}))
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
+# ---------------------------------------------------------------------------
+# next — upcoming events
+# ---------------------------------------------------------------------------
+
+
+def _now_utc() -> Any:
+    """Return current UTC datetime. Separated for test patching."""
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc)
+
+
+@cli.command()
+@click.option("--count", default=3, type=int, help="Number of upcoming events (default: 3).")
+@click.option("--hours", default=24, type=int, help="Look-ahead window in hours (default: 24).")
+@output_options
+def next(
+    count: int,
+    hours: int,
+    fmt: str,
+    fields: list[str] | None,
+    jq_expr: str | None,
+    response_format: str,
+) -> None:
+    """Show the next upcoming events."""
+    from datetime import timedelta
+
+    try:
+        client = _get_client()
+        account_id, cal_ids = _auto_discover(client)
+
+        now = _now_utc()
+        end = now + timedelta(hours=hours)
+
+        events_data = client.list_events(account_id, cal_ids, now.isoformat(), end.isoformat())
+
+        # Filter to events starting after now and take first N
+        upcoming = [e for e in events_data if e.get("start", "") >= now.isoformat()[:19]]
+        upcoming.sort(key=lambda x: x.get("start", ""))
+        upcoming = upcoming[:count]
+
+        if response_format == "concise" and not fields:
+            upcoming = _format_attendees_concise(upcoming)
+            fields = EVENT_CONCISE_FIELDS
+        morgen_output(upcoming, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 

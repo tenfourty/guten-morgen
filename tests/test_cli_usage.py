@@ -37,4 +37,13 @@ class TestUsage:
 
     def test_contains_workflow(self, runner: CliRunner) -> None:
         result = runner.invoke(cli, ["usage"])
-        assert "Recommended Workflow" in result.output
+        assert "Recommended Agent Workflow" in result.output
+
+    def test_contains_new_commands(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["usage"])
+        assert "morgen next" in result.output
+        assert "--events-only" in result.output
+        assert "--tasks-only" in result.output
+        assert "--short-ids" in result.output
+        assert "--status" in result.output
+        assert "--overdue" in result.output
