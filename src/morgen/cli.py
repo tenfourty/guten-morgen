@@ -881,11 +881,11 @@ def _now_utc() -> Any:
 
 
 @cli.command()
-@click.option("--count", default=20, type=int, help="Number of upcoming events (default: 20).")
+@click.option("--count", default=None, type=int, help="Limit number of events returned.")
 @output_options
 @calendar_filter_options
 def next(
-    count: int,
+    count: int | None,
     fmt: str,
     fields: list[str] | None,
     jq_expr: str | None,
@@ -905,13 +905,14 @@ def next(
 
         events_data = client.list_all_events(now.isoformat(), end, **_filter_kwargs(cf))
 
-        # Filter to events starting after now and take first N
+        # Filter to events starting after now
         upcoming = [e for e in events_data if e.get("start", "") >= now.isoformat()[:19]]
         ctx = click.get_current_context(silent=True)
         if ctx and ctx.params.get("no_frames"):
             upcoming = [e for e in upcoming if not _is_frame_event(e)]
         upcoming.sort(key=lambda x: x.get("start", ""))
-        upcoming = upcoming[:count]
+        if count is not None:
+            upcoming = upcoming[:count]
 
         from morgen.output import enrich_events
 
