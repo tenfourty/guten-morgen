@@ -186,16 +186,25 @@ def usage() -> None:
 ### Tasks
 - `morgen tasks list [--limit N] [--status open|completed|all] [--overdue] [--json]`
   `  [--due-before ISO] [--due-after ISO] [--priority N]`
-  List tasks. Filters combine with AND logic.
+  `  [--source morgen|linear|notion] [--group-by-source]`
+  List tasks from all connected sources. Filters combine with AND logic.
+  --source restricts to a single integration. --group-by-source returns
+  output grouped by source. Tasks are enriched with source, source_id,
+  source_url, source_status fields.
 
 - `morgen tasks get ID [--json]`
   Get a single task by ID.
 
-- `morgen tasks create --title TEXT [--due ISO] [--priority 0-4] [--description TEXT]`
-  Create a new task.
+- `morgen tasks create --title TEXT [--due ISO] [--priority 0-4] [--description TEXT] [--duration MINUTES]`
+  Create a new task. --duration sets estimatedDuration for AI time-blocking.
 
-- `morgen tasks update ID [--title TEXT] [--due ISO] [--priority 0-4] [--description TEXT]`
-  Update a task.
+- `morgen tasks update ID [--title TEXT] [--due ISO] [--priority 0-4] [--description TEXT] [--duration MINUTES]`
+  Update a task. --duration sets estimatedDuration.
+
+- `morgen tasks schedule ID --start ISO [--duration MINUTES] [--calendar-id ID] [--account-id ID]`
+  Schedule a task as a linked calendar event. Fetches the task to derive
+  title and duration, creates an event with morgen.so:metadata.taskId.
+  Auto-discovers calendar if not specified.
 
 - `morgen tasks close ID`
   Mark a task as completed.
@@ -274,12 +283,53 @@ Configured groups:
 
 ## Recommended Agent Workflow
 1. `morgen next --json --response-format concise --no-frames`  (what's coming up?)
-2. `morgen today --json --response-format concise --no-frames` (full daily overview)
-3. `morgen tasks list --status open --overdue --json`  (overdue tasks)
-4. `morgen tasks create --title "..." --due ...`       (create task)
-5. `morgen tasks close <id>`                           (complete task)
+2. `morgen today --json --response-format concise --no-frames` (full daily overview, all sources)
+3. `morgen tasks list --status open --overdue --json`          (overdue across all sources)
+4. `morgen tasks create --title "..." --due ... --duration 30` (create with good metadata)
+5. `morgen tasks schedule <id> --start ISO`                    (time-block a task)
+6. `morgen tasks close <id>`                                   (complete a task)
+
+## Scenarios
+
+### Morning Triage
+```
+morgen today --json --response-format concise --no-frames
+morgen tasks list --status open --overdue --json --group-by-source
+```
+
+### Schedule a Linear Issue
+```
+morgen tasks list --source linear --json
+morgen tasks schedule <task-id> --start 2026-02-18T14:00:00
+```
+
+### Create and Time-Block a Task
+```
+morgen tasks create --title "Write design doc" --due 2026-02-20 --duration 90
+morgen tasks schedule <task-id> --start 2026-02-18T10:00:00
+```
+
+### Cross-Source Task Review
+```
+morgen tasks list --json --group-by-source --response-format concise
+```
 """
     click.echo(text)
+
+    # Dynamic task source discovery
+    try:
+        client = _get_client()
+        task_accounts = client.list_task_accounts()
+        source_lines = ["  - morgen (native tasks)"]
+        for acc in task_accounts:
+            name = acc.get("providerUserDisplayName", "")
+            iid = acc.get("integrationId", "")
+            source_lines.append(f"  - {iid} ({name})")
+        sources_section = "\n".join(source_lines)
+    except Exception:
+        sources_section = "  (run `morgen accounts` to check connections)"
+
+    click.echo(f"\n## Connected Task Sources\n{sources_section}\n")
 
 
 def _config_file_path() -> str:
@@ -382,6 +432,26 @@ def _is_writable(cal: dict[str, Any]) -> bool:
         return bool(rights.get("mayWriteAll") or rights.get("mayWriteOwn"))
     # Legacy or mock data fallback
     return bool(cal.get("writable"))
+
+
+def _normalize_due(due: str) -> str:
+    """Normalize due date to 19-char ISO 8601 (YYYY-MM-DDTHH:MM:SS).
+
+    The Morgen API requires exactly this format. Accepts:
+    - "2026-02-20" -> "2026-02-20T23:59:59"
+    - "2026-02-20T23:59:59Z" -> "2026-02-20T23:59:59"
+    - "2026-02-20T23:59:59" -> "2026-02-20T23:59:59" (unchanged)
+    """
+    # Strip trailing Z or timezone offset
+    if due.endswith("Z"):
+        due = due[:-1]
+    elif "+" in due[10:]:
+        due = due[: due.index("+", 10)]
+    # Date-only: append end-of-day time
+    if len(due) == 10:
+        due = f"{due}T23:59:59"
+    # Truncate to 19 chars if longer
+    return due[:19]
 
 
 def _auto_discover(client: MorgenClient) -> tuple[str, list[str]]:
@@ -562,8 +632,8 @@ def events_delete(event_id: str, calendar_id: str | None, account_id: str | None
 # tasks
 # ---------------------------------------------------------------------------
 
-TASK_COLUMNS = ["id", "title", "progress", "priority", "due", "taskListId"]
-TASK_CONCISE_FIELDS = ["id", "title", "progress", "due"]
+TASK_COLUMNS = ["id", "title", "progress", "priority", "due", "source", "source_id", "source_status"]
+TASK_CONCISE_FIELDS = ["id", "title", "progress", "due", "source"]
 
 
 @cli.group()
@@ -584,6 +654,8 @@ def tasks() -> None:
 @click.option("--due-after", default=None, help="Tasks due after this date (ISO 8601 or YYYY-MM-DD).")
 @click.option("--overdue", is_flag=True, default=False, help="Show only overdue tasks (due before now).")
 @click.option("--priority", "priority_filter", default=None, type=int, help="Filter by priority level (0-4).")
+@click.option("--source", default=None, help="Filter by task source (morgen, linear, notion, etc.).")
+@click.option("--group-by-source", is_flag=True, default=False, help="Group output by task source.")
 @output_options
 def tasks_list(
     limit: int,
@@ -592,6 +664,8 @@ def tasks_list(
     due_after: str | None,
     overdue: bool,
     priority_filter: int | None,
+    source: str | None,
+    group_by_source: bool,
     fmt: str,
     fields: list[str] | None,
     jq_expr: str | None,
@@ -600,7 +674,14 @@ def tasks_list(
     """List tasks."""
     try:
         client = _get_client()
-        data = client.list_tasks(limit=limit)
+        result = client.list_all_tasks(source=source, limit=limit)
+        data = result["tasks"]
+        label_defs = result.get("labelDefs", [])
+
+        # Enrich tasks with normalized source metadata
+        from morgen.output import enrich_tasks
+
+        data = enrich_tasks(data, label_defs=label_defs)
 
         # Apply client-side filters
         if overdue:
@@ -637,7 +718,29 @@ def tasks_list(
 
         if response_format == "concise" and not fields:
             fields = TASK_CONCISE_FIELDS
-        morgen_output(filtered, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=TASK_COLUMNS)
+
+        # Group by source if requested
+        if group_by_source:
+            grouped: dict[str, list[dict[str, Any]]] = {}
+            for t in filtered:
+                src = t.get("source", "morgen")
+                grouped.setdefault(src, []).append(t)
+
+            # Apply field selection per-group (not on the grouped dict itself)
+            if fields:
+                from morgen.output import select_fields
+
+                grouped = {k: select_fields(v, fields) for k, v in grouped.items()}
+
+            if fmt in ("json", "jsonl"):
+                morgen_output(grouped, fmt="json", jq_expr=jq_expr)
+            else:
+                for section, items in grouped.items():
+                    if items:
+                        click.echo(f"\n## {section}")
+                        morgen_output(items, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=TASK_COLUMNS)
+        else:
+            morgen_output(filtered, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=TASK_COLUMNS)
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -668,22 +771,26 @@ def tasks_get(
 @click.option("--due", default=None, help="Due datetime (ISO 8601).")
 @click.option("--priority", default=None, type=int, help="Priority (0-4).")
 @click.option("--description", default=None, help="Task description.")
+@click.option("--duration", default=None, type=int, help="Estimated duration in minutes.")
 def tasks_create(
     title: str,
     due: str | None,
     priority: int | None,
     description: str | None,
+    duration: int | None,
 ) -> None:
     """Create a new task."""
     try:
         client = _get_client()
         task_data: dict[str, Any] = {"title": title}
         if due:
-            task_data["due"] = due
+            task_data["due"] = _normalize_due(due)
         if priority is not None:
             task_data["priority"] = priority
         if description:
             task_data["description"] = description
+        if duration is not None:
+            task_data["estimatedDuration"] = f"PT{duration}M"
         result = client.create_task(task_data)
         click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
@@ -696,12 +803,14 @@ def tasks_create(
 @click.option("--due", default=None, help="New due datetime (ISO 8601).")
 @click.option("--priority", default=None, type=int, help="New priority (0-4).")
 @click.option("--description", default=None, help="New description.")
+@click.option("--duration", default=None, type=int, help="Estimated duration in minutes.")
 def tasks_update(
     task_id: str,
     title: str | None,
     due: str | None,
     priority: int | None,
     description: str | None,
+    duration: int | None,
 ) -> None:
     """Update a task."""
     try:
@@ -710,11 +819,13 @@ def tasks_update(
         if title is not None:
             task_data["title"] = title
         if due is not None:
-            task_data["due"] = due
+            task_data["due"] = _normalize_due(due)
         if priority is not None:
             task_data["priority"] = priority
         if description is not None:
             task_data["description"] = description
+        if duration is not None:
+            task_data["estimatedDuration"] = f"PT{duration}M"
         result = client.update_task(task_data)
         output = result or {"status": "updated", "id": task_id}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
@@ -757,6 +868,40 @@ def tasks_move(task_id: str, after: str | None, parent: str | None) -> None:
         client = _get_client()
         result = client.move_task(task_id, after=after, parent=parent)
         click.echo(json.dumps(result or {"status": "moved", "id": task_id}, indent=2, default=str, ensure_ascii=False))
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
+@tasks.command("schedule")
+@click.argument("task_id")
+@click.option("--start", required=True, help="Start datetime (ISO 8601).")
+@click.option("--duration", default=None, type=int, help="Duration in minutes (overrides task's estimatedDuration).")
+@click.option("--calendar-id", default=None, help="Calendar ID (auto-discovered if omitted).")
+@click.option("--account-id", default=None, help="Account ID (auto-discovered if omitted).")
+@click.option("--timezone", default=None, help="Time zone (e.g. Europe/Paris). Defaults to system timezone.")
+def tasks_schedule(
+    task_id: str,
+    start: str,
+    duration: int | None,
+    calendar_id: str | None,
+    account_id: str | None,
+    timezone: str | None,
+) -> None:
+    """Schedule a task as a linked calendar event."""
+    try:
+        client = _get_client()
+        if not account_id or not calendar_id:
+            account_id, cal_ids = _auto_discover(client)
+            calendar_id = calendar_id or cal_ids[0]
+        result = client.schedule_task(
+            task_id=task_id,
+            start=start,
+            calendar_id=calendar_id,
+            account_id=account_id,
+            duration_minutes=duration,
+            timezone=timezone,
+        )
+        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -929,7 +1074,7 @@ def next(
 # ---------------------------------------------------------------------------
 
 VIEW_EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration", "participants_display", "location_display"]
-VIEW_TASK_CONCISE_FIELDS = ["id", "title", "progress", "due"]
+VIEW_TASK_CONCISE_FIELDS = ["id", "title", "progress", "due", "source"]
 
 
 class _MutuallyExclusive(click.Option):
@@ -987,7 +1132,10 @@ def _combined_view(
             result["events"] = events_list_enriched
 
         if not events_only:
-            tasks_data = client.list_tasks()
+            tasks_result = client.list_all_tasks()
+            from morgen.output import enrich_tasks
+
+            tasks_data = enrich_tasks(tasks_result["tasks"], label_defs=tasks_result.get("labelDefs", []))
             scheduled: list[dict[str, Any]] = []
             overdue: list[dict[str, Any]] = []
             unscheduled: list[dict[str, Any]] = []

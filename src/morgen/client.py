@@ -13,6 +13,7 @@ from morgen.cache import (
     TTL_EVENTS,
     TTL_SINGLE,
     TTL_TAGS,
+    TTL_TASK_ACCOUNTS,
     TTL_TASKS,
 )
 from morgen.config import Settings
@@ -137,6 +138,16 @@ class MorgenClient:
         self._cache_set("accounts", result, TTL_ACCOUNTS)
         return result
 
+    def list_task_accounts(self) -> list[dict[str, Any]]:
+        """List accounts with task integrations (Linear, Notion, etc.)."""
+        cached = self._cache_get("task_accounts")
+        if cached is not None:
+            return cast(list[dict[str, Any]], cached)
+        accounts = self.list_accounts()
+        result = [a for a in accounts if "tasks" in a.get("integrationGroups", [])]
+        self._cache_set("task_accounts", result, TTL_TASK_ACCOUNTS)
+        return result
+
     # ----- Calendars -----
 
     def list_calendars(self) -> list[dict[str, Any]]:
@@ -253,6 +264,67 @@ class MorgenClient:
 
     # ----- Tasks -----
 
+    def list_all_tasks(
+        self,
+        *,
+        source: str | None = None,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        """List tasks across all connected task sources.
+
+        Returns {"tasks": [...], "labelDefs": [...], "spaces": [...]}
+        with tasks merged from all sources.
+
+        If source is specified, only fetch from that integration.
+        "morgen" fetches native tasks (no accountId param).
+        """
+        all_tasks: list[dict[str, Any]] = []
+        all_label_defs: list[dict[str, Any]] = []
+        all_spaces: list[dict[str, Any]] = []
+
+        # Morgen-native tasks
+        if source is None or source == "morgen":
+            data = self._request("GET", "/tasks/list", params={"limit": limit})
+            morgen_tasks = _extract_list(data, "tasks")
+            # Tag morgen-native tasks with integrationId if missing
+            for t in morgen_tasks:
+                t.setdefault("integrationId", "morgen")
+            all_tasks.extend(morgen_tasks)
+
+        # External task sources
+        task_accounts = self.list_task_accounts()
+        for account in task_accounts:
+            integration = account.get("integrationId", "")
+            if source is not None and integration != source:
+                continue
+            account_id = account.get("id", account.get("_id", ""))
+            if not account_id:
+                continue
+
+            cache_key = f"tasks/{account_id}"
+            cached = self._cache_get(cache_key)
+            if cached is not None:
+                inner = cast(dict[str, Any], cached)
+            else:
+                raw = self._request(
+                    "GET",
+                    "/tasks/list",
+                    params={"accountId": account_id, "limit": limit},
+                )
+                # _request returns resp.json() which is {"data": {...}}
+                # Unwrap the data envelope to get the inner dict
+                if isinstance(raw, dict):
+                    inner = raw.get("data", raw)
+                else:
+                    inner = {}
+                self._cache_set(cache_key, inner, TTL_TASKS)
+
+            all_tasks.extend(inner.get("tasks", []))
+            all_label_defs.extend(inner.get("labelDefs", []))
+            all_spaces.extend(inner.get("spaces", []))
+
+        return {"tasks": all_tasks, "labelDefs": all_label_defs, "spaces": all_spaces}
+
     def list_tasks(self, limit: int = 100, updated_after: str | None = None) -> list[dict[str, Any]]:
         """List tasks."""
         cached = self._cache_get("tasks/list")
@@ -316,6 +388,49 @@ class MorgenClient:
         """Delete a task."""
         self._request("POST", "/tasks/delete", json={"id": task_id})
         self._cache_invalidate("tasks")
+
+    def schedule_task(
+        self,
+        task_id: str,
+        start: str,
+        calendar_id: str,
+        account_id: str,
+        *,
+        duration_minutes: int | None = None,
+        timezone: str | None = None,
+    ) -> dict[str, Any]:
+        """Schedule a task as a linked calendar event.
+
+        Fetches the task to derive title and duration, then creates an event
+        with morgen.so:metadata.taskId linking it back to the task.
+        """
+        task = self.get_task(task_id)
+        title = task.get("title", "Untitled task")
+
+        # Duration: explicit override > task's estimatedDuration > 30min default
+        if duration_minutes is not None:
+            duration = f"PT{duration_minutes}M"
+        else:
+            duration = task.get("estimatedDuration", "PT30M")
+
+        # Default to system timezone if not specified (API requires it for timed events)
+        if not timezone:
+            from morgen.time_utils import get_local_timezone
+
+            timezone = get_local_timezone()
+
+        event_data: dict[str, Any] = {
+            "title": title,
+            "start": start,
+            "duration": duration,
+            "calendarId": calendar_id,
+            "accountId": account_id,
+            "showWithoutTime": False,
+            "timeZone": timezone,
+            "morgen.so:metadata": {"taskId": task_id},
+        }
+
+        return self.create_event(event_data)
 
     # ----- Tags -----
 

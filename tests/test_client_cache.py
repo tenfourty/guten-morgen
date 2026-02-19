@@ -25,7 +25,7 @@ class TestCachedListAccounts:
     def test_first_call_hits_api_and_caches(self, tmp_path: Path) -> None:
         client, cache = _make_client(tmp_path)
         result = client.list_accounts()
-        assert len(result) == 2
+        assert len(result) == 4
         assert cache.get("accounts") is not None
 
     def test_second_call_returns_cached(self, tmp_path: Path) -> None:
@@ -88,4 +88,4 @@ class TestNoCacheStillWorks:
         transport = httpx.MockTransport(mock_transport_handler)
         client = MorgenClient(settings, transport=transport)
         result = client.list_accounts()
-        assert len(result) == 2
+        assert len(result) == 4

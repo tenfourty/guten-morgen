@@ -61,6 +61,20 @@ calendars = ["Family", "Personal"]
         assert config.active_only is True
         assert config.groups == {}
 
+    def test_load_task_calendar(self, tmp_path: Path) -> None:
+        config_file = tmp_path / ".config.toml"
+        config_file.write_text('task_calendar = "cal-tasks"\ntask_calendar_account = "acc-1"\n')
+        config = load_morgen_config(path=config_file)
+        assert config.task_calendar == "cal-tasks"
+        assert config.task_calendar_account == "acc-1"
+
+    def test_load_task_calendar_defaults(self, tmp_path: Path) -> None:
+        config_file = tmp_path / ".config.toml"
+        config_file.write_text("")
+        config = load_morgen_config(path=config_file)
+        assert config.task_calendar is None
+        assert config.task_calendar_account is None
+
 
 class TestResolveFilter:
     """Tests for resolve_filter."""
