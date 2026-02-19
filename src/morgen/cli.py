@@ -186,20 +186,23 @@ def usage() -> None:
 ### Tasks
 - `morgen tasks list [--limit N] [--status open|completed|all] [--overdue] [--json]`
   `  [--due-before ISO] [--due-after ISO] [--priority N]`
-  `  [--source morgen|linear|notion] [--group-by-source]`
+  `  [--source morgen|linear|notion] [--tag NAME] [--group-by-source]`
   List tasks from all connected sources. Filters combine with AND logic.
-  --source restricts to a single integration. --group-by-source returns
+  --source restricts to a single integration. --tag filters by tag name
+  (repeatable, OR logic, case-insensitive). --group-by-source returns
   output grouped by source. Tasks are enriched with source, source_id,
-  source_url, source_status fields.
+  source_url, source_status, tag_names fields.
 
 - `morgen tasks get ID [--json]`
   Get a single task by ID.
 
-- `morgen tasks create --title TEXT [--due ISO] [--priority 0-4] [--description TEXT] [--duration MINUTES]`
+- `morgen tasks create --title TEXT [--due ISO] [--priority 0-4] [--description TEXT] [--duration MINUTES] [--tag NAME]`
   Create a new task. --duration sets estimatedDuration for AI time-blocking.
+  --tag assigns tags by name (repeatable).
 
-- `morgen tasks update ID [--title TEXT] [--due ISO] [--priority 0-4] [--description TEXT] [--duration MINUTES]`
-  Update a task. --duration sets estimatedDuration.
+- `morgen tasks update ID [--title TEXT] [--due ISO] [--priority 0-4] [--description TEXT]`
+  `  [--duration MINUTES] [--tag NAME]`
+  Update a task. --duration sets estimatedDuration. --tag replaces tags by name (repeatable).
 
 - `morgen tasks schedule ID --start ISO [--duration MINUTES] [--calendar-id ID] [--account-id ID]`
   Schedule a task as a linked calendar event. Fetches the task to derive
@@ -312,6 +315,25 @@ morgen tasks schedule <task-id> --start 2026-02-18T10:00:00
 ### Cross-Source Task Review
 ```
 morgen tasks list --json --group-by-source --response-format concise
+```
+
+### Tag-Based Task Lifecycle
+Tags model lifecycle stages (create once, reuse forever):
+```
+morgen tags create --name "Active" --color "#22c55e"
+morgen tags create --name "Waiting-On" --color "#f59e0b"
+morgen tags create --name "Someday" --color "#6b7280"
+```
+Assign tags when creating or updating tasks:
+```
+morgen tasks create --title "Review Q1 budget" --tag "Active" --due 2026-02-28
+morgen tasks update <id> --tag "Waiting-On"
+```
+Filter by lifecycle stage:
+```
+morgen tasks list --tag "Active" --status open --json
+morgen tasks list --tag "Waiting-On" --json
+morgen tasks list --tag "Active" --tag "Waiting-On" --json   # OR: either tag
 ```
 """
     click.echo(text)
@@ -452,6 +474,13 @@ def _normalize_due(due: str) -> str:
         due = f"{due}T23:59:59"
     # Truncate to 19 chars if longer
     return due[:19]
+
+
+def _resolve_tag_names(client: MorgenClient, names: tuple[str, ...]) -> list[str]:
+    """Resolve tag names to IDs. Case-insensitive matching."""
+    all_tags = client.list_tags()
+    name_to_id = {t["name"].lower(): t["id"] for t in all_tags}
+    return [name_to_id[n.lower()] for n in names if n.lower() in name_to_id]
 
 
 def _auto_discover(client: MorgenClient) -> tuple[str, list[str]]:
@@ -632,8 +661,8 @@ def events_delete(event_id: str, calendar_id: str | None, account_id: str | None
 # tasks
 # ---------------------------------------------------------------------------
 
-TASK_COLUMNS = ["id", "title", "progress", "priority", "due", "source", "source_id", "source_status"]
-TASK_CONCISE_FIELDS = ["id", "title", "progress", "due", "source"]
+TASK_COLUMNS = ["id", "title", "progress", "priority", "due", "tag_names", "source", "source_id", "source_status"]
+TASK_CONCISE_FIELDS = ["id", "title", "progress", "due", "tag_names", "source"]
 
 
 @cli.group()
@@ -655,6 +684,7 @@ def tasks() -> None:
 @click.option("--overdue", is_flag=True, default=False, help="Show only overdue tasks (due before now).")
 @click.option("--priority", "priority_filter", default=None, type=int, help="Filter by priority level (0-4).")
 @click.option("--source", default=None, help="Filter by task source (morgen, linear, notion, etc.).")
+@click.option("--tag", "tag_names", multiple=True, help="Filter by tag name (repeatable, OR logic).")
 @click.option("--group-by-source", is_flag=True, default=False, help="Group output by task source.")
 @output_options
 def tasks_list(
@@ -665,6 +695,7 @@ def tasks_list(
     overdue: bool,
     priority_filter: int | None,
     source: str | None,
+    tag_names: tuple[str, ...],
     group_by_source: bool,
     fmt: str,
     fields: list[str] | None,
@@ -678,10 +709,22 @@ def tasks_list(
         data = result["tasks"]
         label_defs = result.get("labelDefs", [])
 
-        # Enrich tasks with normalized source metadata
+        # Fetch tags for enrichment and filtering (cached)
+        all_tags = client.list_tags()
+
+        # Resolve tag name filter to IDs (OR logic: match any)
+        tag_id_filter: set[str] = set()
+        if tag_names:
+            name_to_id = {t["name"].lower(): t["id"] for t in all_tags}
+            for tn in tag_names:
+                tid = name_to_id.get(tn.lower())
+                if tid:
+                    tag_id_filter.add(tid)
+
+        # Enrich tasks with normalized source metadata + tag names
         from morgen.output import enrich_tasks
 
-        data = enrich_tasks(data, label_defs=label_defs)
+        data = enrich_tasks(data, label_defs=label_defs, tags=all_tags)
 
         # Apply client-side filters
         if overdue:
@@ -713,6 +756,12 @@ def tasks_list(
             # Priority filter
             if priority_filter is not None and t.get("priority") != priority_filter:
                 continue
+
+            # Tag filter (OR logic: task must have at least one matching tag)
+            if tag_id_filter:
+                task_tags = set(t.get("tags", []))
+                if not task_tags & tag_id_filter:
+                    continue
 
             filtered.append(t)
 
@@ -772,12 +821,14 @@ def tasks_get(
 @click.option("--priority", default=None, type=int, help="Priority (0-4).")
 @click.option("--description", default=None, help="Task description.")
 @click.option("--duration", default=None, type=int, help="Estimated duration in minutes.")
+@click.option("--tag", "tag_names", multiple=True, help="Tag name (repeatable). Resolved to IDs.")
 def tasks_create(
     title: str,
     due: str | None,
     priority: int | None,
     description: str | None,
     duration: int | None,
+    tag_names: tuple[str, ...],
 ) -> None:
     """Create a new task."""
     try:
@@ -791,6 +842,8 @@ def tasks_create(
             task_data["description"] = description
         if duration is not None:
             task_data["estimatedDuration"] = f"PT{duration}M"
+        if tag_names:
+            task_data["tags"] = _resolve_tag_names(client, tag_names)
         result = client.create_task(task_data)
         click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
@@ -804,6 +857,7 @@ def tasks_create(
 @click.option("--priority", default=None, type=int, help="New priority (0-4).")
 @click.option("--description", default=None, help="New description.")
 @click.option("--duration", default=None, type=int, help="Estimated duration in minutes.")
+@click.option("--tag", "tag_names", multiple=True, help="Tag name (repeatable). Replaces existing tags.")
 def tasks_update(
     task_id: str,
     title: str | None,
@@ -811,6 +865,7 @@ def tasks_update(
     priority: int | None,
     description: str | None,
     duration: int | None,
+    tag_names: tuple[str, ...],
 ) -> None:
     """Update a task."""
     try:
@@ -826,6 +881,8 @@ def tasks_update(
             task_data["description"] = description
         if duration is not None:
             task_data["estimatedDuration"] = f"PT{duration}M"
+        if tag_names:
+            task_data["tags"] = _resolve_tag_names(client, tag_names)
         result = client.update_task(task_data)
         output = result or {"status": "updated", "id": task_id}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
@@ -1135,7 +1192,10 @@ def _combined_view(
             tasks_result = client.list_all_tasks()
             from morgen.output import enrich_tasks
 
-            tasks_data = enrich_tasks(tasks_result["tasks"], label_defs=tasks_result.get("labelDefs", []))
+            all_tags = client.list_tags()
+            tasks_data = enrich_tasks(
+                tasks_result["tasks"], label_defs=tasks_result.get("labelDefs", []), tags=all_tags
+            )
             scheduled: list[dict[str, Any]] = []
             overdue: list[dict[str, Any]] = []
             unscheduled: list[dict[str, Any]] = []
