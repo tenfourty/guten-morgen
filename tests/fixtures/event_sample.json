@@ -1,0 +1,14 @@
+{
+  "id": "evt-1",
+  "title": "Standup",
+  "start": "2026-02-17T09:00:00",
+  "duration": "PT30M",
+  "calendarId": "cal-1",
+  "accountId": "acc-1",
+  "participants": {
+    "p1": {"name": "Alice", "email": "alice@example.com", "kind": "individual"}
+  },
+  "locations": {
+    "loc1": {"name": "https://meet.google.com/abc-defg-hij"}
+  }
+}

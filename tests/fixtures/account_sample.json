@@ -1,0 +1,8 @@
+{
+  "id": "acc-1",
+  "name": "Work Google",
+  "providerUserDisplayName": "Test User",
+  "preferredEmail": "test@example.com",
+  "integrationId": "google",
+  "integrationGroups": ["calendars"]
+}
