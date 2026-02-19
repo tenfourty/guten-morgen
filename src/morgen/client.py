@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 
 import httpx
 
@@ -23,6 +23,7 @@ from morgen.errors import (
     NotFoundError,
     RateLimitError,
 )
+from morgen.models import MorgenModel, Tag
 
 
 def _extract_list(data: Any, key: str) -> list[dict[str, Any]]:
@@ -62,6 +63,40 @@ def _extract_single(data: Any, key: str) -> dict[str, Any]:
         return data
     fallback: dict[str, Any] = data
     return fallback
+
+
+T = TypeVar("T", bound=MorgenModel)
+
+
+def _extract_list_typed(data: Any, key: str, model: type[T]) -> list[T]:
+    """Extract and validate a list from Morgen's nested response format."""
+    if isinstance(data, list):
+        raw = data
+    elif isinstance(data, dict):
+        inner = data.get("data", data)
+        if isinstance(inner, dict):
+            raw = inner.get(key, [])
+        elif isinstance(inner, list):
+            raw = inner
+        else:
+            raw = []
+    else:
+        raw = []
+    return [model.model_validate(item) for item in raw]
+
+
+def _extract_single_typed(data: Any, key: str, model: type[T]) -> T:
+    """Extract and validate a single item from Morgen's nested response format."""
+    if data is None:
+        return model.model_validate({})
+    if isinstance(data, dict):
+        inner = data.get("data", data)
+        if isinstance(inner, dict):
+            if key in inner:
+                return model.model_validate(inner[key])
+            return model.model_validate(inner)
+        return model.model_validate(data)
+    return model.model_validate(data)
 
 
 class MorgenClient:
@@ -434,38 +469,38 @@ class MorgenClient:
 
     # ----- Tags -----
 
-    def list_tags(self) -> list[dict[str, Any]]:
+    def list_tags(self) -> list[Tag]:
         """List all tags."""
         cached = self._cache_get("tags")
         if cached is not None:
-            return cast(list[dict[str, Any]], cached)
+            return [Tag.model_validate(t) for t in cast(list[dict[str, Any]], cached)]
         data = self._request("GET", "/tags/list")
-        result = _extract_list(data, "tags")
-        self._cache_set("tags", result, TTL_TAGS)
+        result = _extract_list_typed(data, "tags", Tag)
+        self._cache_set("tags", [t.model_dump() for t in result], TTL_TAGS)
         return result
 
-    def get_tag(self, tag_id: str) -> dict[str, Any]:
+    def get_tag(self, tag_id: str) -> Tag:
         """Get a single tag."""
         key = f"tags/{tag_id}"
         cached = self._cache_get(key)
         if cached is not None:
-            return cast(dict[str, Any], cached)
+            return Tag.model_validate(cast(dict[str, Any], cached))
         data = self._request("GET", "/tags/", params={"id": tag_id})
-        result = _extract_single(data, "tag")
-        self._cache_set(key, result, TTL_SINGLE)
+        result = _extract_single_typed(data, "tag", Tag)
+        self._cache_set(key, result.model_dump(), TTL_SINGLE)
         return result
 
-    def create_tag(self, tag_data: dict[str, Any]) -> dict[str, Any]:
+    def create_tag(self, tag_data: dict[str, Any]) -> Tag:
         """Create a tag."""
         data = self._request("POST", "/tags/create", json=tag_data)
         self._cache_invalidate("tags")
-        return _extract_single(data, "tag")
+        return _extract_single_typed(data, "tag", Tag)
 
-    def update_tag(self, tag_data: dict[str, Any]) -> dict[str, Any]:
+    def update_tag(self, tag_data: dict[str, Any]) -> Tag:
         """Update a tag."""
         data = self._request("POST", "/tags/update", json=tag_data)
         self._cache_invalidate("tags")
-        return _extract_single(data, "tag")
+        return _extract_single_typed(data, "tag", Tag)
 
     def delete_tag(self, tag_id: str) -> None:
         """Delete a tag."""

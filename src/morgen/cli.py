@@ -479,7 +479,7 @@ def _normalize_due(due: str) -> str:
 def _resolve_tag_names(client: MorgenClient, names: tuple[str, ...]) -> list[str]:
     """Resolve tag names to IDs. Case-insensitive matching."""
     all_tags = client.list_tags()
-    name_to_id = {t["name"].lower(): t["id"] for t in all_tags}
+    name_to_id = {t.name.lower(): t.id for t in all_tags}
     return [name_to_id[n.lower()] for n in names if n.lower() in name_to_id]
 
 
@@ -710,7 +710,7 @@ def tasks_list(
         label_defs = result.get("labelDefs", [])
 
         # Fetch tags for enrichment and filtering (cached)
-        all_tags = client.list_tags()
+        all_tags = [t.model_dump() for t in client.list_tags()]
 
         # Resolve tag name filter to IDs (OR logic: match any)
         tag_id_filter: set[str] = set()
@@ -994,7 +994,7 @@ def tags_list(fmt: str, fields: list[str] | None, jq_expr: str | None, response_
     """List all tags."""
     try:
         client = _get_client()
-        data = client.list_tags()
+        data = [t.model_dump() for t in client.list_tags()]
         if response_format == "concise" and not fields:
             fields = TAG_CONCISE_FIELDS
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=TAG_COLUMNS)
@@ -1015,7 +1015,7 @@ def tags_get(
     """Get a single tag by ID."""
     try:
         client = _get_client()
-        data = client.get_tag(tag_id)
+        data = client.get_tag(tag_id).model_dump()
         if response_format == "concise" and not fields:
             fields = TAG_CONCISE_FIELDS
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr)
@@ -1034,7 +1034,7 @@ def tags_create(name: str, color: str | None) -> None:
         if color:
             tag_data["color"] = color
         result = client.create_tag(tag_data)
-        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+        click.echo(json.dumps(result.model_dump(), indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -1053,7 +1053,7 @@ def tags_update(tag_id: str, name: str | None, color: str | None) -> None:
         if color is not None:
             tag_data["color"] = color
         result = client.update_tag(tag_data)
-        click.echo(json.dumps(result or {"status": "updated", "id": tag_id}, indent=2, default=str, ensure_ascii=False))
+        click.echo(json.dumps(result.model_dump(), indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -1192,7 +1192,7 @@ def _combined_view(
             tasks_result = client.list_all_tasks()
             from morgen.output import enrich_tasks
 
-            all_tags = client.list_tags()
+            all_tags = [t.model_dump() for t in client.list_tags()]
             tasks_data = enrich_tasks(
                 tasks_result["tasks"], label_defs=tasks_result.get("labelDefs", []), tags=all_tags
             )
