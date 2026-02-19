@@ -60,20 +60,51 @@ class Event(TypedDict, total=False):
     showAs: str
 
 
-class Task(TypedDict, total=False):
+class LabelDef(MorgenModel):
+    """Label definition from task list response (external integrations)."""
+
+    id: str
+    label: str | None = None
+    type: str | None = None
+    values: list[dict[str, Any]] = []
+
+
+class Space(MorgenModel):
+    """Space/project from task list response (external integrations)."""
+
+    id: str
+    name: str | None = None
+
+
+class Task(MorgenModel):
     """Task item."""
 
     id: str
-    title: str
-    description: str
-    status: str
-    priority: int
-    due: str
-    createdAt: str
-    updatedAt: str
-    completedAt: str
-    parentId: str
-    tags: list[str]
+    title: str = ""
+    description: str | None = None
+    progress: str | None = None
+    status: str | None = None
+    priority: int | None = None
+    due: str | None = None
+    createdAt: str | None = None
+    updatedAt: str | None = None
+    completedAt: str | None = None
+    parentId: str | None = None
+    tags: list[str] = []
+    taskListId: str | None = None
+    estimatedDuration: str | None = None
+    integrationId: str = "morgen"
+    accountId: str | None = None
+    labels: list[dict[str, Any]] = []
+    links: dict[str, Any] = {}
+
+
+class TaskListResponse(MorgenModel):
+    """Compound response from list_all_tasks."""
+
+    tasks: list[Task] = []
+    labelDefs: list[LabelDef] = []
+    spaces: list[Space] = []
 
 
 class Tag(MorgenModel):

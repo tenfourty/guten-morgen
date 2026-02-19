@@ -23,7 +23,7 @@ from morgen.errors import (
     NotFoundError,
     RateLimitError,
 )
-from morgen.models import Account, Calendar, MorgenModel, Tag
+from morgen.models import Account, Calendar, LabelDef, MorgenModel, Space, Tag, Task, TaskListResponse
 
 
 def _extract_list(data: Any, key: str) -> list[dict[str, Any]]:
@@ -308,27 +308,22 @@ class MorgenClient:
         *,
         source: str | None = None,
         limit: int = 100,
-    ) -> dict[str, Any]:
+    ) -> TaskListResponse:
         """List tasks across all connected task sources.
 
-        Returns {"tasks": [...], "labelDefs": [...], "spaces": [...]}
-        with tasks merged from all sources.
+        Returns a TaskListResponse with tasks merged from all sources.
 
         If source is specified, only fetch from that integration.
         "morgen" fetches native tasks (no accountId param).
         """
-        all_tasks: list[dict[str, Any]] = []
-        all_label_defs: list[dict[str, Any]] = []
-        all_spaces: list[dict[str, Any]] = []
+        all_tasks_raw: list[dict[str, Any]] = []
+        all_label_defs_raw: list[dict[str, Any]] = []
+        all_spaces_raw: list[dict[str, Any]] = []
 
-        # Morgen-native tasks
+        # Morgen-native tasks — Task model defaults integrationId="morgen"
         if source is None or source == "morgen":
             data = self._request("GET", "/tasks/list", params={"limit": limit})
-            morgen_tasks = _extract_list(data, "tasks")
-            # Tag morgen-native tasks with integrationId if missing
-            for t in morgen_tasks:
-                t.setdefault("integrationId", "morgen")
-            all_tasks.extend(morgen_tasks)
+            all_tasks_raw.extend(_extract_list(data, "tasks"))
 
         # External task sources
         task_accounts = self.list_task_accounts()
@@ -358,61 +353,67 @@ class MorgenClient:
                     inner = {}
                 self._cache_set(cache_key, inner, TTL_TASKS)
 
-            all_tasks.extend(inner.get("tasks", []))
-            all_label_defs.extend(inner.get("labelDefs", []))
-            all_spaces.extend(inner.get("spaces", []))
+            all_tasks_raw.extend(inner.get("tasks", []))
+            all_label_defs_raw.extend(inner.get("labelDefs", []))
+            all_spaces_raw.extend(inner.get("spaces", []))
 
-        return {"tasks": all_tasks, "labelDefs": all_label_defs, "spaces": all_spaces}
+        return TaskListResponse(
+            tasks=[Task.model_validate(t) for t in all_tasks_raw],
+            labelDefs=[LabelDef.model_validate(ld) for ld in all_label_defs_raw],
+            spaces=[Space.model_validate(s) for s in all_spaces_raw],
+        )
 
-    def list_tasks(self, limit: int = 100, updated_after: str | None = None) -> list[dict[str, Any]]:
+    def list_tasks(self, limit: int = 100, updated_after: str | None = None) -> list[Task]:
         """List tasks."""
         cached = self._cache_get("tasks/list")
         if cached is not None:
-            return cast(list[dict[str, Any]], cached)
+            return [Task.model_validate(t) for t in cast(list[dict[str, Any]], cached)]
         params: dict[str, Any] = {"limit": limit}
         if updated_after:
             params["updatedAfter"] = updated_after
         data = self._request("GET", "/tasks/list", params=params)
-        result = _extract_list(data, "tasks")
-        self._cache_set("tasks/list", result, TTL_TASKS)
+        result = _extract_list_typed(data, "tasks", Task)
+        self._cache_set("tasks/list", [t.model_dump() for t in result], TTL_TASKS)
         return result
 
-    def get_task(self, task_id: str) -> dict[str, Any]:
+    def get_task(self, task_id: str) -> Task:
         """Get a single task."""
         key = f"tasks/{task_id}"
         cached = self._cache_get(key)
         if cached is not None:
-            return cast(dict[str, Any], cached)
+            return Task.model_validate(cast(dict[str, Any], cached))
         data = self._request("GET", "/tasks/", params={"id": task_id})
-        result = _extract_single(data, "task")
-        self._cache_set(key, result, TTL_SINGLE)
+        result = _extract_single_typed(data, "task", Task)
+        if result is None:
+            raise NotFoundError(f"Task {task_id} not found")
+        self._cache_set(key, result.model_dump(), TTL_SINGLE)
         return result
 
-    def create_task(self, task_data: dict[str, Any]) -> dict[str, Any]:
+    def create_task(self, task_data: dict[str, Any]) -> Task | None:
         """Create a new task."""
         data = self._request("POST", "/tasks/create", json=task_data)
         self._cache_invalidate("tasks")
-        return _extract_single(data, "task")
+        return _extract_single_typed(data, "task", Task)
 
-    def update_task(self, task_data: dict[str, Any]) -> dict[str, Any]:
+    def update_task(self, task_data: dict[str, Any]) -> Task | None:
         """Update a task."""
         data = self._request("POST", "/tasks/update", json=task_data)
         self._cache_invalidate("tasks")
-        return _extract_single(data, "task")
+        return _extract_single_typed(data, "task", Task)
 
-    def close_task(self, task_id: str) -> dict[str, Any]:
+    def close_task(self, task_id: str) -> Task | None:
         """Mark a task as completed."""
         data = self._request("POST", "/tasks/close", json={"id": task_id})
         self._cache_invalidate("tasks")
-        return _extract_single(data, "task")
+        return _extract_single_typed(data, "task", Task)
 
-    def reopen_task(self, task_id: str) -> dict[str, Any]:
+    def reopen_task(self, task_id: str) -> Task | None:
         """Reopen a completed task."""
         data = self._request("POST", "/tasks/reopen", json={"id": task_id})
         self._cache_invalidate("tasks")
-        return _extract_single(data, "task")
+        return _extract_single_typed(data, "task", Task)
 
-    def move_task(self, task_id: str, after: str | None = None, parent: str | None = None) -> dict[str, Any]:
+    def move_task(self, task_id: str, after: str | None = None, parent: str | None = None) -> Task | None:
         """Reorder or nest a task."""
         payload: dict[str, Any] = {"id": task_id}
         if after is not None:
@@ -421,7 +422,7 @@ class MorgenClient:
             payload["parent"] = parent
         data = self._request("POST", "/tasks/move", json=payload)
         self._cache_invalidate("tasks")
-        return _extract_single(data, "task")
+        return _extract_single_typed(data, "task", Task)
 
     def delete_task(self, task_id: str) -> None:
         """Delete a task."""
@@ -444,13 +445,13 @@ class MorgenClient:
         with morgen.so:metadata.taskId linking it back to the task.
         """
         task = self.get_task(task_id)
-        title = task.get("title", "Untitled task")
+        title = task.title or "Untitled task"
 
         # Duration: explicit override > task's estimatedDuration > 30min default
         if duration_minutes is not None:
             duration = f"PT{duration_minutes}M"
         else:
-            duration = task.get("estimatedDuration", "PT30M")
+            duration = task.estimatedDuration or "PT30M"
 
         # Default to system timezone if not specified (API requires it for timed events)
         if not timezone:
