@@ -73,9 +73,9 @@ class Task(TypedDict, total=False):
     tags: list[str]
 
 
-class Tag(TypedDict, total=False):
+class Tag(MorgenModel):
     """Tag for tasks."""
 
     id: str
     name: str
-    color: str
+    color: str | None = None

@@ -349,7 +349,11 @@ def mock_transport_handler(request: httpx.Request) -> httpx.Response:
     # GET with ?id= parameter — wrap in envelope
     if "id=" in str(request.url):
         item_key = _item_key_from_path(path)
-        item = {"id": "found-id", "title": "Found item"}
+        # Return model-appropriate fake data per resource type
+        if item_key == "tag":
+            item: dict[str, Any] = {"id": "found-id", "name": "Found tag", "color": "#000000"}
+        else:
+            item = {"id": "found-id", "title": "Found item"}
         return httpx.Response(200, json={"data": {item_key: item}})
 
     return httpx.Response(404, json={"error": "not found"})
