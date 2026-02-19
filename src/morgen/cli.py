@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import functools
 import json
-from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping
+
     from morgen.cache import CacheStore
     from morgen.client import MorgenClient
 
