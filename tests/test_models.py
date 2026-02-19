@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from morgen.models import Account, Calendar, Tag
+from morgen.models import Account, Calendar, LabelDef, Space, Tag, Task, TaskListResponse
 
 
 class TestTagModel:
@@ -92,3 +92,56 @@ class TestCalendarModel:
     def test_missing_required_field(self) -> None:
         with pytest.raises(ValidationError):
             Calendar()  # missing id
+
+
+class TestTaskModel:
+    def test_valid_task(self) -> None:
+        task = Task(id="task-1", title="Review PR", priority=2, tags=["tag-1"])
+        assert task.id == "task-1"
+        assert task.tags == ["tag-1"]
+
+    def test_integration_id_defaults_to_morgen(self) -> None:
+        task = Task(id="t1", title="Test")
+        assert task.integrationId == "morgen"
+
+    def test_external_task_with_labels_and_links(self) -> None:
+        task = Task(
+            id="linear-1",
+            title="Budget",
+            integrationId="linear",
+            labels=[{"id": "state", "value": "in-progress"}],
+            links={"original": {"href": "https://linear.app/...", "title": "Open"}},
+        )
+        assert task.integrationId == "linear"
+        assert len(task.labels) == 1
+
+    def test_model_dump_preserves_camelCase(self) -> None:
+        task = Task(id="t1", title="Test", taskListId="inbox", integrationId="linear")
+        d = task.model_dump()
+        assert "taskListId" in d
+        assert "integrationId" in d
+
+    def test_extra_fields_ignored(self) -> None:
+        task = Task(id="t1", title="Test", unknownField="x")
+        assert not hasattr(task, "unknownField")
+
+    def test_missing_required_field(self) -> None:
+        with pytest.raises(ValidationError):
+            Task()  # missing id
+
+
+class TestTaskListResponse:
+    def test_empty_response(self) -> None:
+        resp = TaskListResponse()
+        assert resp.tasks == []
+        assert resp.labelDefs == []
+
+    def test_with_data(self) -> None:
+        resp = TaskListResponse(
+            tasks=[Task(id="t1", title="Test")],
+            labelDefs=[LabelDef(id="state", label="Status")],
+            spaces=[Space(id="s1", name="Projects")],
+        )
+        assert len(resp.tasks) == 1
+        assert len(resp.labelDefs) == 1
+        assert len(resp.spaces) == 1

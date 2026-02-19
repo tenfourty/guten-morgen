@@ -29,24 +29,23 @@ class TestListTaskAccounts:
 class TestListAllTasks:
     def test_returns_all_sources(self, client: MorgenClient) -> None:
         result = client.list_all_tasks()
-        sources = {t.get("integrationId", "morgen") for t in result["tasks"]}
+        sources = {t.integrationId for t in result.tasks}
         assert "morgen" in sources
         assert "linear" in sources
         assert "notion" in sources
 
     def test_includes_label_defs(self, client: MorgenClient) -> None:
         result = client.list_all_tasks()
-        assert "labelDefs" in result
-        assert len(result["labelDefs"]) > 0
+        assert len(result.labelDefs) > 0
 
     def test_source_filter(self, client: MorgenClient) -> None:
         result = client.list_all_tasks(source="linear")
-        sources = {t.get("integrationId") for t in result["tasks"]}
+        sources = {t.integrationId for t in result.tasks}
         assert sources == {"linear"}
 
     def test_morgen_only(self, client: MorgenClient) -> None:
         result = client.list_all_tasks(source="morgen")
-        sources = {t.get("integrationId", "morgen") for t in result["tasks"]}
+        sources = {t.integrationId for t in result.tasks}
         assert sources == {"morgen"}
 
 

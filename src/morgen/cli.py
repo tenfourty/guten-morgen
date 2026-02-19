@@ -706,8 +706,8 @@ def tasks_list(
     try:
         client = _get_client()
         result = client.list_all_tasks(source=source, limit=limit)
-        data = result["tasks"]
-        label_defs = result.get("labelDefs", [])
+        data = [t.model_dump() for t in result.tasks]
+        label_defs = [ld.model_dump() for ld in result.labelDefs]
 
         # Fetch tags for enrichment and filtering (cached)
         all_tags = [t.model_dump() for t in client.list_tags()]
@@ -807,7 +807,7 @@ def tasks_get(
     """Get a single task by ID."""
     try:
         client = _get_client()
-        data = client.get_task(task_id)
+        data = client.get_task(task_id).model_dump()
         if response_format == "concise" and not fields:
             fields = TASK_CONCISE_FIELDS
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr)
@@ -845,7 +845,8 @@ def tasks_create(
         if tag_names:
             task_data["tags"] = _resolve_tag_names(client, tag_names)
         result = client.create_task(task_data)
-        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+        output = result.model_dump(exclude_none=True) if result else {"status": "created"}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -884,7 +885,7 @@ def tasks_update(
         if tag_names:
             task_data["tags"] = _resolve_tag_names(client, tag_names)
         result = client.update_task(task_data)
-        output = result or {"status": "updated", "id": task_id}
+        output = result.model_dump(exclude_none=True) if result else {"status": "updated", "id": task_id}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
@@ -897,7 +898,8 @@ def tasks_close(task_id: str) -> None:
     try:
         client = _get_client()
         result = client.close_task(task_id)
-        click.echo(json.dumps(result or {"status": "closed", "id": task_id}, indent=2, default=str, ensure_ascii=False))
+        output = result.model_dump(exclude_none=True) if result else {"status": "closed", "id": task_id}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -909,7 +911,7 @@ def tasks_reopen(task_id: str) -> None:
     try:
         client = _get_client()
         result = client.reopen_task(task_id)
-        output = result or {"status": "reopened", "id": task_id}
+        output = result.model_dump(exclude_none=True) if result else {"status": "reopened", "id": task_id}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
@@ -924,7 +926,8 @@ def tasks_move(task_id: str, after: str | None, parent: str | None) -> None:
     try:
         client = _get_client()
         result = client.move_task(task_id, after=after, parent=parent)
-        click.echo(json.dumps(result or {"status": "moved", "id": task_id}, indent=2, default=str, ensure_ascii=False))
+        output = result.model_dump(exclude_none=True) if result else {"status": "moved", "id": task_id}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -1196,7 +1199,9 @@ def _combined_view(
 
             all_tags = [t.model_dump() for t in client.list_tags()]
             tasks_data = enrich_tasks(
-                tasks_result["tasks"], label_defs=tasks_result.get("labelDefs", []), tags=all_tags
+                [t.model_dump() for t in tasks_result.tasks],
+                label_defs=[ld.model_dump() for ld in tasks_result.labelDefs],
+                tags=all_tags,
             )
             scheduled: list[dict[str, Any]] = []
             overdue: list[dict[str, Any]] = []
