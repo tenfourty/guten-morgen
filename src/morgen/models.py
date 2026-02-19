@@ -17,28 +17,31 @@ class MorgenModel(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
 
-class Account(TypedDict, total=False):
+class Account(MorgenModel):
     """Connected calendar account."""
 
-    accountId: str
-    providerId: str
-    providerAccountId: str
-    name: str
-    email: str
-    preferredEmail: str
-    integrationId: str
-    integrationGroups: list[str]
+    id: str
+    name: str | None = None
+    providerUserDisplayName: str | None = None
+    preferredEmail: str | None = None
+    integrationId: str | None = None
+    integrationGroups: list[str] = []
+    providerId: str | None = None
+    providerAccountId: str | None = None
+    email: str | None = None
 
 
-class Calendar(TypedDict, total=False):
+class Calendar(MorgenModel):
     """Calendar within an account."""
 
-    calendarId: str
-    accountId: str
-    name: str
-    color: str
-    writable: bool
-    isActiveByDefault: bool
+    id: str
+    calendarId: str | None = None
+    accountId: str | None = None
+    name: str | None = None
+    color: str | None = None
+    writable: bool | None = None
+    isActiveByDefault: bool | None = None
+    myRights: Any = None  # Can be dict or string depending on provider
 
 
 class Event(TypedDict, total=False):

@@ -344,8 +344,8 @@ morgen tasks list --tag "Active" --tag "Waiting-On" --json   # OR: either tag
         task_accounts = client.list_task_accounts()
         source_lines = ["  - morgen (native tasks)"]
         for acc in task_accounts:
-            name = acc.get("providerUserDisplayName", "")
-            iid = acc.get("integrationId", "")
+            name = acc.providerUserDisplayName or ""
+            iid = acc.integrationId or ""
             source_lines.append(f"  - {iid} ({name})")
         sources_section = "\n".join(source_lines)
     except Exception:
@@ -398,7 +398,7 @@ def accounts(fmt: str, fields: list[str] | None, jq_expr: str | None, response_f
     """List connected calendar accounts."""
     try:
         client = _get_client()
-        data = client.list_accounts()
+        data = [a.model_dump(exclude_none=True) for a in client.list_accounts()]
         if response_format == "concise" and not fields:
             fields = ACCOUNT_CONCISE_FIELDS
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=ACCOUNT_COLUMNS)
@@ -420,7 +420,7 @@ def calendars(fmt: str, fields: list[str] | None, jq_expr: str | None, response_
     """List all calendars across accounts."""
     try:
         client = _get_client()
-        data = client.list_calendars()
+        data = [c.model_dump(exclude_none=True) for c in client.list_calendars()]
         if response_format == "concise" and not fields:
             fields = CALENDAR_CONCISE_FIELDS
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=CALENDAR_COLUMNS)
@@ -495,18 +495,18 @@ def _auto_discover(client: MorgenClient) -> tuple[str, list[str]]:
         raise MorgenError("No connected accounts found", suggestions=["Connect an account in Morgen"])
 
     # Find the first calendar-capable account
-    calendar_accounts = [a for a in accounts_data if "calendars" in a.get("integrationGroups", [])]
+    calendar_accounts = [a for a in accounts_data if "calendars" in a.integrationGroups]
     account = calendar_accounts[0] if calendar_accounts else accounts_data[0]
-    account_id: str = account.get("id", account.get("accountId", ""))
+    account_id = account.id
 
     calendars_data = client.list_calendars()
     # Filter to calendars belonging to this account
-    account_cals = [c for c in calendars_data if c.get("accountId") == account_id]
+    account_cals = [c for c in calendars_data if c.accountId == account_id]
     # Prefer writable calendars (myRights is a dict with mayWriteAll, mayWriteOwn, etc.)
-    writable = [c.get("id", c.get("calendarId", "")) for c in account_cals if _is_writable(c)]
+    writable = [c.id for c in account_cals if _is_writable(c.model_dump())]
     if not writable:
         # Fall back to all calendars for the account
-        writable = [c.get("id", c.get("calendarId", "")) for c in account_cals]
+        writable = [c.id for c in account_cals]
     if not writable:
         raise MorgenError("No calendars found for account", suggestions=["Check calendar sync in Morgen"])
     return account_id, writable

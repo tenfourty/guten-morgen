@@ -33,7 +33,8 @@ class TestCachedListAccounts:
         client.list_accounts()  # populate the cache
         cache.set("accounts", [{"id": "cached-acc"}], ttl=3600)
         result2 = client.list_accounts()
-        assert result2 == [{"id": "cached-acc"}]
+        assert len(result2) == 1
+        assert result2[0].id == "cached-acc"
 
 
 class TestCachedListTasks:
@@ -89,3 +90,4 @@ class TestNoCacheStillWorks:
         client = MorgenClient(settings, transport=transport)
         result = client.list_accounts()
         assert len(result) == 4
+        assert result[0].id == "acc-1"
