@@ -70,14 +70,14 @@ class TestListAllEvents:
     def test_queries_both_accounts(self, client: MorgenClient) -> None:
         """Events from all calendar-capable accounts are returned."""
         events = client.list_all_events("2026-02-17T00:00:00", "2026-02-17T23:59:59")
-        titles = [e["title"] for e in events]
+        titles = [e.title for e in events]
         assert "Standup" in titles
         assert "Dentist" in titles
 
     def test_deduplicates_via_morgen(self, client: MorgenClient) -> None:
         """Synced copies with '(via Morgen)' in title are removed."""
         events = client.list_all_events("2026-02-17T00:00:00", "2026-02-17T23:59:59")
-        titles = [e["title"] for e in events]
+        titles = [e.title for e in events]
         assert "Standup (via Morgen)" not in titles
 
     def test_keeps_all_originals(self, client: MorgenClient) -> None:
@@ -98,7 +98,7 @@ class TestListAllEventsFiltering:
             "2026-02-17T23:59:59",
             account_keys=["test@example.com:google"],
         )
-        account_ids = {e["accountId"] for e in events}
+        account_ids = {e.accountId for e in events}
         assert account_ids == {"acc-1"}
 
     def test_filter_by_email_only(self, client: MorgenClient) -> None:
@@ -108,7 +108,7 @@ class TestListAllEventsFiltering:
             "2026-02-17T23:59:59",
             account_keys=["personal@example.com"],
         )
-        account_ids = {e["accountId"] for e in events}
+        account_ids = {e.accountId for e in events}
         assert account_ids == {"acc-2"}
 
     def test_active_only_filters_inactive_calendars(self, client: MorgenClient) -> None:
@@ -131,7 +131,7 @@ class TestListAllEventsFiltering:
             calendar_names=["Personal Calendar"],
         )
         # Only acc-2's "Personal Calendar" matches, after dedup only "Dentist" remains
-        titles = [e["title"] for e in events]
+        titles = [e.title for e in events]
         assert "Dentist" in titles
         assert "Standup" not in titles
 
@@ -144,7 +144,7 @@ class TestListAllEventsFiltering:
             calendar_names=["Work"],
         )
         # acc-1 matches, only "Work" calendar (cal-1) events
-        titles = [e["title"] for e in events]
+        titles = [e.title for e in events]
         assert "Standup" in titles
         assert "Lunch" in titles
 
@@ -156,7 +156,7 @@ class TestListAllEventsFiltering:
         call_args: list[tuple[str, list[str]]] = []
         original = client.list_events
 
-        def spy(account_id: str, calendar_ids: list[str], *a: object, **kw: object) -> list[dict[str, Any]]:
+        def spy(account_id: str, calendar_ids: list[str], *a: object, **kw: object) -> Any:
             call_args.append((account_id, calendar_ids))
             return original(account_id, calendar_ids, *a, **kw)  # type: ignore[arg-type]
 
