@@ -1034,7 +1034,8 @@ def tags_create(name: str, color: str | None) -> None:
         if color:
             tag_data["color"] = color
         result = client.create_tag(tag_data)
-        click.echo(json.dumps(result.model_dump(), indent=2, default=str, ensure_ascii=False))
+        output = result.model_dump(exclude_none=True) if result else {"status": "created"}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -1053,7 +1054,8 @@ def tags_update(tag_id: str, name: str | None, color: str | None) -> None:
         if color is not None:
             tag_data["color"] = color
         result = client.update_tag(tag_data)
-        click.echo(json.dumps(result.model_dump(), indent=2, default=str, ensure_ascii=False))
+        output = result.model_dump(exclude_none=True) if result else {"status": "updated", "id": tag_id}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 

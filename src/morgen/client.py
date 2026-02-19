@@ -85,10 +85,14 @@ def _extract_list_typed(data: Any, key: str, model: type[T]) -> list[T]:
     return [model.model_validate(item) for item in raw]
 
 
-def _extract_single_typed(data: Any, key: str, model: type[T]) -> T:
-    """Extract and validate a single item from Morgen's nested response format."""
+def _extract_single_typed(data: Any, key: str, model: type[T]) -> T | None:
+    """Extract and validate a single item from Morgen's nested response format.
+
+    Morgen wraps single-item responses as: {"data": {"<key>": {...}}}
+    Some endpoints return the item directly. 204 returns None.
+    """
     if data is None:
-        return model.model_validate({})
+        return None
     if isinstance(data, dict):
         inner = data.get("data", data)
         if isinstance(inner, dict):
@@ -487,16 +491,18 @@ class MorgenClient:
             return Tag.model_validate(cast(dict[str, Any], cached))
         data = self._request("GET", "/tags/", params={"id": tag_id})
         result = _extract_single_typed(data, "tag", Tag)
+        if result is None:
+            raise NotFoundError(f"Tag {tag_id} not found")
         self._cache_set(key, result.model_dump(), TTL_SINGLE)
         return result
 
-    def create_tag(self, tag_data: dict[str, Any]) -> Tag:
+    def create_tag(self, tag_data: dict[str, Any]) -> Tag | None:
         """Create a tag."""
         data = self._request("POST", "/tags/create", json=tag_data)
         self._cache_invalidate("tags")
         return _extract_single_typed(data, "tag", Tag)
 
-    def update_tag(self, tag_data: dict[str, Any]) -> Tag:
+    def update_tag(self, tag_data: dict[str, Any]) -> Tag | None:
         """Update a tag."""
         data = self._request("POST", "/tags/update", json=tag_data)
         self._cache_invalidate("tags")
