@@ -8,12 +8,13 @@ from pathlib import Path
 from typing import Any
 
 # TTL constants (seconds)
-TTL_ACCOUNTS = 86400  # 24 hours
-TTL_CALENDARS = 86400  # 24 hours
-TTL_TAGS = 14400  # 4 hours
+TTL_ACCOUNTS = 604800  # 7 days
+TTL_CALENDARS = 604800  # 7 days
+TTL_TAGS = 86400  # 24 hours
 TTL_EVENTS = 1800  # 30 minutes
 TTL_TASKS = 1800  # 30 minutes
 TTL_SINGLE = 300  # 5 minutes (get by ID)
+TTL_TASK_ACCOUNTS = 604800  # 7 days
 
 _DEFAULT_CACHE_DIR = Path.home() / ".cache" / "morgen"
 

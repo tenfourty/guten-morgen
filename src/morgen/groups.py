@@ -34,6 +34,8 @@ class MorgenConfig:
     default_group: str | None = None
     active_only: bool = False
     groups: dict[str, GroupConfig] = field(default_factory=dict)
+    task_calendar: str | None = None
+    task_calendar_account: str | None = None
 
 
 @dataclass
@@ -75,6 +77,8 @@ def load_morgen_config(path: Path | None = None) -> MorgenConfig:
         default_group=raw.get("default_group"),
         active_only=raw.get("active_only", False),
         groups=groups,
+        task_calendar=raw.get("task_calendar"),
+        task_calendar_account=raw.get("task_calendar_account"),
     )
 
 
