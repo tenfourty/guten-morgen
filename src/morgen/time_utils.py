@@ -48,7 +48,7 @@ def this_month_range() -> tuple[str, str]:
 def get_local_timezone() -> str:
     """Get the local system IANA timezone name (e.g. 'Europe/Paris')."""
     import os
-    import subprocess
+    import subprocess  # nosec B404 — hardcoded macOS commands only
 
     # macOS: read from systemsetup or /etc/localtime symlink
     try:
@@ -61,7 +61,7 @@ def get_local_timezone() -> str:
 
     # Fallback: try systemsetup on macOS
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             ["systemsetup", "-gettimezone"],
             capture_output=True,
             text=True,

@@ -172,7 +172,7 @@ class MorgenClient:
     ) -> list[Event]:
         """List events in a date range."""
         raw = f"{account_id}:{','.join(sorted(calendar_ids))}:{start}:{end}"
-        key = f"events/{hashlib.md5(raw.encode()).hexdigest()[:12]}"
+        key = f"events/{hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()[:12]}"
         cached = self._cache_get(key)
         if cached is not None:
             return [Event.model_validate(e) for e in cast("list[dict[str, Any]]", cached)]

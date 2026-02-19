@@ -13,9 +13,15 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: bandit
+        name: bandit
+        entry: uv run bandit -c pyproject.toml -r src/
+        language: system
+        types: [python]
+        pass_filenames: false
       - id: pytest
         name: pytest
-        entry: uv run pytest -x -q
+        entry: uv run pytest -x -q --cov --cov-fail-under=85
         language: system
         types: [python]
         pass_filenames: false
