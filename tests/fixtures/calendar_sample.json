@@ -1,0 +1,10 @@
+{
+  "id": "cal-1",
+  "calendarId": "cal-1",
+  "accountId": "acc-1",
+  "name": "Work",
+  "color": "#4285f4",
+  "myRights": "rw",
+  "writable": true,
+  "isActiveByDefault": true
+}

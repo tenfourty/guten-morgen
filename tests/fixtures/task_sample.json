@@ -1,0 +1,9 @@
+{
+  "id": "task-1",
+  "title": "Review PR",
+  "progress": "needs-action",
+  "priority": 2,
+  "due": "2026-02-17T23:59:59Z",
+  "taskListId": "inbox",
+  "tags": ["tag-1"]
+}

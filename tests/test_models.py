@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
 from morgen.models import Account, Calendar, Event, LabelDef, Space, Tag, Task, TaskListResponse
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 class TestTagModel:
@@ -207,3 +212,42 @@ class TestTaskListResponse:
         assert len(resp.tasks) == 1
         assert len(resp.labelDefs) == 1
         assert len(resp.spaces) == 1
+
+
+# ---------------------------------------------------------------------------
+# API drift detection
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("model", "fixture_file"),
+    [
+        (Account, "account_sample.json"),
+        (Calendar, "calendar_sample.json"),
+        (Event, "event_sample.json"),
+        (Task, "task_sample.json"),
+        (Tag, "tag_sample.json"),
+    ],
+)
+def test_model_covers_api_fields(model: type, fixture_file: str) -> None:
+    """Detect when the API returns fields we haven't modeled.
+
+    Fails when a fixture has fields not in the model. To fix:
+    1. Add the new field to the model
+    2. Or remove from fixture if intentionally ignored
+    """
+    fixture_path = FIXTURES / fixture_file
+    sample = json.loads(fixture_path.read_text())
+    model_fields = set(model.model_fields.keys())
+
+    # Include aliases (e.g., morgen_metadata -> morgen.so:metadata)
+    for _field_name, field_info in model.model_fields.items():
+        if field_info.alias:
+            model_fields.add(field_info.alias)
+
+    api_fields = set(sample.keys())
+    new_fields = api_fields - model_fields
+    assert not new_fields, (
+        f"{model.__name__} doesn't model these API fields: {new_fields}. "
+        f"Add them to the model or remove from fixture if intentionally ignored."
+    )
