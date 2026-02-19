@@ -25,50 +25,10 @@ from morgen.errors import (
 )
 from morgen.models import Account, Calendar, Event, LabelDef, MorgenModel, Space, Tag, Task, TaskListResponse
 
-
-def _extract_list(data: Any, key: str) -> list[dict[str, Any]]:
-    """Extract a list from Morgen's nested response format.
-
-    Morgen wraps list responses as: {"data": {"<key>": [...]}}
-    Some endpoints return a flat list directly.
-    """
-    if isinstance(data, list):
-        return data
-    if isinstance(data, dict):
-        inner = data.get("data", data)
-        if isinstance(inner, dict):
-            result: list[dict[str, Any]] = inner.get(key, [])
-            return result
-        if isinstance(inner, list):
-            return inner
-    return []
-
-
-def _extract_single(data: Any, key: str) -> dict[str, Any]:
-    """Extract a single item from Morgen's nested response format.
-
-    Morgen wraps single-item responses as: {"data": {"<key>": {...}}}
-    Some endpoints return the item directly. 204 returns None.
-    """
-    if data is None:
-        return {}
-    if isinstance(data, dict):
-        inner = data.get("data", data)
-        if isinstance(inner, dict):
-            if key in inner:
-                result: dict[str, Any] = inner[key]
-                return result
-            # {"data": {...}} without the key — return inner directly
-            return inner
-        return data
-    fallback: dict[str, Any] = data
-    return fallback
-
-
 T = TypeVar("T", bound=MorgenModel)
 
 
-def _extract_list_typed(data: Any, key: str, model: type[T]) -> list[T]:
+def _extract_list(data: Any, key: str, model: type[T]) -> list[T]:
     """Extract and validate a list from Morgen's nested response format."""
     if isinstance(data, list):
         raw = data
@@ -85,7 +45,7 @@ def _extract_list_typed(data: Any, key: str, model: type[T]) -> list[T]:
     return [model.model_validate(item) for item in raw]
 
 
-def _extract_single_typed(data: Any, key: str, model: type[T]) -> T | None:
+def _extract_single(data: Any, key: str, model: type[T]) -> T | None:
     """Extract and validate a single item from Morgen's nested response format.
 
     Morgen wraps single-item responses as: {"data": {"<key>": {...}}}
@@ -173,7 +133,7 @@ class MorgenClient:
         if cached is not None:
             return [Account.model_validate(a) for a in cast(list[dict[str, Any]], cached)]
         data = self._request("GET", "/integrations/accounts/list")
-        result = _extract_list_typed(data, "accounts", Account)
+        result = _extract_list(data, "accounts", Account)
         self._cache_set("accounts", [a.model_dump() for a in result], TTL_ACCOUNTS)
         return result
 
@@ -195,7 +155,7 @@ class MorgenClient:
         if cached is not None:
             return [Calendar.model_validate(c) for c in cast(list[dict[str, Any]], cached)]
         data = self._request("GET", "/calendars/list")
-        result = _extract_list_typed(data, "calendars", Calendar)
+        result = _extract_list(data, "calendars", Calendar)
         self._cache_set("calendars", [c.model_dump() for c in result], TTL_CALENDARS)
         return result
 
@@ -224,7 +184,7 @@ class MorgenClient:
                 "end": end,
             },
         )
-        result = _extract_list_typed(data, "events", Event)
+        result = _extract_list(data, "events", Event)
         self._cache_set(key, [e.model_dump(by_alias=True) for e in result], TTL_EVENTS)
         return result
 
@@ -288,13 +248,13 @@ class MorgenClient:
         """Create a new event."""
         data = self._request("POST", "/events/create", json=event_data)
         self._cache_invalidate("events")
-        return _extract_single_typed(data, "event", Event)
+        return _extract_single(data, "event", Event)
 
     def update_event(self, event_data: dict[str, Any]) -> Event | None:
         """Update an existing event."""
         data = self._request("POST", "/events/update", json=event_data)
         self._cache_invalidate("events")
-        return _extract_single_typed(data, "event", Event)
+        return _extract_single(data, "event", Event)
 
     def delete_event(self, event_data: dict[str, Any]) -> None:
         """Delete an event."""
@@ -323,7 +283,15 @@ class MorgenClient:
         # Morgen-native tasks — Task model defaults integrationId="morgen"
         if source is None or source == "morgen":
             data = self._request("GET", "/tasks/list", params={"limit": limit})
-            all_tasks_raw.extend(_extract_list(data, "tasks"))
+            # Inline raw-dict extraction (Morgen wraps as {"data": {"tasks": [...]}})
+            if isinstance(data, dict):
+                inner = data.get("data", data)
+                if isinstance(inner, dict):
+                    all_tasks_raw.extend(inner.get("tasks", []))
+                elif isinstance(inner, list):
+                    all_tasks_raw.extend(inner)
+            elif isinstance(data, list):
+                all_tasks_raw.extend(data)
 
         # External task sources
         task_accounts = self.list_task_accounts()
@@ -372,7 +340,7 @@ class MorgenClient:
         if updated_after:
             params["updatedAfter"] = updated_after
         data = self._request("GET", "/tasks/list", params=params)
-        result = _extract_list_typed(data, "tasks", Task)
+        result = _extract_list(data, "tasks", Task)
         self._cache_set("tasks/list", [t.model_dump() for t in result], TTL_TASKS)
         return result
 
@@ -383,7 +351,7 @@ class MorgenClient:
         if cached is not None:
             return Task.model_validate(cast(dict[str, Any], cached))
         data = self._request("GET", "/tasks/", params={"id": task_id})
-        result = _extract_single_typed(data, "task", Task)
+        result = _extract_single(data, "task", Task)
         if result is None:
             raise NotFoundError(f"Task {task_id} not found")
         self._cache_set(key, result.model_dump(), TTL_SINGLE)
@@ -393,25 +361,25 @@ class MorgenClient:
         """Create a new task."""
         data = self._request("POST", "/tasks/create", json=task_data)
         self._cache_invalidate("tasks")
-        return _extract_single_typed(data, "task", Task)
+        return _extract_single(data, "task", Task)
 
     def update_task(self, task_data: dict[str, Any]) -> Task | None:
         """Update a task."""
         data = self._request("POST", "/tasks/update", json=task_data)
         self._cache_invalidate("tasks")
-        return _extract_single_typed(data, "task", Task)
+        return _extract_single(data, "task", Task)
 
     def close_task(self, task_id: str) -> Task | None:
         """Mark a task as completed."""
         data = self._request("POST", "/tasks/close", json={"id": task_id})
         self._cache_invalidate("tasks")
-        return _extract_single_typed(data, "task", Task)
+        return _extract_single(data, "task", Task)
 
     def reopen_task(self, task_id: str) -> Task | None:
         """Reopen a completed task."""
         data = self._request("POST", "/tasks/reopen", json={"id": task_id})
         self._cache_invalidate("tasks")
-        return _extract_single_typed(data, "task", Task)
+        return _extract_single(data, "task", Task)
 
     def move_task(self, task_id: str, after: str | None = None, parent: str | None = None) -> Task | None:
         """Reorder or nest a task."""
@@ -422,7 +390,7 @@ class MorgenClient:
             payload["parent"] = parent
         data = self._request("POST", "/tasks/move", json=payload)
         self._cache_invalidate("tasks")
-        return _extract_single_typed(data, "task", Task)
+        return _extract_single(data, "task", Task)
 
     def delete_task(self, task_id: str) -> None:
         """Delete a task."""
@@ -480,7 +448,7 @@ class MorgenClient:
         if cached is not None:
             return [Tag.model_validate(t) for t in cast(list[dict[str, Any]], cached)]
         data = self._request("GET", "/tags/list")
-        result = _extract_list_typed(data, "tags", Tag)
+        result = _extract_list(data, "tags", Tag)
         self._cache_set("tags", [t.model_dump() for t in result], TTL_TAGS)
         return result
 
@@ -491,7 +459,7 @@ class MorgenClient:
         if cached is not None:
             return Tag.model_validate(cast(dict[str, Any], cached))
         data = self._request("GET", "/tags/", params={"id": tag_id})
-        result = _extract_single_typed(data, "tag", Tag)
+        result = _extract_single(data, "tag", Tag)
         if result is None:
             raise NotFoundError(f"Tag {tag_id} not found")
         self._cache_set(key, result.model_dump(), TTL_SINGLE)
@@ -501,13 +469,13 @@ class MorgenClient:
         """Create a tag."""
         data = self._request("POST", "/tags/create", json=tag_data)
         self._cache_invalidate("tags")
-        return _extract_single_typed(data, "tag", Tag)
+        return _extract_single(data, "tag", Tag)
 
     def update_tag(self, tag_data: dict[str, Any]) -> Tag | None:
         """Update a tag."""
         data = self._request("POST", "/tags/update", json=tag_data)
         self._cache_invalidate("tags")
-        return _extract_single_typed(data, "tag", Tag)
+        return _extract_single(data, "tag", Tag)
 
     def delete_tag(self, tag_id: str) -> None:
         """Delete a tag."""
