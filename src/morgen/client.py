@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import httpx
 
@@ -16,7 +16,6 @@ from morgen.cache import (
     TTL_TASK_ACCOUNTS,
     TTL_TASKS,
 )
-from morgen.config import Settings
 from morgen.errors import (
     AuthenticationError,
     MorgenAPIError,
@@ -24,6 +23,9 @@ from morgen.errors import (
     RateLimitError,
 )
 from morgen.models import Account, Calendar, Event, LabelDef, MorgenModel, Space, Tag, Task, TaskListResponse
+
+if TYPE_CHECKING:
+    from morgen.config import Settings
 
 T = TypeVar("T", bound=MorgenModel)
 
@@ -131,7 +133,7 @@ class MorgenClient:
         """List connected calendar accounts."""
         cached = self._cache_get("accounts")
         if cached is not None:
-            return [Account.model_validate(a) for a in cast(list[dict[str, Any]], cached)]
+            return [Account.model_validate(a) for a in cast("list[dict[str, Any]]", cached)]
         data = self._request("GET", "/integrations/accounts/list")
         result = _extract_list(data, "accounts", Account)
         self._cache_set("accounts", [a.model_dump() for a in result], TTL_ACCOUNTS)
@@ -141,7 +143,7 @@ class MorgenClient:
         """List accounts with task integrations (Linear, Notion, etc.)."""
         cached = self._cache_get("task_accounts")
         if cached is not None:
-            return [Account.model_validate(a) for a in cast(list[dict[str, Any]], cached)]
+            return [Account.model_validate(a) for a in cast("list[dict[str, Any]]", cached)]
         accounts = self.list_accounts()
         result = [a for a in accounts if "tasks" in a.integrationGroups]
         self._cache_set("task_accounts", [a.model_dump() for a in result], TTL_TASK_ACCOUNTS)
@@ -153,7 +155,7 @@ class MorgenClient:
         """List all calendars."""
         cached = self._cache_get("calendars")
         if cached is not None:
-            return [Calendar.model_validate(c) for c in cast(list[dict[str, Any]], cached)]
+            return [Calendar.model_validate(c) for c in cast("list[dict[str, Any]]", cached)]
         data = self._request("GET", "/calendars/list")
         result = _extract_list(data, "calendars", Calendar)
         self._cache_set("calendars", [c.model_dump() for c in result], TTL_CALENDARS)
@@ -173,7 +175,7 @@ class MorgenClient:
         key = f"events/{hashlib.md5(raw.encode()).hexdigest()[:12]}"
         cached = self._cache_get(key)
         if cached is not None:
-            return [Event.model_validate(e) for e in cast(list[dict[str, Any]], cached)]
+            return [Event.model_validate(e) for e in cast("list[dict[str, Any]]", cached)]
         data = self._request(
             "GET",
             "/events/list",
@@ -306,7 +308,7 @@ class MorgenClient:
             cache_key = f"tasks/{account_id}"
             cached = self._cache_get(cache_key)
             if cached is not None:
-                inner = cast(dict[str, Any], cached)
+                inner = cast("dict[str, Any]", cached)
             else:
                 raw = self._request(
                     "GET",
@@ -335,7 +337,7 @@ class MorgenClient:
         """List tasks."""
         cached = self._cache_get("tasks/list")
         if cached is not None:
-            return [Task.model_validate(t) for t in cast(list[dict[str, Any]], cached)]
+            return [Task.model_validate(t) for t in cast("list[dict[str, Any]]", cached)]
         params: dict[str, Any] = {"limit": limit}
         if updated_after:
             params["updatedAfter"] = updated_after
@@ -349,7 +351,7 @@ class MorgenClient:
         key = f"tasks/{task_id}"
         cached = self._cache_get(key)
         if cached is not None:
-            return Task.model_validate(cast(dict[str, Any], cached))
+            return Task.model_validate(cast("dict[str, Any]", cached))
         data = self._request("GET", "/tasks/", params={"id": task_id})
         result = _extract_single(data, "task", Task)
         if result is None:
@@ -446,7 +448,7 @@ class MorgenClient:
         """List all tags."""
         cached = self._cache_get("tags")
         if cached is not None:
-            return [Tag.model_validate(t) for t in cast(list[dict[str, Any]], cached)]
+            return [Tag.model_validate(t) for t in cast("list[dict[str, Any]]", cached)]
         data = self._request("GET", "/tags/list")
         result = _extract_list(data, "tags", Tag)
         self._cache_set("tags", [t.model_dump() for t in result], TTL_TAGS)
@@ -457,7 +459,7 @@ class MorgenClient:
         key = f"tags/{tag_id}"
         cached = self._cache_get(key)
         if cached is not None:
-            return Tag.model_validate(cast(dict[str, Any], cached))
+            return Tag.model_validate(cast("dict[str, Any]", cached))
         data = self._request("GET", "/tags/", params={"id": tag_id})
         result = _extract_single(data, "tag", Tag)
         if result is None:
