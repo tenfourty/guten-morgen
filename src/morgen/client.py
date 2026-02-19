@@ -23,7 +23,7 @@ from morgen.errors import (
     NotFoundError,
     RateLimitError,
 )
-from morgen.models import Account, Calendar, LabelDef, MorgenModel, Space, Tag, Task, TaskListResponse
+from morgen.models import Account, Calendar, Event, LabelDef, MorgenModel, Space, Tag, Task, TaskListResponse
 
 
 def _extract_list(data: Any, key: str) -> list[dict[str, Any]]:
@@ -207,13 +207,13 @@ class MorgenClient:
         calendar_ids: list[str],
         start: str,
         end: str,
-    ) -> list[dict[str, Any]]:
+    ) -> list[Event]:
         """List events in a date range."""
         raw = f"{account_id}:{','.join(sorted(calendar_ids))}:{start}:{end}"
         key = f"events/{hashlib.md5(raw.encode()).hexdigest()[:12]}"
         cached = self._cache_get(key)
         if cached is not None:
-            return cast(list[dict[str, Any]], cached)
+            return [Event.model_validate(e) for e in cast(list[dict[str, Any]], cached)]
         data = self._request(
             "GET",
             "/events/list",
@@ -224,8 +224,8 @@ class MorgenClient:
                 "end": end,
             },
         )
-        result = _extract_list(data, "events")
-        self._cache_set(key, result, TTL_EVENTS)
+        result = _extract_list_typed(data, "events", Event)
+        self._cache_set(key, [e.model_dump(by_alias=True) for e in result], TTL_EVENTS)
         return result
 
     def list_all_events(
@@ -236,7 +236,7 @@ class MorgenClient:
         account_keys: list[str] | None = None,
         calendar_names: list[str] | None = None,
         active_only: bool = False,
-    ) -> list[dict[str, Any]]:
+    ) -> list[Event]:
         """List events across calendar-capable accounts, deduplicating synced copies.
 
         Fans out list_events() per account, then filters out "(via Morgen)"
@@ -271,7 +271,7 @@ class MorgenClient:
             if aid and cid:
                 cals_by_account.setdefault(aid, []).append(cid)
 
-        all_events: list[dict[str, Any]] = []
+        all_events: list[Event] = []
         for account in accounts:
             if "calendars" not in account.integrationGroups:
                 continue
@@ -282,19 +282,19 @@ class MorgenClient:
             all_events.extend(self.list_events(aid, cal_ids, start, end))
 
         # Deduplicate: remove "(via Morgen)" synced copies
-        return [e for e in all_events if "(via Morgen)" not in e.get("title", "")]
+        return [e for e in all_events if "(via Morgen)" not in (e.title or "")]
 
-    def create_event(self, event_data: dict[str, Any]) -> dict[str, Any]:
+    def create_event(self, event_data: dict[str, Any]) -> Event | None:
         """Create a new event."""
         data = self._request("POST", "/events/create", json=event_data)
         self._cache_invalidate("events")
-        return _extract_single(data, "event")
+        return _extract_single_typed(data, "event", Event)
 
-    def update_event(self, event_data: dict[str, Any]) -> dict[str, Any]:
+    def update_event(self, event_data: dict[str, Any]) -> Event | None:
         """Update an existing event."""
         data = self._request("POST", "/events/update", json=event_data)
         self._cache_invalidate("events")
-        return _extract_single(data, "event")
+        return _extract_single_typed(data, "event", Event)
 
     def delete_event(self, event_data: dict[str, Any]) -> None:
         """Delete an event."""
@@ -438,7 +438,7 @@ class MorgenClient:
         *,
         duration_minutes: int | None = None,
         timezone: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> Event | None:
         """Schedule a task as a linked calendar event.
 
         Fetches the task to derive title and duration, then creates an event

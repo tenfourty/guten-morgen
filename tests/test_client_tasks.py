@@ -81,12 +81,13 @@ class TestScheduleTask:
             calendar_id="cal-1",
             account_id="acc-1",
         )
-        assert result["title"] == "Review PR"
-        assert result["duration"] == "PT30M"
-        assert result["calendarId"] == "cal-1"
+        assert result is not None
+        assert result.title == "Review PR"
+        assert result.duration == "PT30M"
+        assert result.calendarId == "cal-1"
         # Verify morgen.so:metadata links to the task
-        meta = result.get("morgen.so:metadata", {})
-        assert meta.get("taskId") == "task-1"
+        assert result.morgen_metadata is not None
+        assert result.morgen_metadata.get("taskId") == "task-1"
 
     def test_uses_default_duration(self) -> None:
         """When task has no estimatedDuration, default to PT30M."""
@@ -97,7 +98,8 @@ class TestScheduleTask:
             calendar_id="cal-1",
             account_id="acc-1",
         )
-        assert result["duration"] == "PT30M"
+        assert result is not None
+        assert result.duration == "PT30M"
 
     def test_duration_override(self) -> None:
         """Explicit duration_minutes overrides task's estimatedDuration."""
@@ -109,4 +111,5 @@ class TestScheduleTask:
             account_id="acc-1",
             duration_minutes=60,
         )
-        assert result["duration"] == "PT60M"
+        assert result is not None
+        assert result.duration == "PT60M"

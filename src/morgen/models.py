@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MorgenModel(BaseModel):
@@ -44,20 +44,23 @@ class Calendar(MorgenModel):
     myRights: Any = None  # Can be dict or string depending on provider
 
 
-class Event(TypedDict, total=False):
+class Event(MorgenModel):
     """Calendar event."""
 
     id: str
-    title: str
-    description: str
-    start: str
-    end: str
-    duration: str
-    calendarId: str
-    accountId: str
-    participants: dict[str, Any]
-    locations: dict[str, Any]
-    showAs: str
+    title: str | None = None
+    description: str | None = None
+    start: str | None = None
+    end: str | None = None
+    duration: str | None = None
+    calendarId: str | None = None
+    accountId: str | None = None
+    participants: dict[str, Any] | None = None
+    locations: dict[str, Any] | None = None
+    showAs: str | None = None
+    showWithoutTime: bool | None = None
+    timeZone: str | None = None
+    morgen_metadata: dict[str, Any] | None = Field(None, alias="morgen.so:metadata")
 
 
 class LabelDef(MorgenModel):

@@ -536,10 +536,11 @@ def events_list(
         client = _get_client()
         if account_id and calendar_ids_str:
             cal_ids = [s.strip() for s in calendar_ids_str.split(",")]
-            data = client.list_events(account_id, cal_ids, start, end)
+            data_models = client.list_events(account_id, cal_ids, start, end)
         else:
             cf = _resolve_calendar_filter(group_name, all_calendars)
-            data = client.list_all_events(start, end, **_filter_kwargs(cf))
+            data_models = client.list_all_events(start, end, **_filter_kwargs(cf))
+        data = [e.model_dump(by_alias=True) for e in data_models]
         ctx = click.get_current_context(silent=True)
         if ctx and ctx.params.get("no_frames"):
             data = [e for e in data if not _is_frame_event(e)]
@@ -592,7 +593,8 @@ def events_create(
         if description:
             event_data["description"] = description
         result = client.create_event(event_data)
-        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+        output = result.model_dump(by_alias=True, exclude_none=True) if result else {"status": "created"}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -634,7 +636,10 @@ def events_update(
         if description is not None:
             event_data["description"] = description
         result = client.update_event(event_data)
-        output = result or {"status": "updated", "id": event_id}
+        if result:
+            output = result.model_dump(by_alias=True, exclude_none=True)
+        else:
+            output = {"status": "updated", "id": event_id}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
@@ -961,7 +966,8 @@ def tasks_schedule(
             duration_minutes=duration,
             timezone=timezone,
         )
-        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+        output = result.model_dump(by_alias=True, exclude_none=True) if result else {"status": "scheduled"}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -1112,21 +1118,23 @@ def next(
 
         events_data = client.list_all_events(now.isoformat(), end, **_filter_kwargs(cf))
 
-        # Filter to events starting after now
-        upcoming = [e for e in events_data if e.get("start", "") >= now.isoformat()[:19]]
+        # Filter to events starting after now — use attribute access on Event models
+        upcoming = [e for e in events_data if (e.start or "") >= now.isoformat()[:19]]
+        # Convert to dicts for _is_frame_event and downstream processing
+        upcoming_dicts = [e.model_dump(by_alias=True) for e in upcoming]
         ctx = click.get_current_context(silent=True)
         if ctx and ctx.params.get("no_frames"):
-            upcoming = [e for e in upcoming if not _is_frame_event(e)]
-        upcoming.sort(key=lambda x: x.get("start", ""))
+            upcoming_dicts = [e for e in upcoming_dicts if not _is_frame_event(e)]
+        upcoming_dicts.sort(key=lambda x: x.get("start", ""))
         if count is not None:
-            upcoming = upcoming[:count]
+            upcoming_dicts = upcoming_dicts[:count]
 
         from morgen.output import enrich_events
 
-        upcoming = enrich_events(upcoming)
+        upcoming_dicts = enrich_events(upcoming_dicts)
         if response_format == "concise" and not fields:
             fields = EVENT_CONCISE_FIELDS
-        morgen_output(upcoming, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
+        morgen_output(upcoming_dicts, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -1178,8 +1186,8 @@ def _combined_view(
         result: dict[str, Any] = {}
 
         if not tasks_only:
-            events_data = client.list_all_events(start, end, **_filter_kwargs(cf))
-            events_list_raw: list[dict[str, Any]] = list(events_data)
+            events_models = client.list_all_events(start, end, **_filter_kwargs(cf))
+            events_list_raw: list[dict[str, Any]] = [e.model_dump(by_alias=True) for e in events_models]
             ctx = click.get_current_context(silent=True)
             if ctx and ctx.params.get("no_frames"):
                 events_list_raw = [e for e in events_list_raw if not _is_frame_event(e)]
