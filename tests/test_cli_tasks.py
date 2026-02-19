@@ -333,6 +333,89 @@ class TestTasksSchedule:
         assert "calendarId" in data
 
 
+class TestTasksTagFilter:
+    """Tag filtering on tasks list."""
+
+    def test_filter_by_tag_name(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--tag urgent returns only tasks tagged 'urgent'."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--tag", "urgent"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        ids = [t["id"] for t in data]
+        assert "task-1" in ids  # tagged urgent
+        assert "task-3" in ids  # tagged urgent + personal
+        assert "task-2" not in ids  # tagged personal only
+        assert "task-4" not in ids  # no tags
+
+    def test_filter_by_tag_name_case_insensitive(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--tag matching is case-insensitive."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--tag", "URGENT"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        ids = [t["id"] for t in data]
+        assert "task-1" in ids
+
+    def test_filter_by_multiple_tags(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Multiple --tag flags combine with OR logic (match any)."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--tag", "urgent", "--tag", "personal"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        ids = [t["id"] for t in data]
+        assert "task-1" in ids  # urgent
+        assert "task-2" in ids  # personal
+        assert "task-3" in ids  # both
+        assert "task-4" not in ids  # no tags
+
+    def test_tag_filter_combined_with_status(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--tag combines with other filters (AND logic)."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--tag", "urgent", "--status", "open"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        ids = [t["id"] for t in data]
+        assert "task-1" in ids
+        assert "task-3" in ids
+
+    def test_tag_names_in_enriched_output(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Enriched tasks include tag_names field with resolved names."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--source", "morgen"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        task1 = next(t for t in data if t["id"] == "task-1")
+        assert task1["tag_names"] == ["urgent"]
+        task3 = next(t for t in data if t["id"] == "task-3")
+        assert set(task3["tag_names"]) == {"urgent", "personal"}
+
+
+class TestTasksCreateWithTag:
+    """Tag assignment on task creation."""
+
+    def test_create_with_tag(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--tag resolves name to ID and includes in create payload."""
+        result = runner.invoke(cli, ["tasks", "create", "--title", "Tagged task", "--tag", "urgent"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "tag-1" in data.get("tags", [])
+
+    def test_create_with_multiple_tags(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Multiple --tag flags add multiple tag IDs."""
+        result = runner.invoke(cli, ["tasks", "create", "--title", "Multi-tag", "--tag", "urgent", "--tag", "personal"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "tag-1" in data.get("tags", [])
+        assert "tag-2" in data.get("tags", [])
+
+
+class TestTasksUpdateWithTag:
+    """Tag assignment on task update."""
+
+    def test_update_with_tag(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--tag on update sets tags on the task."""
+        result = runner.invoke(cli, ["tasks", "update", "task-1", "--tag", "personal"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "tag-2" in data.get("tags", [])
+
+
 class TestTasksDelete:
     def test_delete(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["tasks", "delete", "task-1"])

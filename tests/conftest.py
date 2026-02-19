@@ -137,6 +137,7 @@ FAKE_TASKS = [
         "priority": 2,
         "due": "2026-02-17T23:59:59Z",
         "taskListId": "inbox",
+        "tags": ["tag-1"],
     },
     {
         "id": "task-2",
@@ -144,6 +145,7 @@ FAKE_TASKS = [
         "progress": "needs-action",
         "priority": 1,
         "taskListId": "inbox",
+        "tags": ["tag-2"],
     },
     {
         "id": "task-3",
@@ -152,6 +154,7 @@ FAKE_TASKS = [
         "priority": 3,
         "due": "2025-10-15T23:59:59Z",
         "taskListId": "inbox",
+        "tags": ["tag-1", "tag-2"],
     },
     {
         "id": "task-4",
@@ -160,6 +163,7 @@ FAKE_TASKS = [
         "priority": 0,
         "due": "2026-02-16T23:59:59Z",
         "taskListId": "inbox",
+        "tags": [],
     },
 ]
 
