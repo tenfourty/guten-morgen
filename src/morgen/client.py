@@ -23,7 +23,7 @@ from morgen.errors import (
     NotFoundError,
     RateLimitError,
 )
-from morgen.models import MorgenModel, Tag
+from morgen.models import Account, Calendar, MorgenModel, Tag
 
 
 def _extract_list(data: Any, key: str) -> list[dict[str, Any]]:
@@ -167,36 +167,36 @@ class MorgenClient:
 
     # ----- Accounts -----
 
-    def list_accounts(self) -> list[dict[str, Any]]:
+    def list_accounts(self) -> list[Account]:
         """List connected calendar accounts."""
         cached = self._cache_get("accounts")
         if cached is not None:
-            return cast(list[dict[str, Any]], cached)
+            return [Account.model_validate(a) for a in cast(list[dict[str, Any]], cached)]
         data = self._request("GET", "/integrations/accounts/list")
-        result = _extract_list(data, "accounts")
-        self._cache_set("accounts", result, TTL_ACCOUNTS)
+        result = _extract_list_typed(data, "accounts", Account)
+        self._cache_set("accounts", [a.model_dump() for a in result], TTL_ACCOUNTS)
         return result
 
-    def list_task_accounts(self) -> list[dict[str, Any]]:
+    def list_task_accounts(self) -> list[Account]:
         """List accounts with task integrations (Linear, Notion, etc.)."""
         cached = self._cache_get("task_accounts")
         if cached is not None:
-            return cast(list[dict[str, Any]], cached)
+            return [Account.model_validate(a) for a in cast(list[dict[str, Any]], cached)]
         accounts = self.list_accounts()
-        result = [a for a in accounts if "tasks" in a.get("integrationGroups", [])]
-        self._cache_set("task_accounts", result, TTL_TASK_ACCOUNTS)
+        result = [a for a in accounts if "tasks" in a.integrationGroups]
+        self._cache_set("task_accounts", [a.model_dump() for a in result], TTL_TASK_ACCOUNTS)
         return result
 
     # ----- Calendars -----
 
-    def list_calendars(self) -> list[dict[str, Any]]:
+    def list_calendars(self) -> list[Calendar]:
         """List all calendars."""
         cached = self._cache_get("calendars")
         if cached is not None:
-            return cast(list[dict[str, Any]], cached)
+            return [Calendar.model_validate(c) for c in cast(list[dict[str, Any]], cached)]
         data = self._request("GET", "/calendars/list")
-        result = _extract_list(data, "calendars")
-        self._cache_set("calendars", result, TTL_CALENDARS)
+        result = _extract_list_typed(data, "calendars", Calendar)
+        self._cache_set("calendars", [c.model_dump() for c in result], TTL_CALENDARS)
         return result
 
     # ----- Events -----
@@ -254,28 +254,28 @@ class MorgenClient:
 
         # Filter accounts by key if specified
         if account_keys:
-            accounts = [a for a in accounts if any(match_account(a, k) for k in account_keys)]
+            accounts = [a for a in accounts if any(match_account(a.model_dump(), k) for k in account_keys)]
 
         # Filter calendars: explicit name whitelist takes priority over active_only
         if calendar_names:
             name_set = set(calendar_names)
-            calendars = [c for c in calendars if c.get("name") in name_set]
+            calendars = [c for c in calendars if c.name in name_set]
         elif active_only:
-            calendars = [c for c in calendars if c.get("isActiveByDefault") is True]
+            calendars = [c for c in calendars if c.isActiveByDefault is True]
 
         # Group calendars by accountId
         cals_by_account: dict[str, list[str]] = {}
         for cal in calendars:
-            aid = cal.get("accountId", "")
-            cid = cal.get("id", cal.get("calendarId", ""))
+            aid = cal.accountId or ""
+            cid = cal.id or cal.calendarId or ""
             if aid and cid:
                 cals_by_account.setdefault(aid, []).append(cid)
 
         all_events: list[dict[str, Any]] = []
         for account in accounts:
-            if "calendars" not in account.get("integrationGroups", []):
+            if "calendars" not in account.integrationGroups:
                 continue
-            aid = account.get("id", "")
+            aid = account.id
             cal_ids = cals_by_account.get(aid, [])
             if not cal_ids:
                 continue
@@ -333,10 +333,10 @@ class MorgenClient:
         # External task sources
         task_accounts = self.list_task_accounts()
         for account in task_accounts:
-            integration = account.get("integrationId", "")
+            integration = account.integrationId or ""
             if source is not None and integration != source:
                 continue
-            account_id = account.get("id", account.get("_id", ""))
+            account_id = account.id
             if not account_id:
                 continue
 

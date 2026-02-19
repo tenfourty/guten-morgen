@@ -13,7 +13,7 @@ from morgen.config import Settings
 class TestListTaskAccounts:
     def test_returns_only_task_accounts(self, client: MorgenClient) -> None:
         accounts = client.list_task_accounts()
-        integration_ids = [a["integrationId"] for a in accounts]
+        integration_ids = [a.integrationId for a in accounts]
         assert "linear" in integration_ids
         assert "notion" in integration_ids
         # Calendar-only accounts should NOT appear
