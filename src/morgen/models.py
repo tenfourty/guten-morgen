@@ -4,6 +4,18 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
+from pydantic import BaseModel, ConfigDict
+
+
+class MorgenModel(BaseModel):
+    """Base model for all Morgen API objects.
+
+    - extra="ignore": resilient to API additions (new fields don't break us)
+    - populate_by_name=True: allows both alias and field name for construction
+    """
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
 
 class Account(TypedDict, total=False):
     """Connected calendar account."""
