@@ -20,6 +20,13 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Enable auto-merge on release PR
+        if: steps.release.outputs.pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+        run: gh pr merge "$PR_NUMBER" --auto --squash --repo "${{ github.repository }}"
+
   publish:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
