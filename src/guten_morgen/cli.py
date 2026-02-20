@@ -1109,6 +1109,25 @@ def tags_delete(tag_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# providers
+# ---------------------------------------------------------------------------
+
+PROVIDER_COLUMNS = ["id", "name", "type"]
+
+
+@cli.command()
+@output_options
+def providers(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
+    """List available integration providers."""
+    try:
+        client = _get_client()
+        data = client.list_providers()
+        morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=PROVIDER_COLUMNS)
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
+# ---------------------------------------------------------------------------
 # next — upcoming events
 # ---------------------------------------------------------------------------
 
