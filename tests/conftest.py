@@ -278,8 +278,8 @@ FAKE_NOTION_TASKS = {
     }
 }
 
-# Extend FAKE_ACCOUNTS so list_accounts() returns task-integration accounts too
-FAKE_ACCOUNTS.extend(FAKE_TASK_ACCOUNTS)
+# Combined accounts list for mocking list_accounts() (calendar + task integrations)
+ALL_ACCOUNTS = FAKE_ACCOUNTS + FAKE_TASK_ACCOUNTS
 
 
 # ---------------------------------------------------------------------------
@@ -287,7 +287,7 @@ FAKE_ACCOUNTS.extend(FAKE_TASK_ACCOUNTS)
 # ---------------------------------------------------------------------------
 
 ROUTES: dict[str, Any] = {
-    "/v3/integrations/accounts/list": {"data": {"accounts": FAKE_ACCOUNTS}},
+    "/v3/integrations/accounts/list": {"data": {"accounts": ALL_ACCOUNTS}},
     "/v3/calendars/list": {"data": {"calendars": FAKE_CALENDARS}},
     "/v3/tasks/list": {"data": {"tasks": FAKE_TASKS}},
     "/v3/tags/list": FAKE_TAGS,  # Tags API returns flat list
