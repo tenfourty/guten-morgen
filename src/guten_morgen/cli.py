@@ -164,34 +164,45 @@ def usage() -> None:
 
 ## Commands
 
-### Accounts & Calendars
+### Accounts
 - `gm accounts [--json]`
   List connected calendar accounts.
 
-- `gm calendars [--json]`
+### Calendars
+- `gm calendars list [--json]`
   List all calendars across accounts.
+
+- `gm calendars update CALENDAR_ID [--account-id ID] [--name TEXT] [--color HEX] [--busy/--no-busy]`
+  Update calendar metadata (name, color, busy status).
 
 ### Events
 - `gm events list --start ISO --end ISO [--group NAME] [--all-calendars] [--json]`
   List events in a date range. Auto-discovers account/calendar.
 
-- `gm events create --title TEXT --start ISO --duration MINUTES [--calendar-id ID] [--description TEXT]`
-  Create a new event.
+- `gm events create --title TEXT --start ISO --duration MINUTES [--calendar-id ID] [--description TEXT] [--meet]`
+  Create a new event. --meet auto-attaches a Google Meet link.
 
-- `gm events update ID [--title TEXT] [--start ISO] [--duration MINUTES] [--description TEXT]`
-  Update an existing event.
+- `gm events update ID [--title TEXT] [--start ISO] [--duration MINUTES]`
+  `  [--description TEXT] [--series single|future|all]`
+  Update an existing event. --series controls recurring event scope.
 
-- `gm events delete ID`
-  Delete an event.
+- `gm events delete ID [--series single|future|all]`
+  Delete an event. --series controls recurring event scope.
+
+- `gm events rsvp EVENT_ID --action accept|decline|tentative`
+  `  [--comment TEXT] [--notify/--no-notify] [--series single|future|all]`
+  `  [--calendar-id ID] [--account-id ID]`
+  RSVP to a calendar event. Uses the Morgen sync API.
 
 ### Tasks
 - `gm tasks list [--limit N] [--status open|completed|all] [--overdue] [--json]`
-  `  [--due-before ISO] [--due-after ISO] [--priority N]`
+  `  [--due-before ISO] [--due-after ISO] [--priority N] [--updated-after ISO]`
   `  [--source morgen|linear|notion] [--tag NAME] [--group-by-source]`
   List tasks from all connected sources. Filters combine with AND logic.
   --source restricts to a single integration. --tag filters by tag name
   (repeatable, OR logic, case-insensitive). --group-by-source returns
-  output grouped by source. Tasks are enriched with source, source_id,
+  output grouped by source. --updated-after returns only tasks modified
+  since the given timestamp. Tasks are enriched with source, source_id,
   source_url, source_status, tag_names fields.
 
 - `gm tasks get ID [--json]`
@@ -210,11 +221,11 @@ def usage() -> None:
   title and duration, creates an event with morgen.so:metadata.taskId.
   Auto-discovers calendar if not specified.
 
-- `gm tasks close ID`
-  Mark a task as completed.
+- `gm tasks close ID [--occurrence ISO]`
+  Mark a task as completed. --occurrence targets a specific recurring task occurrence.
 
-- `gm tasks reopen ID`
-  Reopen a completed task.
+- `gm tasks reopen ID [--occurrence ISO]`
+  Reopen a completed task. --occurrence targets a specific recurring task occurrence.
 
 - `gm tasks move ID [--after TASK_ID] [--parent TASK_ID]`
   Reorder or nest a task.
@@ -237,6 +248,16 @@ def usage() -> None:
 
 - `gm tags delete ID`
   Delete a tag.
+
+### Providers
+- `gm providers [--json]`
+  List available integration providers.
+
+### Availability
+- `gm availability --date YYYY-MM-DD [--min-duration MINUTES] [--start HH:MM] [--end HH:MM] [--group NAME]`
+  Find available time slots on a given date. Scans events within working hours
+  (default 09:00-18:00) and returns gaps >= min-duration (default 30min).
+  Output: [{{start, end, duration_minutes}}]
 
 ### Quick Views
 - `gm today [--json] [--response-format concise] [--events-only] [--tasks-only] [--group NAME]`
@@ -292,6 +313,8 @@ Configured groups:
 4. `gm tasks create --title "..." --due ... --duration 30` (create with good metadata)
 5. `gm tasks schedule <id> --start ISO`                    (time-block a task)
 6. `gm tasks close <id>`                                   (complete a task)
+7. `gm availability --date YYYY-MM-DD --json`              (find free slots)
+8. `gm events rsvp <id> --action accept`                   (respond to invitations)
 
 ## Scenarios
 
@@ -335,6 +358,18 @@ Filter by lifecycle stage:
 gm tasks list --tag "Active" --status open --json
 gm tasks list --tag "Waiting-On" --json
 gm tasks list --tag "Active" --tag "Waiting-On" --json   # OR: either tag
+```
+
+### Find Available Slots & Book Meeting
+```
+gm availability --date 2026-02-21 --min-duration 30 --json
+gm events create --title "1:1 with Pierre" --start 2026-02-21T14:00:00 --duration 30 --meet
+```
+
+### RSVP to a Meeting
+```
+gm events rsvp <event-id> --action accept --comment "On my way"
+gm events rsvp <event-id> --action decline --no-notify
 ```
 """
     click.echo(text)
