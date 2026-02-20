@@ -161,6 +161,17 @@ class MorgenClient:
         self._cache_set("calendars", [c.model_dump() for c in result], TTL_CALENDARS)
         return result
 
+    def update_calendar(self, calendar_data: dict[str, Any]) -> dict[str, Any] | None:
+        """Update calendar metadata (name, color, busy)."""
+        data = self._request("POST", "/calendars/update", json=calendar_data)
+        self._cache_invalidate("calendars")
+        if isinstance(data, dict):
+            inner = data.get("data", data)
+            if isinstance(inner, dict):
+                result = inner.get("calendar", inner)
+                return cast("dict[str, Any]", result)
+        return cast("dict[str, Any]", data) if isinstance(data, dict) else None
+
     # ----- Events -----
 
     def list_events(
