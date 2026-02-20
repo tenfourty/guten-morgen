@@ -40,6 +40,7 @@ src/morgen/
   time_utils.py Date range helpers
   cache.py      TTL-based request cache
   groups.py     Calendar group filtering from .config.toml
+  __main__.py   python -m morgen entrypoint
 ```
 
 ## Conventions
