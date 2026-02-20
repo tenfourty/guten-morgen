@@ -187,11 +187,37 @@ flowchart LR
 - Retrieval validates with `model_validate()` — revalidates on every cache hit
 - This ensures cached data always passes current model validation
 
+## Calendar Groups & Filtering
+
+Event commands filter through calendar groups defined in `.config.toml`:
+
+```mermaid
+flowchart LR
+    CFG[".config.toml\n<i>groups, default_group</i>"]
+    GRP["groups.py\n<i>resolve accounts/calendars</i>"]
+    CLI["cli.py\n<i>--group flag</i>"]
+    CLIENT["client.py\n<i>list_all_events()</i>"]
+
+    CFG --> GRP
+    GRP --> CLI
+    CLI -->|"account_keys, calendar_names"| CLIENT
+    CLIENT -->|"filtered events"| CLI
+
+    style CFG fill:#fff3cd,stroke:#ffc107
+```
+
+- `default_group` in `.config.toml` is used unless `--group all` is passed
+- `active_only = true` skips inactive calendars by default
+- Groups map to account emails and calendar names, resolved at CLI layer
+
 ## Adding a New Model
 
 1. Add the Pydantic model to `src/morgen/models.py` inheriting `MorgenModel`
 2. Add client methods in `src/morgen/client.py` using `_extract_list`/`_extract_single`
 3. Add CLI command in `src/morgen/cli.py` — call client, `model_dump()`, pass to output
-4. Add a JSON fixture in `tests/fixtures/` from a real API response
-5. Add drift detection test in `tests/test_models.py`
-6. Add CLI tests using `mock_client` fixture
+4. If the model has non-Python field names, use `Field(alias=...)` and `model_dump(by_alias=True)`
+5. For mutation commands, use `model_dump(exclude_none=True)` on the result
+6. Add a JSON fixture in `tests/fixtures/` from a real API response
+7. Add drift detection test in `tests/test_models.py`
+8. Add CLI tests using `mock_client` fixture (see [`docs/testing.md`](testing.md))
+9. Add error path tests in `tests/test_cli_errors.py`

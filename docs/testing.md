@@ -6,6 +6,36 @@
 uv run pytest -x -q              # fast: fail on first error
 uv run pytest --cov              # with coverage report
 uv run pytest -k "test_name"     # run specific test
+uv run pytest tests/test_models.py -v   # drift detection only
+```
+
+Tests do **not** need `MORGEN_API_KEY` — all API calls use mock transport. No network calls, no env setup required for tests.
+
+## Test File Map
+
+```
+tests/
+  conftest.py           Shared fixtures (mock transport, FAKE_* data)
+  fixtures/*.json       Real API response samples (drift detection)
+  test_cli_accounts.py  accounts + calendars commands
+  test_cli_events.py    events list/create/update/delete
+  test_cli_tasks.py     tasks CRUD, filtering, group-by-source, tags, scheduling
+  test_cli_tags.py      tags CRUD
+  test_cli_views.py     today/this-week/this-month combined views
+  test_cli_next.py      next upcoming events
+  test_cli_errors.py    parametrized error handling for all commands
+  test_cli_usage.py     usage/help output
+  test_cli_groups.py    calendar group filtering
+  test_cli_cache.py     CLI cache flags
+  test_client.py        MorgenClient methods
+  test_client_tasks.py  Task-specific client methods
+  test_client_cache.py  Client caching logic
+  test_models.py        Pydantic model validation + API drift detection
+  test_output.py        Output rendering pipeline
+  test_config.py        Settings/config loading
+  test_cache.py         CacheStore internals
+  test_groups.py        Calendar group resolution
+  test_time_utils.py    Date range helpers
 ```
 
 ## Mock Infrastructure
@@ -133,3 +163,17 @@ To update fixtures after confirming new API fields:
 1. Capture a real response: `morgen <command> --json > tests/fixtures/<model>_sample.json`
 2. Add new fields to the Pydantic model in `src/morgen/models.py`
 3. Run `uv run pytest tests/test_models.py -v` to verify
+
+## Coverage
+
+Coverage minimum is 90%, enforced by pre-commit (`--cov-fail-under=90`).
+
+```bash
+uv run pytest --cov --cov-report=term-missing    # see uncovered lines
+```
+
+Coverage exclusions (configured in `pyproject.toml`):
+- `pragma: no cover` — for entrypoints like `__main__.py`
+- `if TYPE_CHECKING:` — import-only blocks
+
+When adding new features, check that new code paths have tests — especially error handling (`except MorgenError` blocks) and non-JSON output rendering.
