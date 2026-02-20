@@ -123,8 +123,8 @@ class TestCombinedViewTableRendering:
         """today without --json renders each section with a header."""
         result = runner.invoke(cli, ["today"])
         assert result.exit_code == 0
-        # Section headers use title case
-        assert "Events" in result.output or "Overdue Tasks" in result.output or "Scheduled Tasks" in result.output
+        # At minimum, events section should always be present
+        assert "Events" in result.output
 
     def test_today_with_fields(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """today --fields applies field selection to all sections."""

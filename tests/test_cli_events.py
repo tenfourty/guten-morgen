@@ -46,6 +46,10 @@ class TestEventsList:
         data = json.loads(result.output)
         assert "id" in data[0]
         assert "calendarId" not in data[0]
+        # Verify expected concise fields are present
+        assert "title" in data[0]
+        assert "start" in data[0]
+        assert "duration" in data[0]
 
     def test_concise_includes_display_fields(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """Concise format includes participants_display and location_display."""
@@ -134,7 +138,7 @@ class TestShortIds:
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
-        # Fake IDs are short (evt-1) so they stay as-is; test the flag works
+        # Fake IDs (evt-1) are already short; full truncation tested in test_output.py::TestTruncateIds
         assert "id" in data[0]
 
 
@@ -153,7 +157,8 @@ class TestEventsUpdate:
         result = runner.invoke(cli, ["events", "update", "evt-1", "--title", "Updated"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert "id" in data
+        assert data["id"] == "evt-1"
+        assert data["title"] == "Updated"
 
 
 class TestEventsDelete:
@@ -162,3 +167,4 @@ class TestEventsDelete:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["status"] == "deleted"
+        assert data["id"] == "evt-1"
