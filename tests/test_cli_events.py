@@ -170,6 +170,26 @@ class TestEventsDelete:
         assert data["id"] == "evt-1"
 
 
+class TestGoogleMeet:
+    def test_create_with_meet(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--meet adds morgen.so:requestVirtualRoom to the payload."""
+        result = runner.invoke(
+            cli, ["events", "create", "--title", "Sync", "--start", "2026-02-18T10:00:00", "--duration", "30", "--meet"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data.get("morgen.so:requestVirtualRoom") == "default"
+
+    def test_create_without_meet(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Without --meet, no requestVirtualRoom field."""
+        result = runner.invoke(
+            cli, ["events", "create", "--title", "Sync", "--start", "2026-02-18T10:00:00", "--duration", "30"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "morgen.so:requestVirtualRoom" not in data
+
+
 class TestSeriesUpdateMode:
     def test_update_with_series_flag(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """--series passes seriesUpdateMode query param to API."""
