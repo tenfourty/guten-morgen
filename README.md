@@ -15,17 +15,29 @@ All commands emit structured JSON, making it easy to pipe into scripts, `jq`, or
 
 ## Installation
 
-Requires Python 3.10+. Install with [uv](https://docs.astral.sh/uv/) (recommended) or pip:
+Requires Python 3.10+.
 
 ```bash
-# From source (editable install)
+# Run without installing (uv)
+uvx guten-morgen --help
+
+# Install globally (uv — recommended)
+uv tool install guten-morgen
+
+# Install globally (pipx)
+pipx install guten-morgen
+
+# Install into current environment (pip)
+pip install guten-morgen
+
+# From source (development)
 git clone https://github.com/tenfourty/guten-morgen.git
 cd guten-morgen
 uv sync --all-extras
-
-# Or install globally
-uv tool install --editable .
+uv run pre-commit install
 ```
+
+All methods expose the `gm` command.
 
 ## Setup
 
