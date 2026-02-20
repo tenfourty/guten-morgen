@@ -42,6 +42,7 @@ dev = [
 
 [project.scripts]
 gm = "guten_morgen.cli:cli"
+guten-morgen = "guten_morgen.cli:cli"
 
 [project.urls]
 Repository = "https://github.com/tenfourty/guten-morgen"
