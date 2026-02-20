@@ -16,7 +16,7 @@ _ERR = MorgenAPIError("API error 500")
 _ERROR_CASES: list[tuple[str, Exception, list[str], str]] = [
     # Accounts & calendars
     ("list_accounts", AuthenticationError("msg"), ["accounts", "--json"], "authentication_error"),
-    ("list_calendars", AuthenticationError("msg"), ["calendars", "--json"], "authentication_error"),
+    ("list_calendars", AuthenticationError("msg"), ["calendars", "list", "--json"], "authentication_error"),
     # Events
     (
         "list_all_events",

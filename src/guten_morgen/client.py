@@ -29,6 +29,8 @@ if TYPE_CHECKING:
 
 T = TypeVar("T", bound=MorgenModel)
 
+SYNC_BASE_URL = "https://sync.morgen.so/v1"
+
 
 def _extract_list(data: Any, key: str, model: type[T]) -> list[T]:
     """Extract and validate a list from Morgen's nested response format."""
@@ -161,6 +163,17 @@ class MorgenClient:
         self._cache_set("calendars", [c.model_dump() for c in result], TTL_CALENDARS)
         return result
 
+    def update_calendar(self, calendar_data: dict[str, Any]) -> dict[str, Any] | None:
+        """Update calendar metadata (name, color, busy)."""
+        data = self._request("POST", "/calendars/update", json=calendar_data)
+        self._cache_invalidate("calendars")
+        if isinstance(data, dict):
+            inner = data.get("data", data)
+            if isinstance(inner, dict):
+                result = inner.get("calendar", inner)
+                return cast("dict[str, Any]", result)
+        return cast("dict[str, Any]", data) if isinstance(data, dict) else None
+
     # ----- Events -----
 
     def list_events(
@@ -252,16 +265,80 @@ class MorgenClient:
         self._cache_invalidate("events")
         return _extract_single(data, "event", Event)
 
-    def update_event(self, event_data: dict[str, Any]) -> Event | None:
-        """Update an existing event."""
-        data = self._request("POST", "/events/update", json=event_data)
+    def update_event(
+        self,
+        event_data: dict[str, Any],
+        *,
+        series_update_mode: str | None = None,
+    ) -> Event | None:
+        """Update an existing event.
+
+        Args:
+            event_data: Event fields to update (must include id, calendarId, accountId).
+            series_update_mode: For recurring events — "single", "future", or "all".
+                Passed as seriesUpdateMode query parameter when set.
+        """
+        params = {"seriesUpdateMode": series_update_mode} if series_update_mode else None
+        data = self._request("POST", "/events/update", json=event_data, params=params)
         self._cache_invalidate("events")
         return _extract_single(data, "event", Event)
 
-    def delete_event(self, event_data: dict[str, Any]) -> None:
-        """Delete an event."""
-        self._request("POST", "/events/delete", json=event_data)
+    def delete_event(
+        self,
+        event_data: dict[str, Any],
+        *,
+        series_update_mode: str | None = None,
+    ) -> None:
+        """Delete an event.
+
+        Args:
+            event_data: Event identifiers (id, calendarId, accountId).
+            series_update_mode: For recurring events — "single", "future", or "all".
+                Passed as seriesUpdateMode query parameter when set.
+        """
+        params = {"seriesUpdateMode": series_update_mode} if series_update_mode else None
+        self._request("POST", "/events/delete", json=event_data, params=params)
         self._cache_invalidate("events")
+
+    def rsvp_event(
+        self,
+        action: str,
+        event_id: str,
+        calendar_id: str,
+        account_id: str,
+        *,
+        notify_organizer: bool = True,
+        comment: str | None = None,
+        series_update_mode: str | None = None,
+    ) -> dict[str, Any]:
+        """RSVP to a calendar event (accept, decline, tentativelyAccept).
+
+        Uses the Morgen sync API (different base URL from v3 API).
+        """
+        action_map = {
+            "accept": "accept",
+            "decline": "decline",
+            "tentative": "tentativelyAccept",
+        }
+        api_action = action_map.get(action, action)
+
+        payload: dict[str, Any] = {
+            "eventId": event_id,
+            "calendarId": calendar_id,
+            "accountId": account_id,
+            "notifyOrganizer": notify_organizer,
+        }
+        if comment:
+            payload["comment"] = comment
+
+        params: dict[str, str] | None = None
+        if series_update_mode:
+            params = {"seriesUpdateMode": series_update_mode}
+
+        url = f"{SYNC_BASE_URL}/events/{api_action}"
+        data = self._request("POST", url, json=payload, params=params)
+        self._cache_invalidate("events")
+        return data if isinstance(data, dict) else {"status": api_action}
 
     # ----- Tasks -----
 
@@ -270,6 +347,7 @@ class MorgenClient:
         *,
         source: str | None = None,
         limit: int = 100,
+        updated_after: str | None = None,
     ) -> TaskListResponse:
         """List tasks across all connected task sources.
 
@@ -284,7 +362,10 @@ class MorgenClient:
 
         # Morgen-native tasks — Task model defaults integrationId="morgen"
         if source is None or source == "morgen":
-            data = self._request("GET", "/tasks/list", params={"limit": limit})
+            params: dict[str, Any] = {"limit": limit}
+            if updated_after:
+                params["updatedAfter"] = updated_after
+            data = self._request("GET", "/tasks/list", params=params)
             # Inline raw-dict extraction (Morgen wraps as {"data": {"tasks": [...]}})
             if isinstance(data, dict):
                 inner = data.get("data", data)
@@ -310,10 +391,13 @@ class MorgenClient:
             if cached is not None:
                 inner = cast("dict[str, Any]", cached)
             else:
+                ext_params: dict[str, Any] = {"accountId": account_id, "limit": limit}
+                if updated_after:
+                    ext_params["updatedAfter"] = updated_after
                 raw = self._request(
                     "GET",
                     "/tasks/list",
-                    params={"accountId": account_id, "limit": limit},
+                    params=ext_params,
                 )
                 # _request returns resp.json() which is {"data": {...}}
                 # Unwrap the data envelope to get the inner dict
@@ -371,15 +455,21 @@ class MorgenClient:
         self._cache_invalidate("tasks")
         return _extract_single(data, "task", Task)
 
-    def close_task(self, task_id: str) -> Task | None:
+    def close_task(self, task_id: str, *, occurrence_start: str | None = None) -> Task | None:
         """Mark a task as completed."""
-        data = self._request("POST", "/tasks/close", json={"id": task_id})
+        payload: dict[str, Any] = {"id": task_id}
+        if occurrence_start:
+            payload["occurrenceStart"] = occurrence_start
+        data = self._request("POST", "/tasks/close", json=payload)
         self._cache_invalidate("tasks")
         return _extract_single(data, "task", Task)
 
-    def reopen_task(self, task_id: str) -> Task | None:
+    def reopen_task(self, task_id: str, *, occurrence_start: str | None = None) -> Task | None:
         """Reopen a completed task."""
-        data = self._request("POST", "/tasks/reopen", json={"id": task_id})
+        payload: dict[str, Any] = {"id": task_id}
+        if occurrence_start:
+            payload["occurrenceStart"] = occurrence_start
+        data = self._request("POST", "/tasks/reopen", json=payload)
         self._cache_invalidate("tasks")
         return _extract_single(data, "task", Task)
 
@@ -483,3 +573,19 @@ class MorgenClient:
         """Delete a tag."""
         self._request("POST", "/tags/delete", json={"id": tag_id})
         self._cache_invalidate("tags")
+
+    # ----- Providers -----
+
+    def list_providers(self) -> list[dict[str, Any]]:
+        """List available integration providers."""
+        data = self._request("GET", "/integrations/list")
+        if isinstance(data, dict):
+            inner = data.get("data", data)
+            if isinstance(inner, dict):
+                result = inner.get("integrations", [])
+                return result if isinstance(result, list) else []
+            if isinstance(inner, list):
+                return inner
+        if isinstance(data, list):
+            return data
+        return []

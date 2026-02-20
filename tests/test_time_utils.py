@@ -120,3 +120,115 @@ class TestGetLocalTimezone:
         mock_result = Mock(returncode=0, stdout="Time Zone: Europe/London")
         monkeypatch.setattr("subprocess.run", Mock(return_value=mock_result))
         assert get_local_timezone() == "Europe/London"
+
+
+class TestComputeFreeSlots:
+    def test_no_events_returns_full_window(self) -> None:
+        from guten_morgen.time_utils import compute_free_slots
+
+        slots = compute_free_slots(
+            events=[],
+            day="2026-02-20",
+            window_start="09:00",
+            window_end="18:00",
+            min_duration_minutes=30,
+        )
+        assert len(slots) == 1
+        assert slots[0]["start"] == "2026-02-20T09:00:00"
+        assert slots[0]["end"] == "2026-02-20T18:00:00"
+        assert slots[0]["duration_minutes"] == 540
+
+    def test_one_event_splits_window(self) -> None:
+        from guten_morgen.time_utils import compute_free_slots
+
+        events = [{"start": "2026-02-20T12:00:00", "duration": "PT1H"}]
+        slots = compute_free_slots(
+            events=events,
+            day="2026-02-20",
+            window_start="09:00",
+            window_end="18:00",
+            min_duration_minutes=30,
+        )
+        assert len(slots) == 2
+        assert slots[0]["start"] == "2026-02-20T09:00:00"
+        assert slots[0]["end"] == "2026-02-20T12:00:00"
+        assert slots[1]["start"] == "2026-02-20T13:00:00"
+        assert slots[1]["end"] == "2026-02-20T18:00:00"
+
+    def test_min_duration_filters_short_gaps(self) -> None:
+        from guten_morgen.time_utils import compute_free_slots
+
+        events = [
+            {"start": "2026-02-20T10:00:00", "duration": "PT50M"},
+            {"start": "2026-02-20T11:00:00", "duration": "PT1H"},
+        ]
+        slots = compute_free_slots(
+            events=events,
+            day="2026-02-20",
+            window_start="09:00",
+            window_end="18:00",
+            min_duration_minutes=30,
+        )
+        # 09:00-10:00 (60m) yes, 10:50-11:00 (10m) no, 12:00-18:00 (360m) yes
+        starts = [s["start"] for s in slots]
+        assert "2026-02-20T09:00:00" in starts
+        assert "2026-02-20T12:00:00" in starts
+        assert len(slots) == 2
+
+    def test_overlapping_events(self) -> None:
+        from guten_morgen.time_utils import compute_free_slots
+
+        events = [
+            {"start": "2026-02-20T09:00:00", "duration": "PT2H"},
+            {"start": "2026-02-20T10:00:00", "duration": "PT1H"},
+        ]
+        slots = compute_free_slots(
+            events=events,
+            day="2026-02-20",
+            window_start="09:00",
+            window_end="18:00",
+            min_duration_minutes=30,
+        )
+        assert len(slots) == 1
+        assert slots[0]["start"] == "2026-02-20T11:00:00"
+
+    def test_event_before_window(self) -> None:
+        from guten_morgen.time_utils import compute_free_slots
+
+        events = [{"start": "2026-02-20T07:00:00", "duration": "PT1H"}]
+        slots = compute_free_slots(
+            events=events,
+            day="2026-02-20",
+            window_start="09:00",
+            window_end="18:00",
+            min_duration_minutes=30,
+        )
+        assert len(slots) == 1
+        assert slots[0]["start"] == "2026-02-20T09:00:00"
+
+    def test_event_spanning_window_start(self) -> None:
+        from guten_morgen.time_utils import compute_free_slots
+
+        events = [{"start": "2026-02-20T08:00:00", "duration": "PT2H"}]
+        slots = compute_free_slots(
+            events=events,
+            day="2026-02-20",
+            window_start="09:00",
+            window_end="18:00",
+            min_duration_minutes=30,
+        )
+        assert slots[0]["start"] == "2026-02-20T10:00:00"
+
+    def test_all_day_event_ignored(self) -> None:
+        from guten_morgen.time_utils import compute_free_slots
+
+        events = [{"start": "2026-02-20", "duration": "P1D", "showWithoutTime": True}]
+        slots = compute_free_slots(
+            events=events,
+            day="2026-02-20",
+            window_start="09:00",
+            window_end="18:00",
+            min_duration_minutes=30,
+        )
+        assert len(slots) == 1
+        assert slots[0]["duration_minutes"] == 540
