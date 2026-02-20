@@ -923,11 +923,12 @@ def tasks_update(
 
 @tasks.command("close")
 @click.argument("task_id")
-def tasks_close(task_id: str) -> None:
+@click.option("--occurrence", default=None, help="Occurrence start (ISO 8601) for recurring tasks.")
+def tasks_close(task_id: str, occurrence: str | None) -> None:
     """Mark a task as completed."""
     try:
         client = _get_client()
-        result = client.close_task(task_id)
+        result = client.close_task(task_id, occurrence_start=occurrence)
         output = result.model_dump(exclude_none=True) if result else {"status": "closed", "id": task_id}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
@@ -936,11 +937,12 @@ def tasks_close(task_id: str) -> None:
 
 @tasks.command("reopen")
 @click.argument("task_id")
-def tasks_reopen(task_id: str) -> None:
+@click.option("--occurrence", default=None, help="Occurrence start (ISO 8601) for recurring tasks.")
+def tasks_reopen(task_id: str, occurrence: str | None) -> None:
     """Reopen a completed task."""
     try:
         client = _get_client()
-        result = client.reopen_task(task_id)
+        result = client.reopen_task(task_id, occurrence_start=occurrence)
         output = result.model_dump(exclude_none=True) if result else {"status": "reopened", "id": task_id}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:

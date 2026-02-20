@@ -485,6 +485,31 @@ class TestUpdatedAfter:
         assert isinstance(data, list)
 
 
+class TestTaskOccurrence:
+    def test_close_with_occurrence(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--occurrence passes occurrenceStart in the request body."""
+        result = runner.invoke(cli, ["tasks", "close", "task-1", "--occurrence", "2026-02-20T09:00:00"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["id"] == "task-1"
+        assert data.get("occurrenceStart") == "2026-02-20T09:00:00"
+
+    def test_reopen_with_occurrence(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--occurrence passes occurrenceStart on reopen."""
+        result = runner.invoke(cli, ["tasks", "reopen", "task-1", "--occurrence", "2026-02-20T09:00:00"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["id"] == "task-1"
+        assert data.get("occurrenceStart") == "2026-02-20T09:00:00"
+
+    def test_close_without_occurrence(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Without --occurrence, no occurrenceStart is sent."""
+        result = runner.invoke(cli, ["tasks", "close", "task-1"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "occurrenceStart" not in data
+
+
 class TestTasksDelete:
     def test_delete(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["tasks", "delete", "task-1"])
