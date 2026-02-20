@@ -327,6 +327,35 @@ class TestEnrichTasks:
         assert result[0]["source"] == "morgen"  # default when integrationId missing
         assert result[0]["source_id"] is None
 
+    def test_status_falls_back_to_raw_value(self) -> None:
+        """When label value has no mapping in defs, raw value is returned."""
+        tasks = [
+            {
+                "id": "lt1",
+                "title": "Task",
+                "integrationId": "linear",
+                "progress": "needs-action",
+                "labels": [{"id": "state", "value": "unknown-state-uuid"}],
+            }
+        ]
+        # labelDefs exist for "state" but don't have this specific value
+        label_defs = [
+            {
+                "id": "state",
+                "label": "Status",
+                "type": "enum",
+                "values": [{"value": "other-uuid", "label": "Done"}],
+            },
+        ]
+        result = enrich_tasks(tasks, label_defs=label_defs)
+        # Falls back to raw value since no mapping found
+        assert result[0]["source_status"] == "unknown-state-uuid"
+
+    def test_resolve_label_display_none_value(self) -> None:
+        from morgen.output import _resolve_label_display
+
+        assert _resolve_label_display(None, [], "state") is None
+
 
 class TestOutputError:
     def test_structured_output(self) -> None:
