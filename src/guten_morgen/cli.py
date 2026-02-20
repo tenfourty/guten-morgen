@@ -164,34 +164,45 @@ def usage() -> None:
 
 ## Commands
 
-### Accounts & Calendars
+### Accounts
 - `gm accounts [--json]`
   List connected calendar accounts.
 
-- `gm calendars [--json]`
+### Calendars
+- `gm calendars list [--json]`
   List all calendars across accounts.
+
+- `gm calendars update CALENDAR_ID [--account-id ID] [--name TEXT] [--color HEX] [--busy/--no-busy]`
+  Update calendar metadata (name, color, busy status).
 
 ### Events
 - `gm events list --start ISO --end ISO [--group NAME] [--all-calendars] [--json]`
   List events in a date range. Auto-discovers account/calendar.
 
-- `gm events create --title TEXT --start ISO --duration MINUTES [--calendar-id ID] [--description TEXT]`
-  Create a new event.
+- `gm events create --title TEXT --start ISO --duration MINUTES [--calendar-id ID] [--description TEXT] [--meet]`
+  Create a new event. --meet auto-attaches a Google Meet link.
 
-- `gm events update ID [--title TEXT] [--start ISO] [--duration MINUTES] [--description TEXT]`
-  Update an existing event.
+- `gm events update ID [--title TEXT] [--start ISO] [--duration MINUTES]`
+  `  [--description TEXT] [--series single|future|all]`
+  Update an existing event. --series controls recurring event scope.
 
-- `gm events delete ID`
-  Delete an event.
+- `gm events delete ID [--series single|future|all]`
+  Delete an event. --series controls recurring event scope.
+
+- `gm events rsvp EVENT_ID --action accept|decline|tentative`
+  `  [--comment TEXT] [--notify/--no-notify] [--series single|future|all]`
+  `  [--calendar-id ID] [--account-id ID]`
+  RSVP to a calendar event. Uses the Morgen sync API.
 
 ### Tasks
 - `gm tasks list [--limit N] [--status open|completed|all] [--overdue] [--json]`
-  `  [--due-before ISO] [--due-after ISO] [--priority N]`
+  `  [--due-before ISO] [--due-after ISO] [--priority N] [--updated-after ISO]`
   `  [--source morgen|linear|notion] [--tag NAME] [--group-by-source]`
   List tasks from all connected sources. Filters combine with AND logic.
   --source restricts to a single integration. --tag filters by tag name
   (repeatable, OR logic, case-insensitive). --group-by-source returns
-  output grouped by source. Tasks are enriched with source, source_id,
+  output grouped by source. --updated-after returns only tasks modified
+  since the given timestamp. Tasks are enriched with source, source_id,
   source_url, source_status, tag_names fields.
 
 - `gm tasks get ID [--json]`
@@ -210,11 +221,11 @@ def usage() -> None:
   title and duration, creates an event with morgen.so:metadata.taskId.
   Auto-discovers calendar if not specified.
 
-- `gm tasks close ID`
-  Mark a task as completed.
+- `gm tasks close ID [--occurrence ISO]`
+  Mark a task as completed. --occurrence targets a specific recurring task occurrence.
 
-- `gm tasks reopen ID`
-  Reopen a completed task.
+- `gm tasks reopen ID [--occurrence ISO]`
+  Reopen a completed task. --occurrence targets a specific recurring task occurrence.
 
 - `gm tasks move ID [--after TASK_ID] [--parent TASK_ID]`
   Reorder or nest a task.
@@ -237,6 +248,16 @@ def usage() -> None:
 
 - `gm tags delete ID`
   Delete a tag.
+
+### Providers
+- `gm providers [--json]`
+  List available integration providers.
+
+### Availability
+- `gm availability --date YYYY-MM-DD [--min-duration MINUTES] [--start HH:MM] [--end HH:MM] [--group NAME]`
+  Find available time slots on a given date. Scans events within working hours
+  (default 09:00-18:00) and returns gaps >= min-duration (default 30min).
+  Output: [{{start, end, duration_minutes}}]
 
 ### Quick Views
 - `gm today [--json] [--response-format concise] [--events-only] [--tasks-only] [--group NAME]`
@@ -292,6 +313,8 @@ Configured groups:
 4. `gm tasks create --title "..." --due ... --duration 30` (create with good metadata)
 5. `gm tasks schedule <id> --start ISO`                    (time-block a task)
 6. `gm tasks close <id>`                                   (complete a task)
+7. `gm availability --date YYYY-MM-DD --json`              (find free slots)
+8. `gm events rsvp <id> --action accept`                   (respond to invitations)
 
 ## Scenarios
 
@@ -335,6 +358,18 @@ Filter by lifecycle stage:
 gm tasks list --tag "Active" --status open --json
 gm tasks list --tag "Waiting-On" --json
 gm tasks list --tag "Active" --tag "Waiting-On" --json   # OR: either tag
+```
+
+### Find Available Slots & Book Meeting
+```
+gm availability --date 2026-02-21 --min-duration 30 --json
+gm events create --title "1:1 with Pierre" --start 2026-02-21T14:00:00 --duration 30 --meet
+```
+
+### RSVP to a Meeting
+```
+gm events rsvp <event-id> --action accept --comment "On my way"
+gm events rsvp <event-id> --action decline --no-notify
 ```
 """
     click.echo(text)
@@ -415,9 +450,14 @@ CALENDAR_COLUMNS = ["id", "accountId", "name", "color", "myRights"]
 CALENDAR_CONCISE_FIELDS = ["id", "name", "myRights"]
 
 
-@cli.command()
+@cli.group()
+def calendars() -> None:
+    """Manage calendars."""
+
+
+@calendars.command("list")
 @output_options
-def calendars(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
+def calendars_list(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
     """List all calendars across accounts."""
     try:
         client = _get_client()
@@ -425,6 +465,43 @@ def calendars(fmt: str, fields: list[str] | None, jq_expr: str | None, response_
         if response_format == "concise" and not fields:
             fields = CALENDAR_CONCISE_FIELDS
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=CALENDAR_COLUMNS)
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
+@calendars.command("update")
+@click.argument("calendar_id")
+@click.option("--account-id", default=None, help="Account ID (auto-discovered if omitted).")
+@click.option("--name", default=None, help="Override calendar name.")
+@click.option("--color", default=None, help="Override calendar color (hex).")
+@click.option("--busy/--no-busy", default=None, help="Set calendar busy/free status.")
+def calendars_update(
+    calendar_id: str,
+    account_id: str | None,
+    name: str | None,
+    color: str | None,
+    busy: bool | None,
+) -> None:
+    """Update calendar metadata (name, color, busy status)."""
+    try:
+        client = _get_client()
+        if not account_id:
+            account_id, _ = _auto_discover(client)
+        metadata: dict[str, Any] = {}
+        if name is not None:
+            metadata["overrideName"] = name
+        if color is not None:
+            metadata["overrideColor"] = color
+        if busy is not None:
+            metadata["busy"] = busy
+        cal_data: dict[str, Any] = {
+            "id": calendar_id,
+            "accountId": account_id,
+            "metadata": metadata,
+        }
+        result = client.update_calendar(cal_data)
+        output = result if result else {"status": "updated", "id": calendar_id}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -563,6 +640,7 @@ def events_list(
 @click.option("--account-id", default=None, help="Account ID (auto-discovered if omitted).")
 @click.option("--description", default=None, help="Event description.")
 @click.option("--timezone", default=None, help="Time zone (e.g. Europe/Paris). Defaults to system timezone.")
+@click.option("--meet", is_flag=True, default=False, help="Auto-attach a Google Meet link.")
 def events_create(
     title: str,
     start: str,
@@ -571,6 +649,7 @@ def events_create(
     account_id: str | None,
     description: str | None,
     timezone: str | None,
+    meet: bool,
 ) -> None:
     """Create a new event."""
     try:
@@ -593,6 +672,8 @@ def events_create(
         }
         if description:
             event_data["description"] = description
+        if meet:
+            event_data["morgen.so:requestVirtualRoom"] = "default"
         result = client.create_event(event_data)
         output = result.model_dump(by_alias=True, exclude_none=True) if result else {"status": "created"}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
@@ -608,6 +689,13 @@ def events_create(
 @click.option("--description", default=None, help="New description.")
 @click.option("--calendar-id", default=None, help="Calendar ID.")
 @click.option("--account-id", default=None, help="Account ID.")
+@click.option(
+    "--series",
+    "series_mode",
+    type=click.Choice(["single", "future", "all"]),
+    default=None,
+    help="Series update mode for recurring events.",
+)
 def events_update(
     event_id: str,
     title: str | None,
@@ -616,6 +704,7 @@ def events_update(
     description: str | None,
     calendar_id: str | None,
     account_id: str | None,
+    series_mode: str | None,
 ) -> None:
     """Update an existing event."""
     try:
@@ -636,7 +725,7 @@ def events_update(
             event_data["duration"] = f"PT{duration}M"
         if description is not None:
             event_data["description"] = description
-        result = client.update_event(event_data)
+        result = client.update_event(event_data, series_update_mode=series_mode)
         if result:
             output = result.model_dump(by_alias=True, exclude_none=True)
         else:
@@ -650,15 +739,123 @@ def events_update(
 @click.argument("event_id")
 @click.option("--calendar-id", default=None, help="Calendar ID.")
 @click.option("--account-id", default=None, help="Account ID.")
-def events_delete(event_id: str, calendar_id: str | None, account_id: str | None) -> None:
+@click.option(
+    "--series",
+    "series_mode",
+    type=click.Choice(["single", "future", "all"]),
+    default=None,
+    help="Series update mode for recurring events.",
+)
+def events_delete(event_id: str, calendar_id: str | None, account_id: str | None, series_mode: str | None) -> None:
     """Delete an event."""
     try:
         client = _get_client()
         if not account_id or not calendar_id:
             account_id, cal_ids = _auto_discover(client)
             calendar_id = calendar_id or cal_ids[0]
-        client.delete_event({"id": event_id, "calendarId": calendar_id, "accountId": account_id})
+        client.delete_event(
+            {"id": event_id, "calendarId": calendar_id, "accountId": account_id},
+            series_update_mode=series_mode,
+        )
         click.echo(json.dumps({"status": "deleted", "id": event_id}))
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
+@events.command("rsvp")
+@click.argument("event_id")
+@click.option(
+    "--action",
+    required=True,
+    type=click.Choice(["accept", "decline", "tentative"]),
+    help="RSVP action.",
+)
+@click.option("--comment", default=None, help="Optional comment to organizer.")
+@click.option("--notify/--no-notify", default=True, help="Notify the organizer (default: yes).")
+@click.option(
+    "--series",
+    "series_mode",
+    type=click.Choice(["single", "future", "all"]),
+    default=None,
+    help="Series update mode for recurring events.",
+)
+@click.option("--calendar-id", default=None, help="Calendar ID (auto-discovered if omitted).")
+@click.option("--account-id", default=None, help="Account ID (auto-discovered if omitted).")
+def events_rsvp(
+    event_id: str,
+    action: str,
+    comment: str | None,
+    notify: bool,
+    series_mode: str | None,
+    calendar_id: str | None,
+    account_id: str | None,
+) -> None:
+    """RSVP to a calendar event (accept, decline, tentative)."""
+    try:
+        client = _get_client()
+        if not account_id or not calendar_id:
+            account_id, cal_ids = _auto_discover(client)
+            calendar_id = calendar_id or cal_ids[0]
+        result = client.rsvp_event(
+            action=action,
+            event_id=event_id,
+            calendar_id=calendar_id,
+            account_id=account_id,
+            notify_organizer=notify,
+            comment=comment,
+            series_update_mode=series_mode,
+        )
+        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
+# ---------------------------------------------------------------------------
+# availability
+# ---------------------------------------------------------------------------
+
+AVAILABILITY_COLUMNS = ["start", "end", "duration_minutes"]
+
+
+@cli.command()
+@click.option("--date", required=True, help="Date to check (YYYY-MM-DD).")
+@click.option("--min-duration", default=30, type=int, help="Minimum slot duration in minutes (default: 30).")
+@click.option("--start", "window_start", default="09:00", help="Working hours start (HH:MM, default: 09:00).")
+@click.option("--end", "window_end", default="18:00", help="Working hours end (HH:MM, default: 18:00).")
+@output_options
+@calendar_filter_options
+def availability(
+    date: str,
+    min_duration: int,
+    window_start: str,
+    window_end: str,
+    fmt: str,
+    fields: list[str] | None,
+    jq_expr: str | None,
+    response_format: str,
+    group_name: str | None,
+    all_calendars: bool,
+) -> None:
+    """Find available time slots on a given date."""
+    try:
+        client = _get_client()
+        cf = _resolve_calendar_filter(group_name, all_calendars)
+
+        day_start = f"{date}T00:00:00"
+        day_end = f"{date}T23:59:59"
+        events_models = client.list_all_events(day_start, day_end, **_filter_kwargs(cf))
+        events_data = [e.model_dump(by_alias=True) for e in events_models]
+
+        from guten_morgen.time_utils import compute_free_slots
+
+        slots = compute_free_slots(
+            events=events_data,
+            day=date,
+            window_start=window_start,
+            window_end=window_end,
+            min_duration_minutes=min_duration,
+        )
+        morgen_output(slots, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=AVAILABILITY_COLUMNS)
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -692,6 +889,7 @@ def tasks() -> None:
 @click.option("--source", default=None, help="Filter by task source (morgen, linear, notion, etc.).")
 @click.option("--tag", "tag_names", multiple=True, help="Filter by tag name (repeatable, OR logic).")
 @click.option("--group-by-source", is_flag=True, default=False, help="Group output by task source.")
+@click.option("--updated-after", default=None, help="Only tasks updated after this datetime (ISO 8601).")
 @output_options
 def tasks_list(
     limit: int,
@@ -703,6 +901,7 @@ def tasks_list(
     source: str | None,
     tag_names: tuple[str, ...],
     group_by_source: bool,
+    updated_after: str | None,
     fmt: str,
     fields: list[str] | None,
     jq_expr: str | None,
@@ -711,7 +910,7 @@ def tasks_list(
     """List tasks."""
     try:
         client = _get_client()
-        result = client.list_all_tasks(source=source, limit=limit)
+        result = client.list_all_tasks(source=source, limit=limit, updated_after=updated_after)
         data = [t.model_dump() for t in result.tasks]
         label_defs = [ld.model_dump() for ld in result.labelDefs]
 
@@ -899,11 +1098,12 @@ def tasks_update(
 
 @tasks.command("close")
 @click.argument("task_id")
-def tasks_close(task_id: str) -> None:
+@click.option("--occurrence", default=None, help="Occurrence start (ISO 8601) for recurring tasks.")
+def tasks_close(task_id: str, occurrence: str | None) -> None:
     """Mark a task as completed."""
     try:
         client = _get_client()
-        result = client.close_task(task_id)
+        result = client.close_task(task_id, occurrence_start=occurrence)
         output = result.model_dump(exclude_none=True) if result else {"status": "closed", "id": task_id}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
@@ -912,11 +1112,12 @@ def tasks_close(task_id: str) -> None:
 
 @tasks.command("reopen")
 @click.argument("task_id")
-def tasks_reopen(task_id: str) -> None:
+@click.option("--occurrence", default=None, help="Occurrence start (ISO 8601) for recurring tasks.")
+def tasks_reopen(task_id: str, occurrence: str | None) -> None:
     """Reopen a completed task."""
     try:
         client = _get_client()
-        result = client.reopen_task(task_id)
+        result = client.reopen_task(task_id, occurrence_start=occurrence)
         output = result.model_dump(exclude_none=True) if result else {"status": "reopened", "id": task_id}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
@@ -1078,6 +1279,25 @@ def tags_delete(tag_id: str) -> None:
         client = _get_client()
         client.delete_tag(tag_id)
         click.echo(json.dumps({"status": "deleted", "id": tag_id}))
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
+# ---------------------------------------------------------------------------
+# providers
+# ---------------------------------------------------------------------------
+
+PROVIDER_COLUMNS = ["id", "name", "type"]
+
+
+@cli.command()
+@output_options
+def providers(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
+    """List available integration providers."""
+    try:
+        client = _get_client()
+        data = client.list_providers()
+        morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=PROVIDER_COLUMNS)
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 

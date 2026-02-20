@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
 
 
 def end_of_next_day(ref: datetime | None = None) -> str:
@@ -89,3 +93,93 @@ def format_duration_human(minutes: int) -> str:
     if remaining == 0:
         return f"{hours}h"
     return f"{hours}h{remaining}m"
+
+
+def _parse_duration_minutes(duration: str) -> int:
+    """Parse ISO 8601 duration string to minutes. Supports PTxHyM, PTxM, PTxH, PxD."""
+    import re
+
+    match = re.match(r"PT(?:(\d+)H)?(?:(\d+)M)?", duration)
+    if match and (match.group(1) or match.group(2)):
+        hours = int(match.group(1) or 0)
+        minutes = int(match.group(2) or 0)
+        return hours * 60 + minutes
+    day_match = re.match(r"P(\d+)D", duration)
+    if day_match:
+        return int(day_match.group(1)) * 24 * 60
+    return 0
+
+
+def compute_free_slots(
+    events: list[dict[str, Any]],
+    day: str,
+    window_start: str = "09:00",
+    window_end: str = "18:00",
+    min_duration_minutes: int = 30,
+) -> list[dict[str, Any]]:
+    """Compute free time slots on a given day.
+
+    Args:
+        events: List of event dicts (need 'start', 'duration', optional 'showWithoutTime')
+        day: Date string (YYYY-MM-DD)
+        window_start: Working hours start (HH:MM)
+        window_end: Working hours end (HH:MM)
+        min_duration_minutes: Minimum slot duration to include
+
+    Returns:
+        List of dicts: [{start, end, duration_minutes}]
+    """
+
+    ws = datetime.fromisoformat(f"{day}T{window_start}:00")
+    we = datetime.fromisoformat(f"{day}T{window_end}:00")
+
+    busy: list[tuple[datetime, datetime]] = []
+    for evt in events:
+        if evt.get("showWithoutTime"):
+            continue
+        start_str = evt.get("start", "")
+        dur_str = evt.get("duration", "PT0M")
+        if not start_str or len(start_str) < 16:
+            continue
+        evt_start = datetime.fromisoformat(start_str[:19])
+        evt_end = evt_start + timedelta(minutes=_parse_duration_minutes(dur_str))
+        clipped_start = max(evt_start, ws)
+        clipped_end = min(evt_end, we)
+        if clipped_start < clipped_end:
+            busy.append((clipped_start, clipped_end))
+
+    busy.sort()
+    merged: list[tuple[datetime, datetime]] = []
+    for start, end in busy:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+
+    slots: list[dict[str, Any]] = []
+    cursor = ws
+    for busy_start, busy_end in merged:
+        if cursor < busy_start:
+            gap_minutes = int((busy_start - cursor).total_seconds() / 60)
+            if gap_minutes >= min_duration_minutes:
+                slots.append(
+                    {
+                        "start": cursor.isoformat(),
+                        "end": busy_start.isoformat(),
+                        "duration_minutes": gap_minutes,
+                    }
+                )
+        cursor = max(cursor, busy_end)
+
+    if cursor < we:
+        gap_minutes = int((we - cursor).total_seconds() / 60)
+        if gap_minutes >= min_duration_minutes:
+            slots.append(
+                {
+                    "start": cursor.isoformat(),
+                    "end": we.isoformat(),
+                    "duration_minutes": gap_minutes,
+                }
+            )
+
+    return slots

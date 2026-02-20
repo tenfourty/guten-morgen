@@ -61,6 +61,7 @@ class Event(MorgenModel):
     showWithoutTime: bool | None = None
     timeZone: str | None = None
     morgen_metadata: dict[str, Any] | None = Field(None, alias="morgen.so:metadata")
+    request_virtual_room: str | None = Field(None, alias="morgen.so:requestVirtualRoom")
 
 
 class LabelDef(MorgenModel):
@@ -100,6 +101,7 @@ class Task(MorgenModel):
     accountId: str | None = None
     labels: list[dict[str, Any]] = []
     links: dict[str, Any] = {}
+    occurrenceStart: str | None = None
 
 
 class TaskListResponse(MorgenModel):

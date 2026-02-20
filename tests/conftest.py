@@ -172,6 +172,12 @@ FAKE_TAGS = [
     {"id": "tag-2", "name": "personal", "color": "#00ff00"},
 ]
 
+FAKE_PROVIDERS = [
+    {"id": "google", "name": "Google", "type": "calendar"},
+    {"id": "linear", "name": "Linear", "type": "tasks"},
+    {"id": "notion", "name": "Notion", "type": "tasks"},
+]
+
 # Task-integration accounts (Linear, Notion)
 FAKE_TASK_ACCOUNTS = [
     {
@@ -288,6 +294,7 @@ ALL_ACCOUNTS = FAKE_ACCOUNTS + FAKE_TASK_ACCOUNTS
 
 ROUTES: dict[str, Any] = {
     "/v3/integrations/accounts/list": {"data": {"accounts": ALL_ACCOUNTS}},
+    "/v3/integrations/list": {"data": {"integrations": FAKE_PROVIDERS}},
     "/v3/calendars/list": {"data": {"calendars": FAKE_CALENDARS}},
     "/v3/tasks/list": {"data": {"tasks": FAKE_TASKS}},
     "/v3/tags/list": FAKE_TAGS,  # Tags API returns flat list
@@ -314,6 +321,15 @@ def _item_key_from_path(path: str) -> str:
 def mock_transport_handler(request: httpx.Request) -> httpx.Response:
     """Route mock API requests to fake data."""
     path = request.url.path
+
+    # Handle sync API RSVP endpoints (absolute URL: https://sync.morgen.so/v1/events/{action})
+    if path.startswith("/v1/events/") and path.split("/")[-1] in ("accept", "decline", "tentativelyAccept"):
+        try:
+            body = json.loads(request.content)
+        except (json.JSONDecodeError, ValueError):
+            body = {}
+        action = path.split("/")[-1]
+        return httpx.Response(200, json={"status": action, **body})
 
     # Route events by accountId query param
     if path == "/v3/events/list":
