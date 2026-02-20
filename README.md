@@ -37,7 +37,7 @@ uv sync --all-extras
 uv run pre-commit install
 ```
 
-All methods expose the `gm` command.
+All methods expose both `gm` (short) and `guten-morgen` (long) commands.
 
 ## Setup
 
