@@ -402,15 +402,21 @@ class MorgenClient:
         self._cache_invalidate("tasks")
         return _extract_single(data, "task", Task)
 
-    def close_task(self, task_id: str) -> Task | None:
+    def close_task(self, task_id: str, *, occurrence_start: str | None = None) -> Task | None:
         """Mark a task as completed."""
-        data = self._request("POST", "/tasks/close", json={"id": task_id})
+        payload: dict[str, Any] = {"id": task_id}
+        if occurrence_start:
+            payload["occurrenceStart"] = occurrence_start
+        data = self._request("POST", "/tasks/close", json=payload)
         self._cache_invalidate("tasks")
         return _extract_single(data, "task", Task)
 
-    def reopen_task(self, task_id: str) -> Task | None:
+    def reopen_task(self, task_id: str, *, occurrence_start: str | None = None) -> Task | None:
         """Reopen a completed task."""
-        data = self._request("POST", "/tasks/reopen", json={"id": task_id})
+        payload: dict[str, Any] = {"id": task_id}
+        if occurrence_start:
+            payload["occurrenceStart"] = occurrence_start
+        data = self._request("POST", "/tasks/reopen", json=payload)
         self._cache_invalidate("tasks")
         return _extract_single(data, "task", Task)
 

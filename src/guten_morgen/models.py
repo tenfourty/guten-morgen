@@ -101,6 +101,7 @@ class Task(MorgenModel):
     accountId: str | None = None
     labels: list[dict[str, Any]] = []
     links: dict[str, Any] = {}
+    occurrenceStart: str | None = None
 
 
 class TaskListResponse(MorgenModel):
