@@ -563,6 +563,7 @@ def events_list(
 @click.option("--account-id", default=None, help="Account ID (auto-discovered if omitted).")
 @click.option("--description", default=None, help="Event description.")
 @click.option("--timezone", default=None, help="Time zone (e.g. Europe/Paris). Defaults to system timezone.")
+@click.option("--meet", is_flag=True, default=False, help="Auto-attach a Google Meet link.")
 def events_create(
     title: str,
     start: str,
@@ -571,6 +572,7 @@ def events_create(
     account_id: str | None,
     description: str | None,
     timezone: str | None,
+    meet: bool,
 ) -> None:
     """Create a new event."""
     try:
@@ -593,6 +595,8 @@ def events_create(
         }
         if description:
             event_data["description"] = description
+        if meet:
+            event_data["morgen.so:requestVirtualRoom"] = "default"
         result = client.create_event(event_data)
         output = result.model_dump(by_alias=True, exclude_none=True) if result else {"status": "created"}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
