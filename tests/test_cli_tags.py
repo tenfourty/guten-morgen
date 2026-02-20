@@ -29,6 +29,8 @@ class TestTagsList:
         data = json.loads(result.output)
         assert "id" in data[0]
         assert "color" not in data[0]
+        # Verify expected concise fields are present
+        assert "name" in data[0]
 
 
 class TestTagsGet:
@@ -56,7 +58,8 @@ class TestTagsUpdate:
         result = runner.invoke(cli, ["tags", "update", "tag-1", "--name", "critical"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert "id" in data
+        assert data["id"] == "tag-1"
+        assert data["name"] == "critical"
 
 
 class TestTagsDelete:
@@ -65,3 +68,4 @@ class TestTagsDelete:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["status"] == "deleted"
+        assert data["id"] == "tag-1"

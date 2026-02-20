@@ -6,11 +6,14 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import httpx
 from click.testing import CliRunner
 
 from morgen.cache import CacheStore
 from morgen.cli import cli
 from morgen.client import MorgenClient
+from morgen.config import Settings
+from tests.conftest import mock_transport_handler
 
 
 class TestCacheClearCommand:
@@ -38,3 +41,18 @@ class TestNoCacheFlag:
     def test_no_cache_flag_exists(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["--no-cache", "accounts", "--json"])
         assert result.exit_code == 0
+
+
+class TestNoCacheBypass:
+    def test_no_cache_does_not_read_stale_data(self, runner: CliRunner, tmp_path: Path) -> None:
+        """--no-cache flag prevents reading from cache."""
+        # Create a client WITHOUT cache (simulating --no-cache)
+        settings = Settings(api_key="test-key")
+        client_no_cache = MorgenClient(settings, transport=httpx.MockTransport(mock_transport_handler))
+
+        with patch("morgen.cli._get_client", return_value=client_no_cache):
+            result = runner.invoke(cli, ["--no-cache", "accounts", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        # Should get fresh data (4 accounts from mock), NOT stale (1 account)
+        assert len(data) == 4

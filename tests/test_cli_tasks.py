@@ -34,6 +34,9 @@ class TestTasksList:
     def test_limit(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["tasks", "list", "--limit", "10", "--json"])
         assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+        assert len(data) <= 10
 
 
 class TestTasksListFiltering:
@@ -145,7 +148,8 @@ class TestTasksUpdate:
         result = runner.invoke(cli, ["tasks", "update", "task-1", "--title", "Updated"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert "id" in data
+        assert data["id"] == "task-1"
+        assert data["title"] == "Updated"
 
 
 class TestTasksClose:
@@ -153,19 +157,23 @@ class TestTasksClose:
         result = runner.invoke(cli, ["tasks", "close", "task-1"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert "id" in data
+        assert data["id"] == "task-1"
 
 
 class TestTasksReopen:
     def test_reopen(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["tasks", "reopen", "task-1"])
         assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["id"] == "task-1"
 
 
 class TestTasksMove:
     def test_move(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["tasks", "move", "task-2", "--after", "task-1"])
         assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["id"] == "task-2"
 
 
 class TestTasksDuration:
@@ -296,6 +304,35 @@ class TestNormalizeDue:
         from morgen.cli import _normalize_due
 
         assert _normalize_due("2026-02-20T23:59:59+01:00") == "2026-02-20T23:59:59"
+
+    def test_partial_datetime(self) -> None:
+        from morgen.cli import _normalize_due
+
+        # Only date+hour should still work (truncates to 19 chars)
+        assert len(_normalize_due("2026-02-20T14:00")) <= 19
+
+    def test_already_short(self) -> None:
+        from morgen.cli import _normalize_due
+
+        assert _normalize_due("2026-02-20T14") == "2026-02-20T14"
+
+
+class TestResolveTagNames:
+    """Tag name resolution edge cases."""
+
+    def test_unknown_tag_silently_skipped(self, mock_client: MorgenClient) -> None:
+        """Tags that don't exist are silently filtered out."""
+        from morgen.cli import _resolve_tag_names
+
+        result = _resolve_tag_names(mock_client, ("nonexistent",))
+        assert result == []
+
+    def test_mixed_known_and_unknown(self, mock_client: MorgenClient) -> None:
+        """Known tags are resolved, unknown are skipped."""
+        from morgen.cli import _resolve_tag_names
+
+        result = _resolve_tag_names(mock_client, ("urgent", "nonexistent"))
+        assert result == ["tag-1"]
 
 
 class TestTasksSchedule:

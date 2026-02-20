@@ -30,6 +30,8 @@ class TestAccounts:
         assert "id" in data[0]
         assert "providerUserDisplayName" in data[0]
         assert "preferredEmail" not in data[0]
+        # Verify expected concise fields are present
+        assert "integrationId" in data[0]
 
     def test_fields_filter(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["accounts", "--json", "--fields", "name"])
