@@ -9,6 +9,7 @@ uv sync --all-extras && uv run pre-commit install   # first time
 cp .env.example .env                                 # then add MORGEN_API_KEY
 uv run pytest -x -q --cov && uv run mypy src/       # verify
 uv run gm usage                                      # CLI self-documentation
+uv tool install --editable .                         # optional: global `gm` command
 ```
 
 Pre-commit hooks enforce everything (ggshield, ruff, mypy, bandit, pytest+cov). Trust the hooks.
@@ -55,3 +56,4 @@ src/guten_morgen/
 - **`.config.toml`** controls calendar group filtering — events use `default_group` unless `--group all`
 - **`morgen.so:metadata`** — Event model aliases this. Use `model_dump(by_alias=True)` for events
 - **Mutation output** — use `model_dump(exclude_none=True)` to avoid null flood
+- **`uv.lock`** — must be generated with `UV_INDEX="" uv lock --refresh` to avoid baking in private registries
