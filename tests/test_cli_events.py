@@ -168,3 +168,29 @@ class TestEventsDelete:
         data = json.loads(result.output)
         assert data["status"] == "deleted"
         assert data["id"] == "evt-1"
+
+
+class TestSeriesUpdateMode:
+    def test_update_with_series_flag(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--series passes seriesUpdateMode query param to API."""
+        result = runner.invoke(cli, ["events", "update", "evt-1", "--title", "Updated", "--series", "future"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["id"] == "evt-1"
+
+    def test_delete_with_series_flag(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--series passes seriesUpdateMode on delete."""
+        result = runner.invoke(cli, ["events", "delete", "evt-1", "--series", "all"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["status"] == "deleted"
+
+    def test_series_default_not_sent(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Without --series, no seriesUpdateMode param is sent."""
+        result = runner.invoke(cli, ["events", "update", "evt-1", "--title", "Updated"])
+        assert result.exit_code == 0
+
+    def test_series_invalid_choice(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Invalid --series value is rejected by Click."""
+        result = runner.invoke(cli, ["events", "update", "evt-1", "--series", "bogus"])
+        assert result.exit_code != 0

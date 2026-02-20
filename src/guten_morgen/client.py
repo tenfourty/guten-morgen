@@ -252,15 +252,39 @@ class MorgenClient:
         self._cache_invalidate("events")
         return _extract_single(data, "event", Event)
 
-    def update_event(self, event_data: dict[str, Any]) -> Event | None:
-        """Update an existing event."""
-        data = self._request("POST", "/events/update", json=event_data)
+    def update_event(
+        self,
+        event_data: dict[str, Any],
+        *,
+        series_update_mode: str | None = None,
+    ) -> Event | None:
+        """Update an existing event.
+
+        Args:
+            event_data: Event fields to update (must include id, calendarId, accountId).
+            series_update_mode: For recurring events — "single", "future", or "all".
+                Passed as seriesUpdateMode query parameter when set.
+        """
+        params = {"seriesUpdateMode": series_update_mode} if series_update_mode else None
+        data = self._request("POST", "/events/update", json=event_data, params=params)
         self._cache_invalidate("events")
         return _extract_single(data, "event", Event)
 
-    def delete_event(self, event_data: dict[str, Any]) -> None:
-        """Delete an event."""
-        self._request("POST", "/events/delete", json=event_data)
+    def delete_event(
+        self,
+        event_data: dict[str, Any],
+        *,
+        series_update_mode: str | None = None,
+    ) -> None:
+        """Delete an event.
+
+        Args:
+            event_data: Event identifiers (id, calendarId, accountId).
+            series_update_mode: For recurring events — "single", "future", or "all".
+                Passed as seriesUpdateMode query parameter when set.
+        """
+        params = {"seriesUpdateMode": series_update_mode} if series_update_mode else None
+        self._request("POST", "/events/delete", json=event_data, params=params)
         self._cache_invalidate("events")
 
     # ----- Tasks -----

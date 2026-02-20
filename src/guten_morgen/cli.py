@@ -608,6 +608,13 @@ def events_create(
 @click.option("--description", default=None, help="New description.")
 @click.option("--calendar-id", default=None, help="Calendar ID.")
 @click.option("--account-id", default=None, help="Account ID.")
+@click.option(
+    "--series",
+    "series_mode",
+    type=click.Choice(["single", "future", "all"]),
+    default=None,
+    help="Series update mode for recurring events.",
+)
 def events_update(
     event_id: str,
     title: str | None,
@@ -616,6 +623,7 @@ def events_update(
     description: str | None,
     calendar_id: str | None,
     account_id: str | None,
+    series_mode: str | None,
 ) -> None:
     """Update an existing event."""
     try:
@@ -636,7 +644,7 @@ def events_update(
             event_data["duration"] = f"PT{duration}M"
         if description is not None:
             event_data["description"] = description
-        result = client.update_event(event_data)
+        result = client.update_event(event_data, series_update_mode=series_mode)
         if result:
             output = result.model_dump(by_alias=True, exclude_none=True)
         else:
@@ -650,14 +658,24 @@ def events_update(
 @click.argument("event_id")
 @click.option("--calendar-id", default=None, help="Calendar ID.")
 @click.option("--account-id", default=None, help="Account ID.")
-def events_delete(event_id: str, calendar_id: str | None, account_id: str | None) -> None:
+@click.option(
+    "--series",
+    "series_mode",
+    type=click.Choice(["single", "future", "all"]),
+    default=None,
+    help="Series update mode for recurring events.",
+)
+def events_delete(event_id: str, calendar_id: str | None, account_id: str | None, series_mode: str | None) -> None:
     """Delete an event."""
     try:
         client = _get_client()
         if not account_id or not calendar_id:
             account_id, cal_ids = _auto_discover(client)
             calendar_id = calendar_id or cal_ids[0]
-        client.delete_event({"id": event_id, "calendarId": calendar_id, "accountId": account_id})
+        client.delete_event(
+            {"id": event_id, "calendarId": calendar_id, "accountId": account_id},
+            series_update_mode=series_mode,
+        )
         click.echo(json.dumps({"status": "deleted", "id": event_id}))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
