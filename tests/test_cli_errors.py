@@ -5,142 +5,88 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+import pytest
 from click.testing import CliRunner
 
 from morgen.cli import cli
 from morgen.errors import AuthenticationError, MorgenAPIError, NotFoundError, RateLimitError
 
+_ERR = MorgenAPIError("API error 500")
+
+_ERROR_CASES: list[tuple[str, Exception, list[str], str]] = [
+    # Accounts & calendars
+    ("list_accounts", AuthenticationError("msg"), ["accounts", "--json"], "authentication_error"),
+    ("list_calendars", AuthenticationError("msg"), ["calendars", "--json"], "authentication_error"),
+    # Events
+    (
+        "list_all_events",
+        MorgenAPIError("500"),
+        ["events", "list", "--start", "2026-02-17", "--end", "2026-02-18", "--json"],
+        "api_error",
+    ),
+    (
+        "create_event",
+        _ERR,
+        ["events", "create", "--title", "Test", "--start", "2026-02-17T09:00:00", "--duration", "30"],
+        "api_error",
+    ),
+    ("update_event", NotFoundError("Not found"), ["events", "update", "evt-999", "--title", "Updated"], "not_found"),
+    ("delete_event", NotFoundError("Not found"), ["events", "delete", "evt-999"], "not_found"),
+    # Tasks
+    ("get_task", NotFoundError("Not found"), ["tasks", "get", "task-999", "--json"], "not_found"),
+    ("create_task", _ERR, ["tasks", "create", "--title", "New Task"], "api_error"),
+    ("update_task", _ERR, ["tasks", "update", "task-1", "--title", "Updated"], "api_error"),
+    ("close_task", _ERR, ["tasks", "close", "task-1"], "api_error"),
+    ("reopen_task", _ERR, ["tasks", "reopen", "task-1"], "api_error"),
+    ("move_task", _ERR, ["tasks", "move", "task-1", "--after", "task-2"], "api_error"),
+    ("delete_task", _ERR, ["tasks", "delete", "task-1"], "api_error"),
+    # Tags
+    ("list_tags", _ERR, ["tags", "list", "--json"], "api_error"),
+    ("get_tag", NotFoundError("Not found"), ["tags", "get", "tag-999", "--json"], "not_found"),
+    ("create_tag", _ERR, ["tags", "create", "--name", "test"], "api_error"),
+    ("update_tag", _ERR, ["tags", "update", "tag-1", "--name", "updated"], "api_error"),
+    ("delete_tag", _ERR, ["tags", "delete", "tag-1"], "api_error"),
+    # Quick views
+    ("list_all_events", _ERR, ["next", "--json"], "api_error"),
+    ("list_all_events", _ERR, ["today", "--json"], "api_error"),
+]
+
 
 class TestErrorHandling:
     """Error handling paths output structured JSON errors to stderr."""
 
-    def _assert_structured_error(self, result, error_type: str) -> None:
+    def _assert_structured_error(self, result, error_type: str) -> None:  # type: ignore[no-untyped-def]
         """Assert exit code 1 and structured error JSON on stderr."""
         assert result.exit_code == 1
         err = json.loads(result.output)
         assert err["error"]["type"] == error_type
         assert "message" in err["error"]
 
-    def test_accounts_auth_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "list_accounts", side_effect=AuthenticationError("Invalid API key")):
-            result = runner.invoke(cli, ["accounts", "--json"], catch_exceptions=False)
-        self._assert_structured_error(result, "authentication_error")
+    @pytest.mark.parametrize(
+        ("patch_method", "exception", "cli_args", "expected_type"),
+        _ERROR_CASES,
+    )
+    def test_error_mapping(
+        self,
+        runner: CliRunner,
+        mock_client,  # type: ignore[no-untyped-def]
+        patch_method: str,
+        exception: Exception,
+        cli_args: list[str],
+        expected_type: str,
+    ) -> None:
+        with patch.object(mock_client, patch_method, side_effect=exception):
+            result = runner.invoke(cli, cli_args, catch_exceptions=False)
+        self._assert_structured_error(result, expected_type)
 
-    def test_calendars_auth_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "list_calendars", side_effect=AuthenticationError("Invalid API key")):
-            result = runner.invoke(cli, ["calendars", "--json"], catch_exceptions=False)
-        self._assert_structured_error(result, "authentication_error")
-
-    def test_events_list_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "list_all_events", side_effect=MorgenAPIError("API error 500: Internal")):
-            result = runner.invoke(
-                cli,
-                ["events", "list", "--start", "2026-02-17", "--end", "2026-02-18", "--json"],
-                catch_exceptions=False,
-            )
-        self._assert_structured_error(result, "api_error")
-
-    def test_events_create_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "create_event", side_effect=MorgenAPIError("API error 500")):
-            result = runner.invoke(
-                cli,
-                ["events", "create", "--title", "Test", "--start", "2026-02-17T09:00:00", "--duration", "30"],
-                catch_exceptions=False,
-            )
-        self._assert_structured_error(result, "api_error")
-
-    def test_events_update_not_found(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "update_event", side_effect=NotFoundError("Not found")):
-            result = runner.invoke(
-                cli,
-                ["events", "update", "evt-999", "--title", "Updated"],
-                catch_exceptions=False,
-            )
-        self._assert_structured_error(result, "not_found")
-
-    def test_events_delete_not_found(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "delete_event", side_effect=NotFoundError("Not found")):
-            result = runner.invoke(cli, ["events", "delete", "evt-999"], catch_exceptions=False)
-        self._assert_structured_error(result, "not_found")
-
-    def test_tasks_list_rate_limit(self, runner: CliRunner, mock_client) -> None:
+    def test_tasks_list_rate_limit(self, runner: CliRunner, mock_client) -> None:  # type: ignore[no-untyped-def]
         with patch.object(mock_client, "list_all_tasks", side_effect=RateLimitError("Rate limit exceeded")):
             result = runner.invoke(cli, ["tasks", "list", "--json"], catch_exceptions=False)
         self._assert_structured_error(result, "rate_limit_error")
         err = json.loads(result.output)
         assert "suggestions" in err["error"]
 
-    def test_tasks_get_not_found(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "get_task", side_effect=NotFoundError("Task not found")):
-            result = runner.invoke(cli, ["tasks", "get", "task-999", "--json"], catch_exceptions=False)
-        self._assert_structured_error(result, "not_found")
-
-    def test_tasks_create_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "create_task", side_effect=MorgenAPIError("API error 500")):
-            result = runner.invoke(cli, ["tasks", "create", "--title", "New Task"], catch_exceptions=False)
-        self._assert_structured_error(result, "api_error")
-
-    def test_tasks_update_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "update_task", side_effect=MorgenAPIError("API error 500")):
-            result = runner.invoke(cli, ["tasks", "update", "task-1", "--title", "Updated"], catch_exceptions=False)
-        self._assert_structured_error(result, "api_error")
-
-    def test_tasks_close_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "close_task", side_effect=MorgenAPIError("API error 500")):
-            result = runner.invoke(cli, ["tasks", "close", "task-1"], catch_exceptions=False)
-        self._assert_structured_error(result, "api_error")
-
-    def test_tasks_reopen_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "reopen_task", side_effect=MorgenAPIError("API error 500")):
-            result = runner.invoke(cli, ["tasks", "reopen", "task-1"], catch_exceptions=False)
-        self._assert_structured_error(result, "api_error")
-
-    def test_tasks_move_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "move_task", side_effect=MorgenAPIError("API error 500")):
-            result = runner.invoke(cli, ["tasks", "move", "task-1", "--after", "task-2"], catch_exceptions=False)
-        self._assert_structured_error(result, "api_error")
-
-    def test_tasks_delete_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "delete_task", side_effect=MorgenAPIError("API error 500")):
-            result = runner.invoke(cli, ["tasks", "delete", "task-1"], catch_exceptions=False)
-        self._assert_structured_error(result, "api_error")
-
-    def test_tags_list_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "list_tags", side_effect=MorgenAPIError("API error 500")):
-            result = runner.invoke(cli, ["tags", "list", "--json"], catch_exceptions=False)
-        self._assert_structured_error(result, "api_error")
-
-    def test_tags_get_not_found(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "get_tag", side_effect=NotFoundError("Tag not found")):
-            result = runner.invoke(cli, ["tags", "get", "tag-999", "--json"], catch_exceptions=False)
-        self._assert_structured_error(result, "not_found")
-
-    def test_tags_create_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "create_tag", side_effect=MorgenAPIError("API error 500")):
-            result = runner.invoke(cli, ["tags", "create", "--name", "test"], catch_exceptions=False)
-        self._assert_structured_error(result, "api_error")
-
-    def test_tags_update_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "update_tag", side_effect=MorgenAPIError("API error 500")):
-            result = runner.invoke(cli, ["tags", "update", "tag-1", "--name", "updated"], catch_exceptions=False)
-        self._assert_structured_error(result, "api_error")
-
-    def test_tags_delete_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "delete_tag", side_effect=MorgenAPIError("API error 500")):
-            result = runner.invoke(cli, ["tags", "delete", "tag-1"], catch_exceptions=False)
-        self._assert_structured_error(result, "api_error")
-
-    def test_next_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "list_all_events", side_effect=MorgenAPIError("API error 500")):
-            result = runner.invoke(cli, ["next", "--json"], catch_exceptions=False)
-        self._assert_structured_error(result, "api_error")
-
-    def test_today_api_error(self, runner: CliRunner, mock_client) -> None:
-        with patch.object(mock_client, "list_all_events", side_effect=MorgenAPIError("API error 500")):
-            result = runner.invoke(cli, ["today", "--json"], catch_exceptions=False)
-        self._assert_structured_error(result, "api_error")
-
-    def test_error_with_suggestions(self, runner: CliRunner, mock_client) -> None:
+    def test_error_with_suggestions(self, runner: CliRunner, mock_client) -> None:  # type: ignore[no-untyped-def]
         with patch.object(
             mock_client,
             "list_accounts",
