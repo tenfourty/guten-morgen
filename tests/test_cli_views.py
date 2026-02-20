@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 from click.testing import CliRunner
 
-from morgen.cli import cli
-from morgen.client import MorgenClient
+from guten_morgen.cli import cli
+from guten_morgen.client import MorgenClient
 
 # Fixed date range matching conftest FAKE data (2026-02-17)
 _TODAY_START = "2026-02-17T00:00:00+00:00"
@@ -64,7 +64,7 @@ class TestToday:
 
     def test_task_categorisation(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """Tasks are split into scheduled, overdue, and unscheduled."""
-        with patch("morgen.time_utils.today_range", return_value=(_TODAY_START, _TODAY_END)):
+        with patch("guten_morgen.time_utils.today_range", return_value=(_TODAY_START, _TODAY_END)):
             result = runner.invoke(cli, ["today", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)

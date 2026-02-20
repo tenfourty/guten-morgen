@@ -8,8 +8,8 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 
-from morgen.cli import cli
-from morgen.errors import AuthenticationError, MorgenAPIError, NotFoundError, RateLimitError
+from guten_morgen.cli import cli
+from guten_morgen.errors import AuthenticationError, MorgenAPIError, NotFoundError, RateLimitError
 
 _ERR = MorgenAPIError("API error 500")
 

@@ -1,4 +1,5 @@
 .env
+.config.toml
 __pycache__/
 *.pyc
 *.egg-info/
@@ -9,6 +10,7 @@ build/
 .ruff_cache/
 .venv/
 .worktrees/
+.coverage
 
 # Added by ggshield
 .cache_ggshield

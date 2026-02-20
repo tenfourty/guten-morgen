@@ -1,6 +1,6 @@
-# morgen — Open Issues
+# guten-morgen — Open Issues
 
-Track bugs, UX problems, and improvements found while using morgen.
+Track bugs, UX problems, and improvements found while using guten-morgen.
 When an issue is fixed, move it to the **Resolved** section with the commit hash.
 
 ## Open
@@ -12,7 +12,7 @@ When an issue is fixed, move it to the **Resolved** section with the commit hash
 - **Severity:** critical | high | medium | low
 - **Category:** bug | ux | missing-feature | performance
 - **Description:** What happened, what was expected.
-- **Repro:** `morgen` command or steps to reproduce.
+- **Repro:** `gm` command or steps to reproduce.
 - **Notes:** Any context, workarounds, or ideas.
 
 -->
@@ -27,6 +27,6 @@ When an issue is fixed, move it to the **Resolved** section with the commit hash
 - **Fixed:** 2026-02-19 (5504ff2..6ab1527)
 - **Was:** All tasks returned `integrationId: "morgen"` regardless of origin. Fixed with `--source` and `--group-by-source` flags on `tasks list`, plus multi-source enrichment.
 
-### `morgen` not globally installed — requires `uv run` from project directory
+### `gm` not globally installed — requires `uv run` from project directory
 - **Fixed:** 2026-02-18
-- **Was:** Could only run via `uv run morgen` from the `morgen/` directory. Now globally installed via `uv tool install --editable`, same as `kb`.
+- **Was:** Could only run via `uv run gm` from the project directory. Now globally installed via `uv tool install --editable`, same as `kb`.

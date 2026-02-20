@@ -6,8 +6,8 @@ import json
 
 from click.testing import CliRunner
 
-from morgen.cli import cli
-from morgen.client import MorgenClient
+from guten_morgen.cli import cli
+from guten_morgen.client import MorgenClient
 
 
 class TestEventsList:
@@ -53,7 +53,7 @@ class TestEventsList:
 
     def test_concise_includes_display_fields(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """Concise format includes participants_display and location_display."""
-        from morgen.cli import EVENT_CONCISE_FIELDS
+        from guten_morgen.cli import EVENT_CONCISE_FIELDS
 
         assert "participants_display" in EVENT_CONCISE_FIELDS
         assert "location_display" in EVENT_CONCISE_FIELDS

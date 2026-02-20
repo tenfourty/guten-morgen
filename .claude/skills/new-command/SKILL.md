@@ -1,24 +1,24 @@
 ---
 name: new-command
-description: Scaffold a new CLI command with model, client method, CLI wiring, and tests following morgen conventions
+description: Scaffold a new CLI command with model, client method, CLI wiring, and tests following guten-morgen conventions
 disable-model-invocation: true
 ---
 
-# Scaffold a New morgen CLI Command
+# Scaffold a New guten-morgen CLI Command
 
-Add a new resource type to the morgen CLI. Argument: `$ARGUMENTS` (e.g., "reminders" or "notes").
+Add a new resource type to the guten-morgen CLI. Argument: `$ARGUMENTS` (e.g., "reminders" or "notes").
 
 ## Prerequisites
 
 Read these files first to understand current patterns:
-- `src/morgen/models.py` — existing model patterns
-- `src/morgen/client.py` — client method patterns
-- `src/morgen/cli.py` — CLI command patterns
+- `src/guten_morgen/models.py` — existing model patterns
+- `src/guten_morgen/client.py` — client method patterns
+- `src/guten_morgen/cli.py` — CLI command patterns
 - `tests/conftest.py` — mock transport and fixtures
 
 ## Step 1: Pydantic Model
 
-Add to `src/morgen/models.py`:
+Add to `src/guten_morgen/models.py`:
 
 ```python
 class NewResource(MorgenModel):
@@ -34,7 +34,7 @@ Inherit from `MorgenModel` (gets `extra="ignore"` + `populate_by_name=True`).
 
 ## Step 2: Client Methods
 
-Add to `src/morgen/client.py`:
+Add to `src/guten_morgen/client.py`:
 
 - Import the new model
 - Add list/get/create/update/delete methods as needed
@@ -46,7 +46,7 @@ Add to `src/morgen/client.py`:
 
 ## Step 3: CLI Commands
 
-Add to `src/morgen/cli.py`:
+Add to `src/guten_morgen/cli.py`:
 
 ```python
 # Define column and concise field lists
@@ -79,7 +79,7 @@ Key patterns:
 
 ## Step 4: Update `usage` Command (CRITICAL)
 
-**This is the most important step.** `morgen usage` is the LLM-facing API contract — it's the first command any AI agent runs to orient itself. If a command isn't in `usage`, it doesn't exist to the LLM.
+**This is the most important step.** `gm usage` is the LLM-facing API contract — it's the first command any AI agent runs to orient itself. If a command isn't in `usage`, it doesn't exist to the LLM.
 
 Update the `usage()` function's docstring in `cli.py` to include:
 1. The new command with all options and their descriptions
@@ -92,7 +92,7 @@ Match the style of existing entries exactly. Every option must be documented wit
 
 Capture a real API response:
 ```bash
-morgen <command> --json > tests/fixtures/<resource>_sample.json
+gm <command> --json > tests/fixtures/<resource>_sample.json
 ```
 
 Or create a minimal fixture manually matching the API shape.

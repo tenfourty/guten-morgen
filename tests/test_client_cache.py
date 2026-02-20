@@ -6,9 +6,9 @@ from pathlib import Path
 
 import httpx
 
-from morgen.cache import CacheStore
-from morgen.client import MorgenClient
-from morgen.config import Settings
+from guten_morgen.cache import CacheStore
+from guten_morgen.client import MorgenClient
+from guten_morgen.config import Settings
 from tests.conftest import mock_transport_handler
 
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # PostToolUse hook: run related test file after editing a source file
-# Maps src/morgen/<module>.py -> tests/test_<module>.py
+# Maps src/guten_morgen/<module>.py -> tests/test_<module>.py
 # Maps tests/test_*.py -> runs that test file directly
 
 INPUT=$(cat)
@@ -21,7 +21,7 @@ if [[ "$BASENAME" == test_* ]]; then
 fi
 
 # If editing a source file, find the matching test file(s)
-if [[ "$FILE_PATH" == *src/morgen/* ]]; then
+if [[ "$FILE_PATH" == *src/guten_morgen/* ]]; then
   # cli.py -> test_cli_*.py (multiple test files)
   if [[ "$BASENAME" == "cli" ]]; then
     uv run pytest tests/test_cli_*.py -x -q 2>&1

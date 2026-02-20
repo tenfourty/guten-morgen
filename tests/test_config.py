@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from morgen.config import Settings, load_settings
-from morgen.errors import ConfigError
+from guten_morgen.config import Settings, load_settings
+from guten_morgen.errors import ConfigError
 
 
 class TestSettings:
@@ -25,7 +25,7 @@ class TestLoadSettings:
     def test_missing_key_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("MORGEN_API_KEY", raising=False)
         # Prevent .env file from being loaded
-        monkeypatch.setattr("morgen.config._find_env_file", lambda: None)
+        monkeypatch.setattr("guten_morgen.config._find_env_file", lambda: None)
         with pytest.raises(ConfigError, match="MORGEN_API_KEY is not set"):
             load_settings()
 

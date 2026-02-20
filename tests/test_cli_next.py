@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 from click.testing import CliRunner
 
-from morgen.cli import cli
-from morgen.client import MorgenClient
+from guten_morgen.cli import cli
+from guten_morgen.client import MorgenClient
 
 
 class TestNext:
@@ -31,7 +31,7 @@ class TestNext:
         """Only events starting after now are included."""
         # Freeze time to before the first fake event (09:00)
         frozen = datetime(2026, 2, 17, 8, 0, 0, tzinfo=timezone.utc)
-        with patch("morgen.cli._now_utc", return_value=frozen):
+        with patch("guten_morgen.cli._now_utc", return_value=frozen):
             result = runner.invoke(cli, ["next", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -42,7 +42,7 @@ class TestNext:
         """Events that have already started are excluded."""
         # Freeze time to after standup (09:00) but before lunch (12:00)
         frozen = datetime(2026, 2, 17, 10, 0, 0, tzinfo=timezone.utc)
-        with patch("morgen.cli._now_utc", return_value=frozen):
+        with patch("guten_morgen.cli._now_utc", return_value=frozen):
             result = runner.invoke(cli, ["next", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -63,7 +63,7 @@ class TestNext:
         # At 23:00 on Feb 17, window should cover until end of Feb 18
         # Fake events on Feb 17 at 09:00/12:00/14:00/16:00 are all in the past
         frozen = datetime(2026, 2, 17, 23, 0, 0, tzinfo=timezone.utc)
-        with patch("morgen.cli._now_utc", return_value=frozen):
+        with patch("guten_morgen.cli._now_utc", return_value=frozen):
             result = runner.invoke(cli, ["next", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -73,7 +73,7 @@ class TestNext:
     def test_no_frames_on_next(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """--no-frames excludes Morgen scheduling frames from next."""
         frozen = datetime(2026, 2, 17, 8, 0, 0, tzinfo=timezone.utc)
-        with patch("morgen.cli._now_utc", return_value=frozen):
+        with patch("guten_morgen.cli._now_utc", return_value=frozen):
             result = runner.invoke(cli, ["next", "--json", "--no-frames", "--count", "10"])
         assert result.exit_code == 0
         data = json.loads(result.output)

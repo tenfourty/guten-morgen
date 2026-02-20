@@ -1,0 +1,19 @@
+# Calendar group configuration
+# Copy to .config.toml and customise with your account details.
+#
+# Each group maps a name to one or more Morgen-connected accounts and
+# (optionally) specific calendar names within those accounts.
+# The built-in group "all" disables filtering entirely.
+
+default_group = "work"
+active_only = true
+
+[groups.work]
+accounts = ["you@company.com:google"]
+calendars = ["Work Calendar"]
+
+[groups.personal]
+accounts = ["you@personal.com:fastmail"]
+calendars = ["Personal"]
+
+# "all" is built-in — no filtering

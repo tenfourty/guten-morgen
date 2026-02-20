@@ -6,8 +6,8 @@ import json
 
 import httpx
 
-from morgen.client import MorgenClient
-from morgen.config import Settings
+from guten_morgen.client import MorgenClient
+from guten_morgen.config import Settings
 
 
 class TestListTaskAccounts:

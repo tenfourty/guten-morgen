@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 from click.testing import CliRunner
 
-from morgen.cli import cli
-from morgen.client import MorgenClient
+from guten_morgen.cli import cli
+from guten_morgen.client import MorgenClient
 
 
 class TestGroupsCommand:
@@ -33,8 +33,8 @@ active_only = true
 [groups.work]
 accounts = ["test@example.com:google"]
 """)
-        with patch("morgen.cli.load_morgen_config") as mock_load:
-            from morgen.groups import load_morgen_config
+        with patch("guten_morgen.cli.load_morgen_config") as mock_load:
+            from guten_morgen.groups import load_morgen_config
 
             mock_load.return_value = load_morgen_config(cfg)
             result = runner.invoke(cli, ["groups", "--json"])
@@ -82,8 +82,8 @@ class TestGroupFilterOption:
         """Unknown group name produces an error."""
         cfg = tmp_path / "config.toml"
         cfg.write_text("[groups.work]\naccounts = ['a@b.com:google']\n")
-        with patch("morgen.cli.load_morgen_config") as mock_load:
-            from morgen.groups import load_morgen_config
+        with patch("guten_morgen.cli.load_morgen_config") as mock_load:
+            from guten_morgen.groups import load_morgen_config
 
             mock_load.return_value = load_morgen_config(cfg)
             result = runner.invoke(

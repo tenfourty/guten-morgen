@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from morgen.models import Account, Calendar, Event, LabelDef, Space, Tag, Task, TaskListResponse
+from guten_morgen.models import Account, Calendar, Event, LabelDef, Space, Tag, Task, TaskListResponse
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
