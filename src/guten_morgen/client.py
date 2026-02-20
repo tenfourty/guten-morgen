@@ -520,3 +520,19 @@ class MorgenClient:
         """Delete a tag."""
         self._request("POST", "/tags/delete", json={"id": tag_id})
         self._cache_invalidate("tags")
+
+    # ----- Providers -----
+
+    def list_providers(self) -> list[dict[str, Any]]:
+        """List available integration providers."""
+        data = self._request("GET", "/integrations/list")
+        if isinstance(data, dict):
+            inner = data.get("data", data)
+            if isinstance(inner, dict):
+                result = inner.get("integrations", [])
+                return result if isinstance(result, list) else []
+            if isinstance(inner, list):
+                return inner
+        if isinstance(data, list):
+            return data
+        return []
