@@ -116,6 +116,34 @@ class TestThisMonth:
         assert "events" in data
 
 
+class TestCombinedViewTableRendering:
+    """Combined views render section headers in table (non-JSON) format."""
+
+    def test_today_table_renders_sections(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """today without --json renders each section with a header."""
+        result = runner.invoke(cli, ["today"])
+        assert result.exit_code == 0
+        # Section headers use title case
+        assert "Events" in result.output or "Overdue Tasks" in result.output or "Scheduled Tasks" in result.output
+
+    def test_today_with_fields(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """today --fields applies field selection to all sections."""
+        result = runner.invoke(cli, ["today", "--json", "--fields", "title"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        # Events should only have 'title' field
+        if data.get("events"):
+            assert set(data["events"][0].keys()) == {"title"}
+
+    def test_today_with_jq(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """today --jq applies jq expression to the result dict."""
+        result = runner.invoke(cli, ["today", "--json", "--jq", ".events"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        # jq ".events" returns the events list directly
+        assert isinstance(data, list)
+
+
 class TestCombinedViewSorting:
     def test_events_sorted_by_start(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["today", "--json"])
