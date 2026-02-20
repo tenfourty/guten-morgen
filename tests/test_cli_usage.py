@@ -4,22 +4,22 @@ from __future__ import annotations
 
 from click.testing import CliRunner
 
-from morgen.cli import cli
-from morgen.client import MorgenClient
+from guten_morgen.cli import cli
+from guten_morgen.client import MorgenClient
 
 
 class TestUsage:
     def test_contains_command_signatures(self, runner: CliRunner) -> None:
         result = runner.invoke(cli, ["usage"])
         assert result.exit_code == 0
-        assert "morgen accounts" in result.output
-        assert "morgen events list" in result.output
-        assert "morgen tasks list" in result.output
-        assert "morgen tasks create" in result.output
-        assert "morgen tags list" in result.output
-        assert "morgen today" in result.output
-        assert "morgen this-week" in result.output
-        assert "morgen this-month" in result.output
+        assert "gm accounts" in result.output
+        assert "gm events list" in result.output
+        assert "gm tasks list" in result.output
+        assert "gm tasks create" in result.output
+        assert "gm tags list" in result.output
+        assert "gm today" in result.output
+        assert "gm this-week" in result.output
+        assert "gm this-month" in result.output
 
     def test_contains_global_options(self, runner: CliRunner) -> None:
         result = runner.invoke(cli, ["usage"])
@@ -33,8 +33,8 @@ class TestUsage:
     def test_contains_cache_commands(self, runner: CliRunner) -> None:
         result = runner.invoke(cli, ["usage"])
         assert result.exit_code == 0
-        assert "morgen cache clear" in result.output
-        assert "morgen cache stats" in result.output
+        assert "gm cache clear" in result.output
+        assert "gm cache stats" in result.output
 
     def test_contains_workflow(self, runner: CliRunner) -> None:
         result = runner.invoke(cli, ["usage"])
@@ -42,7 +42,7 @@ class TestUsage:
 
     def test_contains_new_commands(self, runner: CliRunner) -> None:
         result = runner.invoke(cli, ["usage"])
-        assert "morgen next" in result.output
+        assert "gm next" in result.output
         assert "--events-only" in result.output
         assert "--tasks-only" in result.output
         assert "--short-ids" in result.output
@@ -54,7 +54,7 @@ class TestUsage:
         result = runner.invoke(cli, ["usage"])
         assert "--group" in result.output
         assert "--all-calendars" in result.output
-        assert "morgen groups" in result.output
+        assert "gm groups" in result.output
         assert "Calendar Groups" in result.output
 
     def test_contains_multi_source_features(self, runner: CliRunner) -> None:
@@ -67,7 +67,7 @@ class TestUsage:
         # --duration on tasks create/update
         assert "--duration" in result.output
         # tasks schedule command
-        assert "morgen tasks schedule" in result.output
+        assert "gm tasks schedule" in result.output
         # Scenarios section
         assert "Morning Triage" in result.output or "Scenario" in result.output
 

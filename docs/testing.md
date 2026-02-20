@@ -160,8 +160,8 @@ flowchart LR
 ```
 
 To update fixtures after confirming new API fields:
-1. Capture a real response: `morgen <command> --json > tests/fixtures/<model>_sample.json`
-2. Add new fields to the Pydantic model in `src/morgen/models.py`
+1. Capture a real response: `gm <command> --json > tests/fixtures/<model>_sample.json`
+2. Add new fields to the Pydantic model in `src/guten_morgen/models.py`
 3. Run `uv run pytest tests/test_models.py -v` to verify
 
 ## Coverage

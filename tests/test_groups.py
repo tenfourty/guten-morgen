@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from morgen.errors import GroupNotFoundError
-from morgen.groups import (
+from guten_morgen.errors import GroupNotFoundError
+from guten_morgen.groups import (
     GroupConfig,
     MorgenConfig,
     load_morgen_config,

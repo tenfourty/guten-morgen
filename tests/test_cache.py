@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from morgen.cache import CacheStore
+from guten_morgen.cache import CacheStore
 
 
 class TestCacheGetSet:

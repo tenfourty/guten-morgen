@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
-from morgen.time_utils import (
+from guten_morgen.time_utils import (
     end_of_next_day,
     format_duration_human,
     get_local_timezone,
@@ -24,7 +24,7 @@ class TestTodayRange:
 
     def test_same_day(self) -> None:
         fixed = datetime(2026, 2, 17, 14, 30, 0, tzinfo=timezone.utc)
-        with patch("morgen.time_utils.datetime") as mock_dt:
+        with patch("guten_morgen.time_utils.datetime") as mock_dt:
             mock_dt.now.return_value = fixed
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
             start, end = today_range()
@@ -36,7 +36,7 @@ class TestThisWeekRange:
     def test_returns_monday_to_sunday(self) -> None:
         # 2026-02-17 is a Tuesday
         fixed = datetime(2026, 2, 17, 14, 0, 0, tzinfo=timezone.utc)
-        with patch("morgen.time_utils.datetime") as mock_dt:
+        with patch("guten_morgen.time_utils.datetime") as mock_dt:
             mock_dt.now.return_value = fixed
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
             start, end = this_week_range()
@@ -47,7 +47,7 @@ class TestThisWeekRange:
 class TestThisMonthRange:
     def test_returns_month_range(self) -> None:
         fixed = datetime(2026, 2, 17, 14, 0, 0, tzinfo=timezone.utc)
-        with patch("morgen.time_utils.datetime") as mock_dt:
+        with patch("guten_morgen.time_utils.datetime") as mock_dt:
             mock_dt.now.return_value = fixed
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
             start, end = this_month_range()

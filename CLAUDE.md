@@ -1,4 +1,4 @@
-# morgen CLI
+# guten-morgen CLI
 
 Calendar and task management CLI wrapping the Morgen API. All commands emit structured JSON.
 
@@ -8,7 +8,7 @@ Calendar and task management CLI wrapping the Morgen API. All commands emit stru
 uv sync --all-extras && uv run pre-commit install   # first time
 cp .env.example .env                                 # then add MORGEN_API_KEY
 uv run pytest -x -q --cov && uv run mypy src/       # verify
-uv run morgen usage                                  # CLI self-documentation
+uv run gm usage                                      # CLI self-documentation
 ```
 
 Pre-commit hooks enforce everything (ggshield, ruff, mypy, bandit, pytest+cov). Trust the hooks.
@@ -16,7 +16,7 @@ Pre-commit hooks enforce everything (ggshield, ruff, mypy, bandit, pytest+cov). 
 ## TDD Workflow
 
 1. Write failing test in `tests/`
-2. Implement in `src/morgen/`
+2. Implement in `src/guten_morgen/`
 3. `uv run pytest -x -q` — green, then `uv run mypy src/` — clean
 
 ## Architecture
@@ -30,7 +30,7 @@ Deep dive: [`docs/models.md`](docs/models.md) | [`docs/testing.md`](docs/testing
 ## File Map
 
 ```
-src/morgen/
+src/guten_morgen/
   cli.py        Click commands — boundary layer (model → dict)
   client.py     MorgenClient — typed API wrapper
   models.py     Pydantic v2 models (MorgenModel base)
@@ -40,14 +40,14 @@ src/morgen/
   time_utils.py Date range helpers
   cache.py      TTL-based request cache
   groups.py     Calendar group filtering from .config.toml
-  __main__.py   python -m morgen entrypoint
+  __main__.py   python -m guten_morgen entrypoint
 ```
 
 ## Conventions
 
 - mypy strict, Pydantic v2, Python 3.10+
 - Coverage minimum 90% — enforced by pre-commit
-- **`morgen usage` is the LLM API contract** — any command/option change MUST update the `usage()` docstring in `cli.py`. If it's not in `usage`, LLMs can't discover it.
+- **`gm usage` is the LLM API contract** — any command/option change MUST update the `usage()` docstring in `cli.py`. If it's not in `usage`, LLMs can't discover it.
 
 ## Gotchas
 

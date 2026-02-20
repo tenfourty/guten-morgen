@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from morgen.errors import output_error
-from morgen.output import (
+from guten_morgen.errors import output_error
+from guten_morgen.output import (
     enrich_events,
     enrich_tasks,
     format_csv_str,
@@ -138,7 +138,7 @@ class TestRender:
 
 class TestTruncateIds:
     def test_truncate_ids(self) -> None:
-        from morgen.output import truncate_ids
+        from guten_morgen.output import truncate_ids
 
         data = [{"id": "a" * 200, "title": "Test"}]
         result = truncate_ids(data)
@@ -146,21 +146,21 @@ class TestTruncateIds:
         assert result[0]["title"] == "Test"
 
     def test_truncate_ids_short_id(self) -> None:
-        from morgen.output import truncate_ids
+        from guten_morgen.output import truncate_ids
 
         data = [{"id": "short", "title": "Test"}]
         result = truncate_ids(data)
         assert result[0]["id"] == "short"
 
     def test_truncate_ids_nested_dict(self) -> None:
-        from morgen.output import truncate_ids
+        from guten_morgen.output import truncate_ids
 
         data = {"id": "x" * 50, "name": "foo"}
         result = truncate_ids(data)
         assert len(result["id"]) == 12
 
     def test_truncate_preserves_non_id(self) -> None:
-        from morgen.output import truncate_ids
+        from guten_morgen.output import truncate_ids
 
         data = [{"id": "abc123", "description": "a" * 200}]
         result = truncate_ids(data)
@@ -168,7 +168,7 @@ class TestTruncateIds:
 
     def test_truncate_recurses_into_nested_lists(self) -> None:
         """Handles {"events": [{"id": "long..."}]} structure."""
-        from morgen.output import truncate_ids
+        from guten_morgen.output import truncate_ids
 
         data = {"events": [{"id": "x" * 200, "title": "Test"}], "count": 1}
         result = truncate_ids(data)
@@ -177,7 +177,7 @@ class TestTruncateIds:
 
     def test_different_ids_produce_different_hashes(self) -> None:
         """Different long IDs produce distinct short IDs."""
-        from morgen.output import truncate_ids
+        from guten_morgen.output import truncate_ids
 
         data = [
             {"id": "SHARED_PREFIX_UNIQUE_A"},
@@ -352,7 +352,7 @@ class TestEnrichTasks:
         assert result[0]["source_status"] == "unknown-state-uuid"
 
     def test_resolve_label_display_none_value(self) -> None:
-        from morgen.output import _resolve_label_display
+        from guten_morgen.output import _resolve_label_display
 
         assert _resolve_label_display(None, [], "state") is None
 

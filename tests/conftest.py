@@ -10,8 +10,8 @@ import httpx
 import pytest
 from click.testing import CliRunner
 
-from morgen.client import MorgenClient
-from morgen.config import Settings
+from guten_morgen.client import MorgenClient
+from guten_morgen.config import Settings
 
 # ---------------------------------------------------------------------------
 # Fake API data
@@ -381,10 +381,10 @@ def runner() -> CliRunner:
 @pytest.fixture
 def mock_client(client: MorgenClient):  # type: ignore[no-untyped-def]
     """Patch _get_client and config to return mock-backed client with no-op filter."""
-    from morgen.groups import MorgenConfig
+    from guten_morgen.groups import MorgenConfig
 
     with (
-        patch("morgen.cli._get_client", return_value=client),
-        patch("morgen.cli.load_morgen_config", return_value=MorgenConfig()),
+        patch("guten_morgen.cli._get_client", return_value=client),
+        patch("guten_morgen.cli.load_morgen_config", return_value=MorgenConfig()),
     ):
         yield client

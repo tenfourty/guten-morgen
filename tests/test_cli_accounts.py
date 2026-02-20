@@ -6,8 +6,8 @@ import json
 
 from click.testing import CliRunner
 
-from morgen.cli import cli
-from morgen.client import MorgenClient
+from guten_morgen.cli import cli
+from guten_morgen.client import MorgenClient
 
 
 class TestAccounts:

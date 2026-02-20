@@ -8,9 +8,9 @@ from typing import Any
 import httpx
 import pytest
 
-from morgen.client import MorgenClient
-from morgen.config import Settings
-from morgen.errors import AuthenticationError, MorgenAPIError, NotFoundError, RateLimitError
+from guten_morgen.client import MorgenClient
+from guten_morgen.config import Settings
+from guten_morgen.errors import AuthenticationError, MorgenAPIError, NotFoundError, RateLimitError
 
 
 def _mock_transport(status: int, body: dict | str = "", headers: dict[str, str] | None = None) -> httpx.MockTransport:
