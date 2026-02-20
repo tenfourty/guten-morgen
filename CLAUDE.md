@@ -47,6 +47,7 @@ src/morgen/
 
 - mypy strict, Pydantic v2, Python 3.10+
 - Coverage minimum 90% — enforced by pre-commit
+- **`morgen usage` is the LLM API contract** — any command/option change MUST update the `usage()` docstring in `cli.py`. If it's not in `usage`, LLMs can't discover it.
 
 ## Gotchas
 
