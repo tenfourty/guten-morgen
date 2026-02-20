@@ -1,7 +1,7 @@
-"""Allow running as `python -m morgen`."""
+"""Allow running as `python -m morgen`."""  # pragma: no cover
 
-from __future__ import annotations
+from __future__ import annotations  # pragma: no cover
 
-from morgen.cli import cli
+from morgen.cli import cli  # pragma: no cover
 
-cli()
+cli()  # pragma: no cover

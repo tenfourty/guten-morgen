@@ -251,6 +251,29 @@ class TestTasksSource:
             assert "title" in task
 
 
+class TestGroupBySourceTableRendering:
+    """Group-by-source with table format (non-JSON) renders section headers."""
+
+    def test_group_by_source_table(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--group-by-source without --json renders table with section headers."""
+        result = runner.invoke(cli, ["tasks", "list", "--group-by-source"])
+        assert result.exit_code == 0
+        # Section headers are rendered as "## <source>"
+        assert "## morgen" in result.output
+        assert "## linear" in result.output
+        assert "## notion" in result.output
+        # Task titles should appear in the table
+        assert "Review PR" in result.output
+        assert "Budget planning" in result.output
+
+    def test_group_by_source_table_with_fields(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--group-by-source with --fields applies field selection per group."""
+        result = runner.invoke(cli, ["tasks", "list", "--group-by-source", "--fields", "title,source"])
+        assert result.exit_code == 0
+        assert "## morgen" in result.output
+        assert "Review PR" in result.output
+
+
 class TestNormalizeDue:
     """Due date normalization for the Morgen API (exactly 19 chars)."""
 
