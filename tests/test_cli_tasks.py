@@ -476,6 +476,15 @@ class TestTasksUpdateWithTag:
         assert "tag-2" in data.get("tags", [])
 
 
+class TestUpdatedAfter:
+    def test_updated_after_option_accepted(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--updated-after is a valid option."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--updated-after", "2026-02-19T00:00:00"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+
+
 class TestTasksDelete:
     def test_delete(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["tasks", "delete", "task-1"])

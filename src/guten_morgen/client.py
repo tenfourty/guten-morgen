@@ -294,6 +294,7 @@ class MorgenClient:
         *,
         source: str | None = None,
         limit: int = 100,
+        updated_after: str | None = None,
     ) -> TaskListResponse:
         """List tasks across all connected task sources.
 
@@ -308,7 +309,10 @@ class MorgenClient:
 
         # Morgen-native tasks — Task model defaults integrationId="morgen"
         if source is None or source == "morgen":
-            data = self._request("GET", "/tasks/list", params={"limit": limit})
+            params: dict[str, Any] = {"limit": limit}
+            if updated_after:
+                params["updatedAfter"] = updated_after
+            data = self._request("GET", "/tasks/list", params=params)
             # Inline raw-dict extraction (Morgen wraps as {"data": {"tasks": [...]}})
             if isinstance(data, dict):
                 inner = data.get("data", data)
@@ -334,10 +338,13 @@ class MorgenClient:
             if cached is not None:
                 inner = cast("dict[str, Any]", cached)
             else:
+                ext_params: dict[str, Any] = {"accountId": account_id, "limit": limit}
+                if updated_after:
+                    ext_params["updatedAfter"] = updated_after
                 raw = self._request(
                     "GET",
                     "/tasks/list",
-                    params={"accountId": account_id, "limit": limit},
+                    params=ext_params,
                 )
                 # _request returns resp.json() which is {"data": {...}}
                 # Unwrap the data envelope to get the inner dict
