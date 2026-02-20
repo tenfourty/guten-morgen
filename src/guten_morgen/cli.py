@@ -415,9 +415,14 @@ CALENDAR_COLUMNS = ["id", "accountId", "name", "color", "myRights"]
 CALENDAR_CONCISE_FIELDS = ["id", "name", "myRights"]
 
 
-@cli.command()
+@cli.group()
+def calendars() -> None:
+    """Manage calendars."""
+
+
+@calendars.command("list")
 @output_options
-def calendars(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
+def calendars_list(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
     """List all calendars across accounts."""
     try:
         client = _get_client()
@@ -425,6 +430,43 @@ def calendars(fmt: str, fields: list[str] | None, jq_expr: str | None, response_
         if response_format == "concise" and not fields:
             fields = CALENDAR_CONCISE_FIELDS
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=CALENDAR_COLUMNS)
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
+@calendars.command("update")
+@click.argument("calendar_id")
+@click.option("--account-id", default=None, help="Account ID (auto-discovered if omitted).")
+@click.option("--name", default=None, help="Override calendar name.")
+@click.option("--color", default=None, help="Override calendar color (hex).")
+@click.option("--busy/--no-busy", default=None, help="Set calendar busy/free status.")
+def calendars_update(
+    calendar_id: str,
+    account_id: str | None,
+    name: str | None,
+    color: str | None,
+    busy: bool | None,
+) -> None:
+    """Update calendar metadata (name, color, busy status)."""
+    try:
+        client = _get_client()
+        if not account_id:
+            account_id, _ = _auto_discover(client)
+        metadata: dict[str, Any] = {}
+        if name is not None:
+            metadata["overrideName"] = name
+        if color is not None:
+            metadata["overrideColor"] = color
+        if busy is not None:
+            metadata["busy"] = busy
+        cal_data: dict[str, Any] = {
+            "id": calendar_id,
+            "accountId": account_id,
+            "metadata": metadata,
+        }
+        result = client.update_calendar(cal_data)
+        output = result if result else {"status": "updated", "id": calendar_id}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 

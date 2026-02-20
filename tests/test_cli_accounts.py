@@ -43,14 +43,14 @@ class TestAccounts:
 
 class TestCalendars:
     def test_json_output(self, runner: CliRunner, mock_client: MorgenClient) -> None:
-        result = runner.invoke(cli, ["calendars", "--json"])
+        result = runner.invoke(cli, ["calendars", "list", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data) == 3
         assert data[0]["name"] == "Work"
 
     def test_concise_format(self, runner: CliRunner, mock_client: MorgenClient) -> None:
-        result = runner.invoke(cli, ["calendars", "--json", "--response-format", "concise"])
+        result = runner.invoke(cli, ["calendars", "list", "--json", "--response-format", "concise"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "id" in data[0]
