@@ -714,6 +714,7 @@ def tasks() -> None:
 @click.option("--source", default=None, help="Filter by task source (morgen, linear, notion, etc.).")
 @click.option("--tag", "tag_names", multiple=True, help="Filter by tag name (repeatable, OR logic).")
 @click.option("--group-by-source", is_flag=True, default=False, help="Group output by task source.")
+@click.option("--updated-after", default=None, help="Only tasks updated after this datetime (ISO 8601).")
 @output_options
 def tasks_list(
     limit: int,
@@ -725,6 +726,7 @@ def tasks_list(
     source: str | None,
     tag_names: tuple[str, ...],
     group_by_source: bool,
+    updated_after: str | None,
     fmt: str,
     fields: list[str] | None,
     jq_expr: str | None,
@@ -733,7 +735,7 @@ def tasks_list(
     """List tasks."""
     try:
         client = _get_client()
-        result = client.list_all_tasks(source=source, limit=limit)
+        result = client.list_all_tasks(source=source, limit=limit, updated_after=updated_after)
         data = [t.model_dump() for t in result.tasks]
         label_defs = [ld.model_dump() for ld in result.labelDefs]
 
