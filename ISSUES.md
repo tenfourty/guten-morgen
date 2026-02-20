@@ -60,6 +60,20 @@ When an issue is fixed, move it to the **Resolved** section with the commit hash
   - Pass as query param in `client.py` `list_tasks()` — `params["updatedAfter"] = value`
   - Consider storing last-fetch timestamp in cache metadata for a `--since-last` convenience flag
 
+### Availability / free-slots finder
+- **Found:** 2026-02-20
+- **Severity:** medium
+- **Category:** missing-feature
+- **Description:** No way to query available time slots from the CLI. An agent scheduling a meeting needs to know "when is the user free for 30 minutes tomorrow afternoon?" Currently this requires fetching all events, then computing gaps client-side. A `gm availability` (or `gm free-slots`) command would scan a date range, subtract booked events, and return open windows — a key building block for agent-driven scheduling workflows.
+- **Notes:** Reference: [morgen-cw-sdk find-availability example](https://github.com/morgen-so/morgen-cw-sdk/blob/main/examples/find-availability/src/index.ts). The SDK example fetches events for a date range across all calendars, then walks the timeline to find gaps exceeding a minimum duration. Implementation plan:
+  - Add `gm availability --date DATE [--min-duration MINUTES] [--start HH:MM] [--end HH:MM] [--group GROUP]`
+  - Reuse `client.py` `list_events()` to fetch events for the target date range
+  - Compute gaps: sort events by start time, walk the timeline, emit slots where `gap >= min_duration`
+  - Respect calendar group filtering (e.g., only check "work" calendars)
+  - Default working hours window (09:00–18:00) configurable via `--start`/`--end`
+  - Output as structured JSON: `[{start, end, duration_minutes}]`
+  - Pairs naturally with `gm events create` + `--meet` for end-to-end "find a slot and book it"
+
 ### Calendar metadata update (name, color, busy)
 - **Found:** 2026-02-20
 - **Severity:** low
