@@ -727,6 +727,54 @@ def events_delete(event_id: str, calendar_id: str | None, account_id: str | None
         output_error(e.error_type, str(e), e.suggestions)
 
 
+@events.command("rsvp")
+@click.argument("event_id")
+@click.option(
+    "--action",
+    required=True,
+    type=click.Choice(["accept", "decline", "tentative"]),
+    help="RSVP action.",
+)
+@click.option("--comment", default=None, help="Optional comment to organizer.")
+@click.option("--notify/--no-notify", default=True, help="Notify the organizer (default: yes).")
+@click.option(
+    "--series",
+    "series_mode",
+    type=click.Choice(["single", "future", "all"]),
+    default=None,
+    help="Series update mode for recurring events.",
+)
+@click.option("--calendar-id", default=None, help="Calendar ID (auto-discovered if omitted).")
+@click.option("--account-id", default=None, help="Account ID (auto-discovered if omitted).")
+def events_rsvp(
+    event_id: str,
+    action: str,
+    comment: str | None,
+    notify: bool,
+    series_mode: str | None,
+    calendar_id: str | None,
+    account_id: str | None,
+) -> None:
+    """RSVP to a calendar event (accept, decline, tentative)."""
+    try:
+        client = _get_client()
+        if not account_id or not calendar_id:
+            account_id, cal_ids = _auto_discover(client)
+            calendar_id = calendar_id or cal_ids[0]
+        result = client.rsvp_event(
+            action=action,
+            event_id=event_id,
+            calendar_id=calendar_id,
+            account_id=account_id,
+            notify_organizer=notify,
+            comment=comment,
+            series_update_mode=series_mode,
+        )
+        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
 # ---------------------------------------------------------------------------
 # tasks
 # ---------------------------------------------------------------------------
