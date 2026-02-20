@@ -29,6 +29,8 @@ if TYPE_CHECKING:
 
 T = TypeVar("T", bound=MorgenModel)
 
+SYNC_BASE_URL = "https://sync.morgen.so/v1"
+
 
 def _extract_list(data: Any, key: str, model: type[T]) -> list[T]:
     """Extract and validate a list from Morgen's nested response format."""
@@ -297,6 +299,46 @@ class MorgenClient:
         params = {"seriesUpdateMode": series_update_mode} if series_update_mode else None
         self._request("POST", "/events/delete", json=event_data, params=params)
         self._cache_invalidate("events")
+
+    def rsvp_event(
+        self,
+        action: str,
+        event_id: str,
+        calendar_id: str,
+        account_id: str,
+        *,
+        notify_organizer: bool = True,
+        comment: str | None = None,
+        series_update_mode: str | None = None,
+    ) -> dict[str, Any]:
+        """RSVP to a calendar event (accept, decline, tentativelyAccept).
+
+        Uses the Morgen sync API (different base URL from v3 API).
+        """
+        action_map = {
+            "accept": "accept",
+            "decline": "decline",
+            "tentative": "tentativelyAccept",
+        }
+        api_action = action_map.get(action, action)
+
+        payload: dict[str, Any] = {
+            "eventId": event_id,
+            "calendarId": calendar_id,
+            "accountId": account_id,
+            "notifyOrganizer": notify_organizer,
+        }
+        if comment:
+            payload["comment"] = comment
+
+        params: dict[str, str] | None = None
+        if series_update_mode:
+            params = {"seriesUpdateMode": series_update_mode}
+
+        url = f"{SYNC_BASE_URL}/events/{api_action}"
+        data = self._request("POST", url, json=payload, params=params)
+        self._cache_invalidate("events")
+        return data if isinstance(data, dict) else {"status": api_action}
 
     # ----- Tasks -----
 

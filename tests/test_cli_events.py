@@ -214,3 +214,43 @@ class TestSeriesUpdateMode:
         """Invalid --series value is rejected by Click."""
         result = runner.invoke(cli, ["events", "update", "evt-1", "--series", "bogus"])
         assert result.exit_code != 0
+
+
+class TestEventsRsvp:
+    def test_accept(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["events", "rsvp", "evt-1", "--action", "accept"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "eventId" in data or "status" in data
+
+    def test_decline(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["events", "rsvp", "evt-1", "--action", "decline"])
+        assert result.exit_code == 0
+
+    def test_tentative(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["events", "rsvp", "evt-1", "--action", "tentative"])
+        assert result.exit_code == 0
+
+    def test_with_comment(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["events", "rsvp", "evt-1", "--action", "accept", "--comment", "Will be 5min late"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data.get("comment") == "Will be 5min late"
+
+    def test_no_notify(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["events", "rsvp", "evt-1", "--action", "decline", "--no-notify"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data.get("notifyOrganizer") is False
+
+    def test_action_required(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["events", "rsvp", "evt-1"])
+        assert result.exit_code != 0
+
+    def test_invalid_action(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["events", "rsvp", "evt-1", "--action", "maybe"])
+        assert result.exit_code != 0
+
+    def test_with_series_mode(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["events", "rsvp", "evt-1", "--action", "accept", "--series", "all"])
+        assert result.exit_code == 0

@@ -322,6 +322,15 @@ def mock_transport_handler(request: httpx.Request) -> httpx.Response:
     """Route mock API requests to fake data."""
     path = request.url.path
 
+    # Handle sync API RSVP endpoints (absolute URL: https://sync.morgen.so/v1/events/{action})
+    if path.startswith("/v1/events/") and path.split("/")[-1] in ("accept", "decline", "tentativelyAccept"):
+        try:
+            body = json.loads(request.content)
+        except (json.JSONDecodeError, ValueError):
+            body = {}
+        action = path.split("/")[-1]
+        return httpx.Response(200, json={"status": action, **body})
+
     # Route events by accountId query param
     if path == "/v3/events/list":
         account_id = dict(request.url.params).get("accountId", "acc-1")
