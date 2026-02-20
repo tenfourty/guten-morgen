@@ -9,3 +9,6 @@ build/
 .ruff_cache/
 .venv/
 .worktrees/
+
+# Added by ggshield
+.cache_ggshield
