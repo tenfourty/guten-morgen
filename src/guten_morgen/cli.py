@@ -776,6 +776,56 @@ def events_rsvp(
 
 
 # ---------------------------------------------------------------------------
+# availability
+# ---------------------------------------------------------------------------
+
+AVAILABILITY_COLUMNS = ["start", "end", "duration_minutes"]
+
+
+@cli.command()
+@click.option("--date", required=True, help="Date to check (YYYY-MM-DD).")
+@click.option("--min-duration", default=30, type=int, help="Minimum slot duration in minutes (default: 30).")
+@click.option("--start", "window_start", default="09:00", help="Working hours start (HH:MM, default: 09:00).")
+@click.option("--end", "window_end", default="18:00", help="Working hours end (HH:MM, default: 18:00).")
+@output_options
+@calendar_filter_options
+def availability(
+    date: str,
+    min_duration: int,
+    window_start: str,
+    window_end: str,
+    fmt: str,
+    fields: list[str] | None,
+    jq_expr: str | None,
+    response_format: str,
+    group_name: str | None,
+    all_calendars: bool,
+) -> None:
+    """Find available time slots on a given date."""
+    try:
+        client = _get_client()
+        cf = _resolve_calendar_filter(group_name, all_calendars)
+
+        day_start = f"{date}T00:00:00"
+        day_end = f"{date}T23:59:59"
+        events_models = client.list_all_events(day_start, day_end, **_filter_kwargs(cf))
+        events_data = [e.model_dump(by_alias=True) for e in events_models]
+
+        from guten_morgen.time_utils import compute_free_slots
+
+        slots = compute_free_slots(
+            events=events_data,
+            day=date,
+            window_start=window_start,
+            window_end=window_end,
+            min_duration_minutes=min_duration,
+        )
+        morgen_output(slots, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=AVAILABILITY_COLUMNS)
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
+# ---------------------------------------------------------------------------
 # tasks
 # ---------------------------------------------------------------------------
 
