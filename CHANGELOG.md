@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.3.1...guten-morgen-v0.3.2) (2026-02-21)
+
+
+### Bug Fixes
+
+* **ci:** use release-please PR output instead of label query for auto-merge ([574b725](https://github.com/tenfourty/guten-morgen/commit/574b7258250426e3c9658256a915aa350f767a4f))
+
 ## [0.3.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.3.0...guten-morgen-v0.3.1) (2026-02-21)
 
 
