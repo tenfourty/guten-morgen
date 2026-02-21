@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.3.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.2.0...guten-morgen-v0.3.0) (2026-02-20)
+
+
+### Features
+
+* add --meet flag to events create for Google Meet auto-attach ([451fa21](https://github.com/tenfourty/guten-morgen/commit/451fa2122d5547e5953546d9d0039bb4564a64ce))
+* add --occurrence option to tasks close and reopen for recurring tasks ([ff61ee0](https://github.com/tenfourty/guten-morgen/commit/ff61ee094cc110bef4824d2418b215df14360429))
+* add --series option to events update and delete for recurring events ([9b633f0](https://github.com/tenfourty/guten-morgen/commit/9b633f027ad0690c5cf966744a5b7df33b871a00))
+* add --updated-after option to tasks list for incremental sync ([34d1b66](https://github.com/tenfourty/guten-morgen/commit/34d1b660e4389f965a53235186df71eb1544b688))
+* add availability command to find free time slots ([99bdd0e](https://github.com/tenfourty/guten-morgen/commit/99bdd0ec9d0225968c8facbf2f497af9674af1bd))
+* add calendars update command for name, color, busy metadata ([1e087a6](https://github.com/tenfourty/guten-morgen/commit/1e087a69330a5a9c1018fd3b57029d77b826cc78))
+* add events rsvp command for accepting/declining meeting invitations ([028d0ee](https://github.com/tenfourty/guten-morgen/commit/028d0ee6cc052e1fd1eaf9abe8e9c5cf5c35d9e7))
+* add providers command to list integration providers ([522a700](https://github.com/tenfourty/guten-morgen/commit/522a7006c9ee51f48d15456c6303f6f7197204f3))
+* implement 8 Morgen API features ([319da30](https://github.com/tenfourty/guten-morgen/commit/319da300022dadb10cdf5e2bae97eff3a75cec14))
+
+
+### Documentation
+
+* add implementation plan for Morgen API features ([30b94dc](https://github.com/tenfourty/guten-morgen/commit/30b94dc1a319c3cfeb6c4974a740bcf081fd0a55))
+* mark all 8 issues as resolved in ISSUES.md ([dfd7af4](https://github.com/tenfourty/guten-morgen/commit/dfd7af4012abbd933931d982d0a4846dd1778fe8))
+* update usage() docstring with all new commands and options ([b688590](https://github.com/tenfourty/guten-morgen/commit/b68859026f84763f13b6ef24cbd4169bdf1dab18))
+
 ## [0.2.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.1.0...guten-morgen-v0.2.0) (2026-02-20)
 
 
