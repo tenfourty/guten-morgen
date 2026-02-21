@@ -21,13 +21,12 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
       - name: Enable auto-merge on release PR
+        if: steps.release.outputs.pr
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
         run: |
-          PR=$(gh pr list --repo "${{ github.repository }}" --label "autorelease: pending" --json number --jq '.[0].number')
-          if [ -n "$PR" ]; then
-            gh pr merge "$PR" --auto --squash --repo "${{ github.repository }}"
-          fi
+          gh pr merge "$PR_NUMBER" --auto --squash --repo "${{ github.repository }}"
 
   publish:
     needs: release-please
