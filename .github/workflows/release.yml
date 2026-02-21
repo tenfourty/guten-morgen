@@ -18,11 +18,11 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
       - name: Enable auto-merge on release PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
         run: |
           PR=$(gh pr list --repo "${{ github.repository }}" --label "autorelease: pending" --json number --jq '.[0].number')
           if [ -n "$PR" ]; then
