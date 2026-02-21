@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.3.2...guten-morgen-v0.3.3) (2026-02-21)
+
+
+### Bug Fixes
+
+* **ci:** parse release PR number at runtime to avoid fromJSON on empty output ([897e27c](https://github.com/tenfourty/guten-morgen/commit/897e27c141ed7d9a629a20ae3c658fe1a8f5b5e0))
+
 ## [0.3.2](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.3.1...guten-morgen-v0.3.2) (2026-02-21)
 
 
