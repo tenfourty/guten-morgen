@@ -50,7 +50,7 @@ calendars = ["Family", "Personal"]
     def test_env_var_override(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         cfg_file = tmp_path / "custom.toml"
         cfg_file.write_text("active_only = true\n")
-        monkeypatch.setenv("MORGEN_CONFIG", str(cfg_file))
+        monkeypatch.setenv("GM_CONFIG", str(cfg_file))
         config = load_morgen_config()
         assert config.active_only is True
 
@@ -74,6 +74,26 @@ calendars = ["Family", "Personal"]
         config = load_morgen_config(path=config_file)
         assert config.task_calendar is None
         assert config.task_calendar_account is None
+
+
+class TestLoadMorgenConfigDiscovery:
+    """Tests that load_morgen_config uses find_config() when no path given."""
+
+    def test_gm_config_env_var(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        cfg = tmp_path / "custom.toml"
+        cfg.write_text("active_only = true\n")
+        monkeypatch.setenv("GM_CONFIG", str(cfg))
+        config = load_morgen_config()
+        assert config.active_only is True
+
+    def test_no_config_returns_defaults(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GM_CONFIG", raising=False)
+        monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+        monkeypatch.setenv("HOME", str(tmp_path / "nohome"))
+        config = load_morgen_config()
+        assert config.default_group is None
+        assert config.groups == {}
 
 
 class TestResolveFilter:

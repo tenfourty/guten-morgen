@@ -1,5 +1,4 @@
-.env
-.config.toml
+config.toml
 __pycache__/
 *.pyc
 *.egg-info/

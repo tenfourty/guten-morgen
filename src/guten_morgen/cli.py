@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import functools
 import json
+import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -163,6 +165,11 @@ def usage() -> None:
     text = f"""# gm — Calendar & Task Management CLI
 
 ## Commands
+
+### Setup
+- `gm init [--force]`
+  Create config at ~/.config/guten-morgen/config.toml. Prompts for API key.
+  --force overwrites an existing file.
 
 ### Accounts
 - `gm accounts [--json]`
@@ -392,14 +399,66 @@ gm events rsvp <event-id> --action decline --no-notify
 
 def _config_file_path() -> str:
     """Return the resolved config file path for display."""
-    import os
+    from guten_morgen.config import find_config
 
-    from guten_morgen.groups import _PROJECT_ROOT
+    found = find_config()
+    if found:
+        return str(found)
+    return "(not found — run `gm init` to create)"
 
-    env_path = os.environ.get("MORGEN_CONFIG")
-    if env_path:
-        return env_path
-    return str(_PROJECT_ROOT / ".config.toml")
+
+# ---------------------------------------------------------------------------
+# init
+# ---------------------------------------------------------------------------
+
+_CONFIG_TEMPLATE = """\
+# guten-morgen configuration
+# Docs: https://github.com/tenfourty/guten-morgen
+
+# API key from https://platform.morgen.so/
+api_key = "{api_key}"
+
+# Calendar group filtering (uncomment and customise)
+# default_group = "work"
+# active_only = true
+
+# [groups.work]
+# accounts = ["you@example.com:google"]
+# calendars = ["My Calendar"]
+"""
+
+
+def _xdg_config_path() -> Path:
+    """Return the XDG config file path for guten-morgen."""
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    if xdg:
+        base = Path(xdg)
+    else:
+        base = Path.home() / ".config"
+    return base / "guten-morgen" / "config.toml"
+
+
+@cli.command()
+@click.option("--force", is_flag=True, help="Overwrite existing config file.")
+def init(force: bool) -> None:
+    """Create a config file at ~/.config/guten-morgen/config.toml."""
+    target = _xdg_config_path()
+
+    if target.exists() and not force:
+        click.echo(f"Config already exists: {target}")
+        click.echo("Use --force to overwrite.")
+        raise SystemExit(1)
+
+    api_key = click.prompt(
+        "Morgen API key (from https://platform.morgen.so/)",
+        hide_input=False,
+    )
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(_CONFIG_TEMPLATE.format(api_key=api_key))
+
+    click.echo(f"Config written to {target}")
+    click.echo("Run `gm events today` to verify.")
 
 
 def _get_cache_store() -> CacheStore:

@@ -23,7 +23,8 @@ class AuthenticationError(MorgenError):
 
     error_type = "authentication_error"
     suggestions = [
-        "Check that MORGEN_API_KEY is set in your .env file",
+        "Run `gm init` to create a config file",
+        "Or set MORGEN_API_KEY in your environment",
         "Verify the key at https://platform.morgen.so/",
     ]
 
@@ -55,7 +56,8 @@ class ConfigError(MorgenError):
 
     error_type = "config_error"
     suggestions = [
-        "Copy .env.example to .env and fill in MORGEN_API_KEY",
+        "Run `gm init` to create a config file",
+        "Or set MORGEN_API_KEY in your environment",
     ]
 
 
