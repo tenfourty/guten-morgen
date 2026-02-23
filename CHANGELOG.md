@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.4.0...guten-morgen-v0.5.0) (2026-02-23)
+
+
+### Features
+
+* **client:** retry on 429 with on_retry callback ([d0b8ead](https://github.com/tenfourty/guten-morgen/commit/d0b8eadff9493ce0344d8905a0caf436d00ac8c6))
+* **cli:** wire dual-mode retry callbacks into all commands ([5b612e4](https://github.com/tenfourty/guten-morgen/commit/5b612e4f239c9e1c0ac04605b31e558e874fafd1))
+* **config:** add max_retries setting (default 2) ([ac716ee](https://github.com/tenfourty/guten-morgen/commit/ac716ee40ff39887b033ba42504ec6f36ccb8124))
+* **retry:** dual-mode callback factories (human + agent) ([4b6bd9f](https://github.com/tenfourty/guten-morgen/commit/4b6bd9f6ffe8729c0a06f83c26be5375fb104007))
+
+
+### Documentation
+
+* add retry with backoff design and implementation plan ([4ae91bd](https://github.com/tenfourty/guten-morgen/commit/4ae91bdb1cbb73f8c2ec36736380669e4c8cd5ad))
+
 ## [0.4.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.3.3...guten-morgen-v0.4.0) (2026-02-23)
 
 
