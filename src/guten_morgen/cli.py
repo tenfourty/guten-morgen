@@ -468,15 +468,19 @@ def _get_cache_store() -> CacheStore:
     return CacheStore()
 
 
-def _get_client() -> MorgenClient:
-    """Create a MorgenClient from settings, with cache by default."""
+def _get_client(fmt: str = "table") -> MorgenClient:
+    """Create a MorgenClient from settings, with cache and retry callback."""
     from guten_morgen.client import MorgenClient
+    from guten_morgen.retry import make_agent_retry_callback, make_human_retry_callback
 
     settings = load_settings()
     ctx = click.get_current_context(silent=True)
     no_cache = ctx.obj.get("no_cache", False) if ctx and ctx.obj else False
     cache = None if no_cache else _get_cache_store()
-    return MorgenClient(settings, cache=cache)
+
+    on_retry = make_human_retry_callback() if fmt == "table" else make_agent_retry_callback()
+
+    return MorgenClient(settings, cache=cache, on_retry=on_retry)
 
 
 # ---------------------------------------------------------------------------
@@ -492,7 +496,7 @@ ACCOUNT_CONCISE_FIELDS = ["id", "providerUserDisplayName", "integrationId"]
 def accounts(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
     """List connected calendar accounts."""
     try:
-        client = _get_client()
+        client = _get_client(fmt)
         data = [a.model_dump(exclude_none=True) for a in client.list_accounts()]
         if response_format == "concise" and not fields:
             fields = ACCOUNT_CONCISE_FIELDS
@@ -519,7 +523,7 @@ def calendars() -> None:
 def calendars_list(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
     """List all calendars across accounts."""
     try:
-        client = _get_client()
+        client = _get_client(fmt)
         data = [c.model_dump(exclude_none=True) for c in client.list_calendars()]
         if response_format == "concise" and not fields:
             fields = CALENDAR_CONCISE_FIELDS
@@ -670,7 +674,7 @@ def events_list(
 ) -> None:
     """List events in a date range."""
     try:
-        client = _get_client()
+        client = _get_client(fmt)
         if account_id and calendar_ids_str:
             cal_ids = [s.strip() for s in calendar_ids_str.split(",")]
             data_models = client.list_events(account_id, cal_ids, start, end)
@@ -897,7 +901,7 @@ def availability(
 ) -> None:
     """Find available time slots on a given date."""
     try:
-        client = _get_client()
+        client = _get_client(fmt)
         cf = _resolve_calendar_filter(group_name, all_calendars)
 
         day_start = f"{date}T00:00:00"
@@ -968,7 +972,7 @@ def tasks_list(
 ) -> None:
     """List tasks."""
     try:
-        client = _get_client()
+        client = _get_client(fmt)
         result = client.list_all_tasks(source=source, limit=limit, updated_after=updated_after)
         data = [t.model_dump() for t in result.tasks]
         label_defs = [ld.model_dump() for ld in result.labelDefs]
@@ -1070,7 +1074,7 @@ def tasks_get(
 ) -> None:
     """Get a single task by ID."""
     try:
-        client = _get_client()
+        client = _get_client(fmt)
         data = client.get_task(task_id).model_dump()
         if response_format == "concise" and not fields:
             fields = TASK_CONCISE_FIELDS
@@ -1263,7 +1267,7 @@ def tags() -> None:
 def tags_list(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
     """List all tags."""
     try:
-        client = _get_client()
+        client = _get_client(fmt)
         data = [t.model_dump() for t in client.list_tags()]
         if response_format == "concise" and not fields:
             fields = TAG_CONCISE_FIELDS
@@ -1284,7 +1288,7 @@ def tags_get(
 ) -> None:
     """Get a single tag by ID."""
     try:
-        client = _get_client()
+        client = _get_client(fmt)
         data = client.get_tag(tag_id).model_dump()
         if response_format == "concise" and not fields:
             fields = TAG_CONCISE_FIELDS
@@ -1354,7 +1358,7 @@ PROVIDER_COLUMNS = ["id", "name", "type"]
 def providers(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
     """List available integration providers."""
     try:
-        client = _get_client()
+        client = _get_client(fmt)
         data = client.list_providers()
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=PROVIDER_COLUMNS)
     except MorgenError as e:
@@ -1390,7 +1394,7 @@ def next(
     from guten_morgen.time_utils import end_of_next_day
 
     try:
-        client = _get_client()
+        client = _get_client(fmt)
         cf = _resolve_calendar_filter(group_name, all_calendars)
 
         now = _now_utc()
@@ -1460,7 +1464,7 @@ def _combined_view(
     """Fetch events + tasks and output a categorised view."""
 
     try:
-        client = _get_client()
+        client = _get_client(fmt)
         cf = _resolve_calendar_filter(group_name, all_calendars)
 
         result: dict[str, Any] = {}
