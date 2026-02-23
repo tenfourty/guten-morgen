@@ -92,6 +92,16 @@ class TestFindConfig:
         assert find_config() == cwd_cfg
 
 
+class TestSettingsMaxRetries:
+    def test_default_max_retries(self) -> None:
+        s = Settings(api_key="k")
+        assert s.max_retries == 2
+
+    def test_custom_max_retries(self) -> None:
+        s = Settings(api_key="k", max_retries=5)
+        assert s.max_retries == 5
+
+
 class TestLoadSettings:
     def test_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MORGEN_API_KEY", "test-key-123")
