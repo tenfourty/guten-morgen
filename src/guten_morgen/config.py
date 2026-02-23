@@ -15,8 +15,8 @@ else:
 from guten_morgen.errors import ConfigError
 
 _PROJECT_CONFIG = "guten-morgen.toml"
-_LEGACY_CONFIG = "config.toml"
 _APP_DIR = "guten-morgen"
+_XDG_CONFIG = "config.toml"
 
 
 def find_config() -> Path | None:
@@ -25,8 +25,7 @@ def find_config() -> Path | None:
     Search order (first existing file wins):
     1. $GM_CONFIG env var (explicit override)
     2. guten-morgen.toml — walk up from CWD (project-local config)
-    3. ./config.toml in CWD (legacy, backwards compat)
-    4. $XDG_CONFIG_HOME/guten-morgen/config.toml (default ~/.config/)
+    3. $XDG_CONFIG_HOME/guten-morgen/config.toml (default ~/.config/)
     """
     # 1. Explicit env var
     env_path = os.environ.get("GM_CONFIG")
@@ -46,17 +45,12 @@ def find_config() -> Path | None:
         if candidate.is_file():
             return candidate
 
-    # 3. Legacy: ./config.toml in CWD
-    legacy = cwd / _LEGACY_CONFIG
-    if legacy.is_file():
-        return legacy
-
-    # 4. XDG
+    # 3. XDG
     xdg_home = os.environ.get("XDG_CONFIG_HOME")
     if xdg_home:
-        xdg_path = Path(xdg_home) / _APP_DIR / _LEGACY_CONFIG
+        xdg_path = Path(xdg_home) / _APP_DIR / _XDG_CONFIG
     else:
-        xdg_path = Path.home() / ".config" / _APP_DIR / _LEGACY_CONFIG
+        xdg_path = Path.home() / ".config" / _APP_DIR / _XDG_CONFIG
     if xdg_path.is_file():
         return xdg_path
 

@@ -32,10 +32,20 @@ class TestFindConfig:
         with pytest.raises(ConfigError, match="GM_CONFIG points to missing file"):
             find_config()
 
-    def test_cwd_config_toml(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        cfg = tmp_path / "config.toml"
+    def test_project_config_toml(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        cfg = tmp_path / "guten-morgen.toml"
         cfg.write_text("api_key = 'test'\n")
         monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GM_CONFIG", raising=False)
+        monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+        assert find_config() == cfg
+
+    def test_project_config_walk_up(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        cfg = tmp_path / "guten-morgen.toml"
+        cfg.write_text("api_key = 'test'\n")
+        subdir = tmp_path / "sub" / "deep"
+        subdir.mkdir(parents=True)
+        monkeypatch.chdir(subdir)
         monkeypatch.delenv("GM_CONFIG", raising=False)
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
         assert find_config() == cfg
@@ -79,9 +89,9 @@ class TestFindConfig:
         monkeypatch.setenv("GM_CONFIG", str(env_cfg))
         assert find_config() == env_cfg
 
-    def test_priority_cwd_over_xdg(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        cwd_cfg = tmp_path / "config.toml"
-        cwd_cfg.write_text("api_key = 'from-cwd'\n")
+    def test_priority_project_over_xdg(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        project_cfg = tmp_path / "guten-morgen.toml"
+        project_cfg.write_text("api_key = 'from-project'\n")
         xdg = tmp_path / "xdg"
         gm_dir = xdg / "guten-morgen"
         gm_dir.mkdir(parents=True)
@@ -89,7 +99,7 @@ class TestFindConfig:
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("GM_CONFIG", raising=False)
         monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg))
-        assert find_config() == cwd_cfg
+        assert find_config() == project_cfg
 
 
 class TestSettingsMaxRetries:
