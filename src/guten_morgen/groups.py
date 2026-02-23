@@ -2,21 +2,20 @@
 
 from __future__ import annotations
 
-import os
 import sys
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 if sys.version_info >= (3, 11):
     import tomllib
 else:
     import tomli as tomllib  # type: ignore[import-not-found,unused-ignore]
 
+from guten_morgen.config import find_config
 from guten_morgen.errors import GroupNotFoundError
-
-# Project root: same as config.py
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 @dataclass
@@ -50,15 +49,14 @@ class CalendarFilter:
 def load_morgen_config(path: Path | None = None) -> MorgenConfig:
     """Load configuration from TOML file.
 
-    Falls back to MORGEN_CONFIG env var, then .config.toml in project root.
-    Returns no-op defaults if file is missing.
+    Uses find_config() for XDG-compliant discovery when no path given.
+    Returns no-op defaults if no config file found.
     """
     if path is None:
-        env_path = os.environ.get("MORGEN_CONFIG")
-        if env_path:
-            path = Path(env_path)
-        else:
-            path = _PROJECT_ROOT / ".config.toml"
+        found = find_config()
+        if found is None:
+            return MorgenConfig()
+        path = found
 
     if not path.exists():
         return MorgenConfig()
@@ -102,7 +100,7 @@ def resolve_filter(
     if group_name not in config.groups:
         available = sorted(config.groups.keys())
         suggestions = (
-            [f"Available groups: {', '.join(available)}"] if available else ["No groups configured in .config.toml"]
+            [f"Available groups: {', '.join(available)}"] if available else ["No groups configured — run `gm init`"]
         )
         raise GroupNotFoundError(f"Unknown group '{group_name}'", suggestions=suggestions)
 
