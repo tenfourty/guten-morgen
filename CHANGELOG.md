@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.6.0...guten-morgen-v0.6.1) (2026-02-23)
+
+
+### Documentation
+
+* update config references to guten-morgen.toml ([e4a233f](https://github.com/tenfourty/guten-morgen/commit/e4a233fb5cafcecda8ef0511c1cab35abca2ed16))
+
 ## [0.6.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.5.0...guten-morgen-v0.6.0) (2026-02-23)
 
 
