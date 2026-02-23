@@ -624,6 +624,18 @@ def _resolve_tag_names(client: MorgenClient, names: tuple[str, ...]) -> list[str
     return [name_to_id[n.lower()] for n in names if n.lower() in name_to_id]
 
 
+def _resolve_list_name(client: MorgenClient, name: str) -> str:
+    """Resolve a task list name to its ID. Case-insensitive matching."""
+    all_lists = client.list_task_lists()
+    name_to_id = {tl.name.lower(): tl.id for tl in all_lists}
+    lid = name_to_id.get(name.lower())
+    if lid is None:
+        available = ", ".join(tl.name for tl in all_lists)
+        msg = f"Task list '{name}' not found. Available: {available}"
+        raise click.ClickException(msg)
+    return lid
+
+
 def _auto_discover(client: MorgenClient) -> tuple[str, list[str]]:
     """Auto-discover first calendar account and its writable calendars.
 
@@ -1090,6 +1102,7 @@ def tasks_get(
 @click.option("--description", default=None, help="Task description.")
 @click.option("--duration", default=None, type=int, help="Estimated duration in minutes.")
 @click.option("--tag", "tag_names", multiple=True, help="Tag name (repeatable). Resolved to IDs.")
+@click.option("--list", "list_name", default=None, help="Task list name. Resolved to ID.")
 def tasks_create(
     title: str,
     due: str | None,
@@ -1097,6 +1110,7 @@ def tasks_create(
     description: str | None,
     duration: int | None,
     tag_names: tuple[str, ...],
+    list_name: str | None,
 ) -> None:
     """Create a new task."""
     try:
@@ -1112,6 +1126,8 @@ def tasks_create(
             task_data["estimatedDuration"] = f"PT{duration}M"
         if tag_names:
             task_data["tags"] = _resolve_tag_names(client, tag_names)
+        if list_name:
+            task_data["taskListId"] = _resolve_list_name(client, list_name)
         result = client.create_task(task_data)
         output = result.model_dump(exclude_none=True) if result else {"status": "created"}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
@@ -1127,6 +1143,7 @@ def tasks_create(
 @click.option("--description", default=None, help="New description.")
 @click.option("--duration", default=None, type=int, help="Estimated duration in minutes.")
 @click.option("--tag", "tag_names", multiple=True, help="Tag name (repeatable). Replaces existing tags.")
+@click.option("--list", "list_name", default=None, help="Task list name. Resolved to ID.")
 def tasks_update(
     task_id: str,
     title: str | None,
@@ -1135,6 +1152,7 @@ def tasks_update(
     description: str | None,
     duration: int | None,
     tag_names: tuple[str, ...],
+    list_name: str | None,
 ) -> None:
     """Update a task."""
     try:
@@ -1152,6 +1170,8 @@ def tasks_update(
             task_data["estimatedDuration"] = f"PT{duration}M"
         if tag_names:
             task_data["tags"] = _resolve_tag_names(client, tag_names)
+        if list_name:
+            task_data["taskListId"] = _resolve_list_name(client, list_name)
         result = client.update_task(task_data)
         output = result.model_dump(exclude_none=True) if result else {"status": "updated", "id": task_id}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))

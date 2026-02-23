@@ -510,6 +510,32 @@ class TestTaskOccurrence:
         assert "occurrenceStart" not in data
 
 
+class TestTasksCreateWithList:
+    def test_create_with_list_name(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "create", "--title", "New task", "--list", "Run - Work"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["taskListId"] == "list-work@morgen.so"
+
+    def test_create_with_list_case_insensitive(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "create", "--title", "New task", "--list", "run - work"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["taskListId"] == "list-work@morgen.so"
+
+    def test_create_with_unknown_list(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "create", "--title", "New task", "--list", "Nonexistent"])
+        assert result.exit_code != 0 or "not found" in result.output.lower() or "error" in result.output.lower()
+
+
+class TestTasksUpdateWithList:
+    def test_update_with_list(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "update", "task-1", "--list", "Run - Family"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["taskListId"] == "list-family@morgen.so"
+
+
 class TestTasksDelete:
     def test_delete(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["tasks", "delete", "task-1"])
