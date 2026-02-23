@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.5.0...guten-morgen-v0.6.0) (2026-02-23)
+
+
+### Features
+
+* **config:** add guten-morgen.toml project-local config discovery ([091fe31](https://github.com/tenfourty/guten-morgen/commit/091fe315f9aa4d678e69a47993badd867b08b82b))
+
 ## [0.5.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.4.0...guten-morgen-v0.5.0) (2026-02-23)
 
 
