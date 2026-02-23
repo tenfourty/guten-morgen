@@ -72,6 +72,7 @@ class Settings:
     api_key: str
     base_url: str = "https://api.morgen.so/v3"
     timeout: float = 30.0
+    max_retries: int = 2
 
 
 def load_settings() -> Settings:
