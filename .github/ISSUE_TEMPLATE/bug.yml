@@ -1,0 +1,55 @@
+name: Bug Report
+description: Report a bug or UX problem with gm
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - low
+        - medium
+        - high
+        - critical
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - bug
+        - ux
+        - performance
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened vs what was expected.
+      placeholder: |
+        **What happened:**
+
+        **What was expected:**
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Repro steps
+      description: "gm command or steps to reproduce."
+      placeholder: "gm events list --start 2026-02-23 --end 2026-02-24"
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Any context, workarounds, or ideas.
+    validations:
+      required: false
