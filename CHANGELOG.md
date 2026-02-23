@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.6.1...guten-morgen-v0.6.2) (2026-02-23)
+
+
+### Documentation
+
+* add agent startup commands to CLAUDE.md ([59c3795](https://github.com/tenfourty/guten-morgen/commit/59c37950999bc485b8b741173605874a31281a94))
+
 ## [0.6.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.6.0...guten-morgen-v0.6.1) (2026-02-23)
 
 
