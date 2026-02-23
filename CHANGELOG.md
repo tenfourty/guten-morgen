@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.3.3...guten-morgen-v0.4.0) (2026-02-23)
+
+
+### Features
+
+* XDG-compliant config discovery and `gm init` command ([9e8b45e](https://github.com/tenfourty/guten-morgen/commit/9e8b45edbf5da6a9ac04ff4a90326ffe0ec39ad0))
+
 ## [0.3.3](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.3.2...guten-morgen-v0.3.3) (2026-02-21)
 
 
