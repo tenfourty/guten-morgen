@@ -336,3 +336,17 @@ class TestRetryWithBackoff:
         )
         with pytest.raises(RateLimitError):
             client._request("GET", "/test")
+
+
+class TestListTaskLists:
+    def test_returns_all_lists(self, client: MorgenClient) -> None:
+        lists = client.list_task_lists()
+        assert len(lists) == 3
+        names = [tl.name for tl in lists]
+        assert "Inbox" in names
+        assert "Run - Work" in names
+
+    def test_inbox_has_role(self, client: MorgenClient) -> None:
+        lists = client.list_task_lists()
+        inbox = [tl for tl in lists if tl.id == "inbox"][0]
+        assert inbox.role == "inbox"

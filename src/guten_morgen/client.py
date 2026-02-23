@@ -15,6 +15,7 @@ from guten_morgen.cache import (
     TTL_SINGLE,
     TTL_TAGS,
     TTL_TASK_ACCOUNTS,
+    TTL_TASK_LISTS,
     TTL_TASKS,
 )
 from guten_morgen.errors import (
@@ -23,7 +24,18 @@ from guten_morgen.errors import (
     NotFoundError,
     RateLimitError,
 )
-from guten_morgen.models import Account, Calendar, Event, LabelDef, MorgenModel, Space, Tag, Task, TaskListResponse
+from guten_morgen.models import (
+    Account,
+    Calendar,
+    Event,
+    LabelDef,
+    MorgenModel,
+    Space,
+    Tag,
+    Task,
+    TaskList,
+    TaskListResponse,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -33,6 +45,7 @@ if TYPE_CHECKING:
 T = TypeVar("T", bound=MorgenModel)
 
 SYNC_BASE_URL = "https://sync.morgen.so/v1"
+V2_BASE_URL = "https://api.morgen.so/v2"
 
 
 def _extract_list(data: Any, key: str, model: type[T]) -> list[T]:
@@ -555,6 +568,22 @@ class MorgenClient:
         }
 
         return self.create_event(event_data)
+
+    # ----- Task Lists -----
+
+    def list_task_lists(self) -> list[TaskList]:
+        """List all task lists (v2 API)."""
+        cached = self._cache_get("taskLists")
+        if cached is not None:
+            return [TaskList.model_validate(tl) for tl in cast("list[dict[str, Any]]", cached)]
+        url = f"{V2_BASE_URL}/taskLists/list"
+        data = self._request("GET", url, params={"limit": 100})
+        if isinstance(data, list):
+            result = [TaskList.model_validate(item) for item in data]
+        else:
+            result = _extract_list(data, "taskLists", TaskList)
+        self._cache_set("taskLists", [tl.model_dump() for tl in result], TTL_TASK_LISTS)
+        return result
 
     # ----- Tags -----
 

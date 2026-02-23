@@ -15,6 +15,7 @@ TTL_EVENTS = 1800  # 30 minutes
 TTL_TASKS = 1800  # 30 minutes
 TTL_SINGLE = 300  # 5 minutes (get by ID)
 TTL_TASK_ACCOUNTS = 604800  # 7 days
+TTL_TASK_LISTS = 86400  # 24 hours (lists change rarely)
 
 _DEFAULT_CACHE_DIR = Path.home() / ".cache" / "guten-morgen"
 
