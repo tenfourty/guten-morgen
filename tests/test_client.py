@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -28,7 +29,7 @@ def _mock_transport(status: int, body: dict | str = "", headers: dict[str, str] 
 
 
 def _make_client(transport: httpx.MockTransport) -> MorgenClient:
-    settings = Settings(api_key="test-key")
+    settings = Settings(api_key="test-key", max_retries=0)
     return MorgenClient(settings, transport=transport)
 
 
@@ -151,7 +152,6 @@ class TestListAllEventsFiltering:
     def test_calendar_names_bypass_active_only(self, client: MorgenClient) -> None:
         """Explicit calendar_names includes inactive calendars despite active_only=True."""
         # cal-2 "Holidays" has isActiveByDefault=False — verify it's still queried
-        from unittest.mock import patch
 
         call_args: list[tuple[str, list[str]]] = []
         original = client.list_events
@@ -180,3 +180,159 @@ class TestListAllEventsFiltering:
             account_keys=["nobody@nowhere.com:google"],
         )
         assert events == []
+
+
+# ---------------------------------------------------------------------------
+# Retry helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_client_with_retry(
+    transport: httpx.MockTransport,
+    *,
+    max_retries: int = 2,
+    on_retry: Any = None,
+) -> MorgenClient:
+    settings = Settings(api_key="test-key", max_retries=max_retries)
+    return MorgenClient(settings, transport=transport, on_retry=on_retry)
+
+
+def _countdown_transport(fail_count: int, retry_after: str = "5") -> httpx.MockTransport:
+    """Transport that returns 429 `fail_count` times, then 200."""
+    call_count = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        call_count["n"] += 1
+        if call_count["n"] <= fail_count:
+            return httpx.Response(
+                status_code=429,
+                content=b"Rate limited",
+                headers={"Retry-After": retry_after},
+            )
+        return httpx.Response(
+            status_code=200,
+            content=json.dumps({"data": "ok"}).encode(),
+        )
+
+    return httpx.MockTransport(handler)
+
+
+class TestRetryWithBackoff:
+    def test_retries_on_429_then_succeeds(self) -> None:
+        """Single 429 followed by 200 should succeed."""
+        recordings: list[tuple[int, int, int]] = []
+
+        def recorder(wait: int, attempt: int, max_r: int) -> None:
+            recordings.append((wait, attempt, max_r))
+
+        client = _make_client_with_retry(
+            _countdown_transport(1),
+            on_retry=recorder,
+        )
+        result = client._request("GET", "/test")
+        assert result == {"data": "ok"}
+        assert len(recordings) == 1
+        assert recordings[0] == (5, 1, 2)
+
+    def test_exhausts_retries_raises_rate_limit(self) -> None:
+        """After max_retries 429s, should raise RateLimitError."""
+        recordings: list[tuple[int, int, int]] = []
+
+        def recorder(wait: int, attempt: int, max_r: int) -> None:
+            recordings.append((wait, attempt, max_r))
+
+        client = _make_client_with_retry(
+            _countdown_transport(10),  # more 429s than retries
+            max_retries=2,
+            on_retry=recorder,
+        )
+        with pytest.raises(RateLimitError):
+            client._request("GET", "/test")
+        assert len(recordings) == 2  # called for each retry attempt
+
+    def test_no_retry_on_non_429(self) -> None:
+        """Non-429 errors should not trigger retry."""
+        recordings: list[tuple[int, int, int]] = []
+
+        def recorder(wait: int, attempt: int, max_r: int) -> None:
+            recordings.append((wait, attempt, max_r))
+
+        client = _make_client_with_retry(
+            _mock_transport(400, "Bad request"),
+            on_retry=recorder,
+        )
+        with pytest.raises(MorgenAPIError):
+            client._request("GET", "/test")
+        assert recordings == []
+
+    def test_retry_after_clamped_floor(self) -> None:
+        """Retry-After below 5 is clamped to 5."""
+        recordings: list[tuple[int, int, int]] = []
+
+        def recorder(wait: int, attempt: int, max_r: int) -> None:
+            recordings.append((wait, attempt, max_r))
+
+        client = _make_client_with_retry(
+            _countdown_transport(1, retry_after="1"),
+            on_retry=recorder,
+        )
+        client._request("GET", "/test")
+        assert recordings[0][0] == 5
+
+    def test_retry_after_clamped_ceiling(self) -> None:
+        """Retry-After above 60 is clamped to 60."""
+        recordings: list[tuple[int, int, int]] = []
+
+        def recorder(wait: int, attempt: int, max_r: int) -> None:
+            recordings.append((wait, attempt, max_r))
+
+        client = _make_client_with_retry(
+            _countdown_transport(1, retry_after="120"),
+            on_retry=recorder,
+        )
+        client._request("GET", "/test")
+        assert recordings[0][0] == 60
+
+    def test_retry_after_missing_defaults_to_15(self) -> None:
+        """Missing Retry-After header defaults to 15s."""
+        recordings: list[tuple[int, int, int]] = []
+
+        def recorder(wait: int, attempt: int, max_r: int) -> None:
+            recordings.append((wait, attempt, max_r))
+
+        call_count = {"n": 0}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            call_count["n"] += 1
+            if call_count["n"] <= 1:
+                return httpx.Response(status_code=429, content=b"Rate limited")
+            return httpx.Response(
+                status_code=200,
+                content=json.dumps({"data": "ok"}).encode(),
+            )
+
+        client = _make_client_with_retry(
+            httpx.MockTransport(handler),
+            on_retry=recorder,
+        )
+        client._request("GET", "/test")
+        assert recordings[0][0] == 15
+
+    def test_no_callback_still_retries(self) -> None:
+        """Without on_retry callback, retry still works (just sleeps silently)."""
+        with patch("time.sleep"):
+            client = _make_client_with_retry(
+                _countdown_transport(1, retry_after="5"),
+                on_retry=None,
+            )
+            result = client._request("GET", "/test")
+            assert result == {"data": "ok"}
+
+    def test_zero_max_retries_raises_immediately(self) -> None:
+        """max_retries=0 means no retry, raise on first 429."""
+        client = _make_client_with_retry(
+            _countdown_transport(1),
+            max_retries=0,
+        )
+        with pytest.raises(RateLimitError):
+            client._request("GET", "/test")
