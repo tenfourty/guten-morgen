@@ -112,6 +112,19 @@ class TaskListResponse(MorgenModel):
     spaces: list[Space] = []
 
 
+class TaskList(MorgenModel):
+    """Task list (project/folder for tasks)."""
+
+    id: str
+    name: str
+    color: str | None = None
+    role: str | None = None
+    serviceName: str | None = None
+    position: int | None = None
+    created: str | None = None
+    updated: str | None = None
+
+
 class Tag(MorgenModel):
     """Tag for tasks."""
 
