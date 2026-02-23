@@ -172,6 +172,26 @@ FAKE_TAGS = [
     {"id": "tag-2", "name": "personal", "color": "#00ff00"},
 ]
 
+FAKE_TASK_LISTS = [
+    {"id": "inbox", "name": "Inbox", "color": "#9695A0", "role": "inbox", "serviceName": "morgen"},
+    {
+        "id": "list-work@morgen.so",
+        "name": "Run - Work",
+        "color": "#38c2c7",
+        "serviceName": "morgen",
+        "position": 1761671965352,
+        "created": "2025-10-28T17:19:25Z",
+        "updated": "2025-10-28T17:19:32.616Z",
+    },
+    {
+        "id": "list-family@morgen.so",
+        "name": "Run - Family",
+        "color": "#ff8f1e",
+        "serviceName": "morgen",
+        "position": 1761630397298,
+    },
+]
+
 FAKE_PROVIDERS = [
     {"id": "google", "name": "Google", "type": "calendar"},
     {"id": "linear", "name": "Linear", "type": "tasks"},
@@ -345,6 +365,21 @@ def mock_transport_handler(request: httpx.Request) -> httpx.Response:
         if account_id == "acc-notion":
             return httpx.Response(200, json=FAKE_NOTION_TASKS)
         # Fall through to ROUTES for default (morgen-native tasks)
+
+    # v2 task lists API
+    if path == "/v2/taskLists/list":
+        return httpx.Response(200, json=FAKE_TASK_LISTS)
+
+    # v2 task lists POST endpoints
+    if request.method == "POST" and path.startswith("/v2/taskLists/"):
+        try:
+            body = json.loads(request.content)
+        except (json.JSONDecodeError, ValueError):
+            body = {}
+        body.setdefault("id", "new-list-id@morgen.so")
+        if "/delete" in path:
+            return httpx.Response(200, json=body)
+        return httpx.Response(200, json=body)
 
     if path in ROUTES:
         return httpx.Response(200, json=ROUTES[path])
