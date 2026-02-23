@@ -1347,6 +1347,82 @@ def tags_delete(tag_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# lists (task lists)
+# ---------------------------------------------------------------------------
+
+LIST_COLUMNS = ["id", "name", "color", "role"]
+LIST_CONCISE_FIELDS = ["id", "name", "color"]
+
+
+@cli.group()
+def lists() -> None:
+    """Manage task lists."""
+
+
+@lists.command("list")
+@output_options
+def lists_list(fmt: str, fields: list[str] | None, jq_expr: str | None, response_format: str) -> None:
+    """List all task lists."""
+    try:
+        client = _get_client(fmt)
+        data = [tl.model_dump() for tl in client.list_task_lists()]
+        if response_format == "concise" and not fields:
+            fields = LIST_CONCISE_FIELDS
+        morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=LIST_COLUMNS)
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
+@lists.command("create")
+@click.option("--name", required=True, help="List name.")
+@click.option("--color", default=None, help="List color (hex).")
+def lists_create(name: str, color: str | None) -> None:
+    """Create a task list."""
+    try:
+        client = _get_client()
+        list_data: dict[str, Any] = {"name": name}
+        if color:
+            list_data["color"] = color
+        result = client.create_task_list(list_data)
+        output = result.model_dump(exclude_none=True) if result else {"status": "created"}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
+@lists.command("update")
+@click.argument("list_id")
+@click.option("--name", default=None, help="New list name.")
+@click.option("--color", default=None, help="New list color (hex).")
+def lists_update(list_id: str, name: str | None, color: str | None) -> None:
+    """Update a task list."""
+    try:
+        client = _get_client()
+        list_data: dict[str, Any] = {"id": list_id}
+        if name is not None:
+            list_data["name"] = name
+        if color is not None:
+            list_data["color"] = color
+        result = client.update_task_list(list_data)
+        output = result.model_dump(exclude_none=True) if result else {"status": "updated", "id": list_id}
+        click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
+@lists.command("delete")
+@click.argument("list_id")
+def lists_delete(list_id: str) -> None:
+    """Delete a task list."""
+    try:
+        client = _get_client()
+        client.delete_task_list(list_id)
+        click.echo(json.dumps({"status": "deleted", "id": list_id}))
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
+# ---------------------------------------------------------------------------
 # providers
 # ---------------------------------------------------------------------------
 
