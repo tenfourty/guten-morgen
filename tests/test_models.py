@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from guten_morgen.models import Account, Calendar, Event, LabelDef, Space, Tag, Task, TaskListResponse
+from guten_morgen.models import Account, Calendar, Event, LabelDef, Space, Tag, Task, TaskList, TaskListResponse
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -251,3 +251,40 @@ def test_model_covers_api_fields(model: type, fixture_file: str) -> None:
         f"{model.__name__} doesn't model these API fields: {new_fields}. "
         f"Add them to the model or remove from fixture if intentionally ignored."
     )
+
+
+# ---------------------------------------------------------------------------
+# TaskList model tests
+# ---------------------------------------------------------------------------
+
+
+class TestTaskList:
+    def test_from_api_response(self) -> None:
+        data = {
+            "@type": "TaskList",
+            "serviceName": "morgen",
+            "id": "07134c5c-1183-4f8c-9716-4c58257694c8@morgen.so",
+            "name": "Run - Work",
+            "color": "#38c2c7",
+            "role": None,
+            "position": 1761671965352,
+            "created": "2025-10-28T17:19:25Z",
+            "updated": "2025-10-28T17:19:32.616Z",
+            "myRights": {"mayAdmin": True, "mayDelete": True},
+            "accountId": None,
+        }
+        tl = TaskList.model_validate(data)
+        assert tl.id == "07134c5c-1183-4f8c-9716-4c58257694c8@morgen.so"
+        assert tl.name == "Run - Work"
+        assert tl.color == "#38c2c7"
+        assert tl.position == 1761671965352
+
+    def test_inbox_role(self) -> None:
+        data = {"id": "inbox", "name": "Inbox", "role": "inbox", "color": "#9695A0"}
+        tl = TaskList.model_validate(data)
+        assert tl.role == "inbox"
+
+    def test_extra_fields_ignored(self) -> None:
+        data = {"id": "test", "name": "Test", "myRights": {"mayAdmin": True}, "accountId": None}
+        tl = TaskList.model_validate(data)
+        assert tl.id == "test"
