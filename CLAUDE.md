@@ -6,7 +6,7 @@ Calendar and task management CLI wrapping the Morgen API. All commands emit stru
 
 ```bash
 uv sync --all-extras && uv run pre-commit install   # first time
-cp config.toml.example config.toml                   # then add api_key (or run gm init)
+cp config.toml.example guten-morgen.toml               # then add api_key (or run gm init)
 uv run pytest -x -q --cov && uv run mypy src/       # verify
 uv run gm usage                                      # CLI self-documentation
 uv tool install --editable .                         # optional: global `gm` command
@@ -40,7 +40,8 @@ src/guten_morgen/
   config.py     XDG config discovery + API settings
   time_utils.py Date range helpers
   cache.py      TTL-based request cache
-  groups.py     Calendar group filtering from config.toml
+  groups.py     Calendar group filtering from guten-morgen.toml
+  retry.py      Rate-limit retry with dual-mode countdown
   __main__.py   python -m guten_morgen entrypoint
 ```
 
@@ -52,8 +53,8 @@ src/guten_morgen/
 
 ## Gotchas
 
-- **`config.toml`** — XDG discovery: `$GM_CONFIG` → `./config.toml` → `~/.config/guten-morgen/config.toml`. Run `gm init` for first-time setup.
-- **Calendar groups** — configured in `config.toml` under `[groups.*]`. Use `--group all` to bypass filtering.
+- **Config discovery** — `$GM_CONFIG` → `guten-morgen.toml` (walk up from CWD) → `~/.config/guten-morgen/config.toml`. Run `gm init` for first-time setup.
+- **Calendar groups** — configured in `guten-morgen.toml` under `[groups.*]`. Use `--group all` to bypass filtering.
 - **`morgen.so:metadata`** — Event model aliases this. Use `model_dump(by_alias=True)` for events
 - **Mutation output** — use `model_dump(exclude_none=True)` to avoid null flood
 - **`uv.lock`** — must be generated with `UV_INDEX="" uv lock --refresh` to avoid baking in private registries

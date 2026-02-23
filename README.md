@@ -43,19 +43,19 @@ All methods expose both `gm` (short) and `guten-morgen` (long) commands.
 
 1. **Get an API key** from [Morgen Platform](https://platform.morgen.so/) (Settings > API Keys)
 
-2. **Create your `.env` file:**
+2. **Create config** (choose one):
    ```bash
-   cp .env.example .env
-   # Edit .env and add your MORGEN_API_KEY
+   # Interactive setup (recommended)
+   gm init
+
+   # Or manually: project-local config
+   cp config.toml.example guten-morgen.toml
+   # Edit guten-morgen.toml and add your api_key
    ```
 
-3. **Configure calendar groups** (optional):
-   ```bash
-   cp .config.toml.example .config.toml
-   # Edit .config.toml with your account details
-   ```
+   Config discovery: `$GM_CONFIG` → `guten-morgen.toml` (walks up from CWD) → `~/.config/guten-morgen/config.toml`
 
-4. **Verify it works:**
+3. **Verify it works:**
    ```bash
    gm accounts
    gm today --json
@@ -85,7 +85,7 @@ Run `gm usage` for the full command reference.
 
 ## Calendar Groups
 
-Groups let you filter events by context. Configure in `.config.toml`:
+Groups let you filter events by context. Configure in `guten-morgen.toml`:
 
 ```toml
 default_group = "work"
@@ -143,10 +143,11 @@ src/guten_morgen/
   models.py     Pydantic v2 models
   output.py     Render pipeline (table/json/jsonl/csv + fields + jq)
   errors.py     Exception hierarchy -> structured JSON on stderr
-  config.py     Settings from .env
+  config.py     XDG config discovery + API settings
   time_utils.py Date range helpers
   cache.py      TTL-based request cache
-  groups.py     Calendar group filtering from .config.toml
+  groups.py     Calendar group filtering from guten-morgen.toml
+  retry.py      Rate-limit retry with dual-mode countdown
 ```
 
 **The boundary rule:** `client.py` returns Pydantic models, `cli.py` converts with `model_dump()`, `output.py` only sees dicts.
@@ -157,4 +158,4 @@ This project includes a `CLAUDE.md` with conventions and a `.claude/` directory 
 
 ## License
 
-[MIT](LICENSE)
+[Apache 2.0](LICENSE)
