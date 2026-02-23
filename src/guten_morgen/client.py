@@ -585,6 +585,30 @@ class MorgenClient:
         self._cache_set("taskLists", [tl.model_dump() for tl in result], TTL_TASK_LISTS)
         return result
 
+    def create_task_list(self, data: dict[str, Any]) -> TaskList | None:
+        """Create a task list (v2 API)."""
+        url = f"{V2_BASE_URL}/taskLists/create"
+        result = self._request("POST", url, json=data)
+        self._cache_invalidate("taskLists")
+        if isinstance(result, dict):
+            return TaskList.model_validate(result)
+        return None
+
+    def update_task_list(self, data: dict[str, Any]) -> TaskList | None:
+        """Update a task list (v2 API)."""
+        url = f"{V2_BASE_URL}/taskLists/update"
+        result = self._request("POST", url, json=data)
+        self._cache_invalidate("taskLists")
+        if isinstance(result, dict):
+            return TaskList.model_validate(result)
+        return None
+
+    def delete_task_list(self, list_id: str) -> None:
+        """Delete a task list (v2 API)."""
+        url = f"{V2_BASE_URL}/taskLists/delete"
+        self._request("POST", url, json={"id": list_id})
+        self._cache_invalidate("taskLists")
+
     # ----- Tags -----
 
     def list_tags(self) -> list[Tag]:
