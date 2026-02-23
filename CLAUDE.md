@@ -2,6 +2,19 @@
 
 Calendar and task management CLI wrapping the Morgen API. All commands emit structured JSON.
 
+## Agent Startup
+
+Run these on first use in a session to orient:
+
+```bash
+gm usage                                              # full command reference (the LLM API contract)
+gm accounts --json                                    # connected accounts (Google, Outlook, etc.)
+gm groups --json                                      # configured calendar groups
+gm today --json --response-format concise             # today's calendar + tasks
+gm tasks list --status open --json --response-format concise  # all open tasks
+gm tags list --json                                   # available tags (Right-Now, Active, etc.)
+```
+
 ## Setup
 
 ```bash
