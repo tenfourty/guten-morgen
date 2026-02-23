@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import time
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import httpx
@@ -25,6 +26,8 @@ from guten_morgen.errors import (
 from guten_morgen.models import Account, Calendar, Event, LabelDef, MorgenModel, Space, Tag, Task, TaskListResponse
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from guten_morgen.config import Settings
 
 T = TypeVar("T", bound=MorgenModel)
@@ -75,9 +78,11 @@ class MorgenClient:
         settings: Settings,
         transport: httpx.BaseTransport | None = None,
         cache: Any | None = None,
+        on_retry: Callable[[int, int, int], None] | None = None,
     ) -> None:
         self._cache = cache
         self._settings = settings
+        self._on_retry = on_retry
         kwargs: dict[str, Any] = {
             "base_url": settings.base_url,
             "headers": {"Authorization": f"ApiKey {settings.api_key}"},
@@ -104,30 +109,49 @@ class MorgenClient:
             self._cache.invalidate(prefix)
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
-        """Make an API request with error mapping."""
-        resp = self._http.request(method, path, **kwargs)
+        """Make an API request with error mapping and retry on rate limit."""
+        max_retries = self._settings.max_retries
+        for attempt in range(max_retries + 1):
+            resp = self._http.request(method, path, **kwargs)
 
-        if resp.status_code == 401:
-            raise AuthenticationError("Invalid or missing API key")
-        if resp.status_code == 429:
-            retry_after = resp.headers.get("Retry-After", "unknown")
-            raise RateLimitError(
-                f"Rate limit exceeded. Retry after {retry_after}s",
-                suggestions=[
-                    f"Wait {retry_after} seconds before retrying",
-                    "Reduce request frequency (100 pts / 15 min)",
-                ],
-            )
-        if resp.status_code == 404:
-            raise NotFoundError(f"Resource not found: {path}")
-        if resp.status_code >= 400:
-            body = resp.text
-            raise MorgenAPIError(f"API error {resp.status_code}: {body}")
+            if resp.status_code == 429:
+                if attempt >= max_retries:
+                    retry_after = resp.headers.get("Retry-After", "unknown")
+                    raise RateLimitError(
+                        f"Rate limit exceeded. Retry after {retry_after}s",
+                        suggestions=[
+                            f"Wait {retry_after} seconds before retrying",
+                            "Reduce request frequency (100 pts / 15 min)",
+                        ],
+                    )
+                # Parse and clamp wait time
+                try:
+                    wait = int(resp.headers.get("Retry-After", "15"))
+                except (ValueError, TypeError):
+                    wait = 15
+                wait = max(5, min(60, wait))
 
-        if resp.status_code == 204:
-            return None
+                if self._on_retry is not None:
+                    self._on_retry(wait, attempt + 1, max_retries)
+                else:
+                    time.sleep(wait)
+                continue
 
-        return resp.json()
+            if resp.status_code == 401:
+                raise AuthenticationError("Invalid or missing API key")
+            if resp.status_code == 404:
+                raise NotFoundError(f"Resource not found: {path}")
+            if resp.status_code >= 400:
+                body = resp.text
+                raise MorgenAPIError(f"API error {resp.status_code}: {body}")
+
+            if resp.status_code == 204:
+                return None
+
+            return resp.json()
+
+        # Should not reach here, but satisfy mypy
+        raise MorgenAPIError("Unexpected retry loop exit")  # pragma: no cover
 
     # ----- Accounts -----
 
