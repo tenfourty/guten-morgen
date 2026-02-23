@@ -350,3 +350,19 @@ class TestListTaskLists:
         lists = client.list_task_lists()
         inbox = [tl for tl in lists if tl.id == "inbox"][0]
         assert inbox.role == "inbox"
+
+
+class TestTaskListCRUD:
+    def test_create_task_list(self, client: MorgenClient) -> None:
+        result = client.create_task_list({"name": "Project: X", "color": "#ff0000"})
+        assert result is not None
+        assert result.name == "Project: X"
+
+    def test_update_task_list(self, client: MorgenClient) -> None:
+        result = client.update_task_list({"id": "list-work@morgen.so", "name": "Work Tasks"})
+        assert result is not None
+        assert result.id == "list-work@morgen.so"
+
+    def test_delete_task_list(self, client: MorgenClient) -> None:
+        # Should not raise
+        client.delete_task_list("list-work@morgen.so")
