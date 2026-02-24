@@ -138,6 +138,10 @@ FAKE_TASKS = [
         "due": "2026-02-17T23:59:59Z",
         "taskListId": "inbox",
         "tags": ["tag-1"],
+        "description": "<ul><li><p>check tests</p></li><li><p>review code</p></li></ul>",
+        "descriptionContentType": "text/plain",
+        "position": 1771922554998,
+        "earliestStart": "2026-02-25T00:00:00",
     },
     {
         "id": "task-2",
@@ -146,6 +150,8 @@ FAKE_TASKS = [
         "priority": 1,
         "taskListId": "inbox",
         "tags": ["tag-2"],
+        "description": "Plain text note, no formatting",
+        "position": 1771922636033,
     },
     {
         "id": "task-3",

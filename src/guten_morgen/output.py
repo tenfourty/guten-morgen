@@ -7,6 +7,8 @@ import io
 import json
 from typing import Any
 
+from guten_morgen.markup import html_to_markdown
+
 
 def format_json(data: Any, indent: int = 2) -> str:
     """Format data as JSON string."""
@@ -222,6 +224,11 @@ def enrich_tasks(
 
         # list_name: resolve taskListId to human-readable name
         t["list_name"] = list_id_to_name.get(t.get("taskListId", ""))
+
+        # description: convert HTML to markdown for agent-friendly output
+        desc = t.get("description")
+        if desc is not None:
+            t["description"] = html_to_markdown(desc)
 
         enriched.append(t)
     return enriched
