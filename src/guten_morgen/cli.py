@@ -204,24 +204,27 @@ def usage() -> None:
 ### Tasks
 - `gm tasks list [--limit N] [--status open|completed|all] [--overdue] [--json]`
   `  [--due-before ISO] [--due-after ISO] [--priority N] [--updated-after ISO]`
-  `  [--source morgen|linear|notion] [--tag NAME] [--group-by-source]`
+  `  [--source morgen|linear|notion] [--tag NAME] [--group-by-source] [--list NAME]`
   List tasks from all connected sources. Filters combine with AND logic.
   --source restricts to a single integration. --tag filters by tag name
   (repeatable, OR logic, case-insensitive). --group-by-source returns
   output grouped by source. --updated-after returns only tasks modified
-  since the given timestamp. Tasks are enriched with source, source_id,
-  source_url, source_status, tag_names fields.
+  since the given timestamp. --list filters by task list name (case-insensitive).
+  Tasks are enriched with source, source_id, source_url, source_status,
+  tag_names, list_name fields.
 
 - `gm tasks get ID [--json]`
   Get a single task by ID.
 
-- `gm tasks create --title TEXT [--due ISO] [--priority 0-4] [--description TEXT] [--duration MINUTES] [--tag NAME]`
+- `gm tasks create --title TEXT [--due ISO] [--priority 0-4] [--description TEXT]`
+  `  [--duration MINUTES] [--tag NAME] [--list NAME]`
   Create a new task. --duration sets estimatedDuration for AI time-blocking.
-  --tag assigns tags by name (repeatable).
+  --tag assigns tags by name (repeatable). --list assigns to a task list by name.
 
 - `gm tasks update ID [--title TEXT] [--due ISO] [--priority 0-4] [--description TEXT]`
-  `  [--duration MINUTES] [--tag NAME]`
-  Update a task. --duration sets estimatedDuration. --tag replaces tags by name (repeatable).
+  `  [--duration MINUTES] [--tag NAME] [--list NAME]`
+  Update a task. --duration sets estimatedDuration. --tag replaces tags by name
+  (repeatable). --list moves task to a list by name.
 
 - `gm tasks schedule ID --start ISO [--duration MINUTES] [--calendar-id ID] [--account-id ID]`
   Schedule a task as a linked calendar event. Fetches the task to derive
@@ -255,6 +258,19 @@ def usage() -> None:
 
 - `gm tags delete ID`
   Delete a tag.
+
+### Lists (Task Lists)
+- `gm lists list [--json]`
+  List all task lists.
+
+- `gm lists create --name TEXT [--color HEX]`
+  Create a task list.
+
+- `gm lists update ID [--name TEXT] [--color HEX]`
+  Update a task list.
+
+- `gm lists delete ID`
+  Delete a task list.
 
 ### Providers
 - `gm providers [--json]`
