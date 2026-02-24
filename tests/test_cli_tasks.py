@@ -127,6 +127,14 @@ class TestTasksGet:
         data = json.loads(result.output)
         assert "id" in data
 
+    def test_get_converts_html_description_to_markdown(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "get", "task-1", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        desc = data["description"]
+        assert "<ul>" not in desc
+        assert "check tests" in desc
+
 
 class TestTasksCreate:
     def test_create(self, runner: CliRunner, mock_client: MorgenClient) -> None:
@@ -356,7 +364,7 @@ class TestTasksSchedule:
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert data["title"] == "Found item"
+        assert data["title"] == "Review PR"
         meta = data.get("morgen.so:metadata", {})
         assert meta.get("taskId") == "task-1"
 

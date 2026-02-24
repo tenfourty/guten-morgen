@@ -19,7 +19,7 @@ import click
 from guten_morgen.config import load_settings
 from guten_morgen.errors import MorgenError, output_error
 from guten_morgen.groups import CalendarFilter, load_morgen_config, resolve_filter
-from guten_morgen.markup import markdown_to_html
+from guten_morgen.markup import html_to_markdown, markdown_to_html
 from guten_morgen.output import render
 
 # ---------------------------------------------------------------------------
@@ -1145,6 +1145,9 @@ def tasks_get(
     try:
         client = _get_client(fmt)
         data = client.get_task(task_id).model_dump()
+        desc = data.get("description")
+        if desc is not None:
+            data["description"] = html_to_markdown(desc)
         if response_format == "concise" and not fields:
             fields = TASK_CONCISE_FIELDS
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr)
