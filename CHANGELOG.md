@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.7.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.6.2...guten-morgen-v0.7.0) (2026-02-24)
+
+
+### Features
+
+* **cli:** add --list filter on tasks list + list_name enrichment ([ab61bea](https://github.com/tenfourty/guten-morgen/commit/ab61beadc6b64048b34690ab9daf9f276786002d))
+* **cli:** add --list option to tasks create and update ([4ac614a](https://github.com/tenfourty/guten-morgen/commit/4ac614a98fe6ae5fae44358fb5c6f82571a19f1d))
+* **cli:** add gm lists group (list, create, update, delete) ([e631d7c](https://github.com/tenfourty/guten-morgen/commit/e631d7cea255a17d17841239c0d70bbef134696f))
+* **client:** add list_task_lists via v2 API ([a85c09b](https://github.com/tenfourty/guten-morgen/commit/a85c09b0405b5e68fbdaa60bce3aacc9ce097b70))
+* **client:** add task list create/update/delete via v2 API ([473da45](https://github.com/tenfourty/guten-morgen/commit/473da45d8921a64ab1ce95451fb49f1d614db9ef))
+* **models:** add TaskList model for v2 task lists API ([159135b](https://github.com/tenfourty/guten-morgen/commit/159135b4c992347a5d2e2ed83c8bd1482bc359bd))
+
+
+### Documentation
+
+* add gm lists list to agent startup commands ([8d0ae74](https://github.com/tenfourty/guten-morgen/commit/8d0ae74ce194f931c614cace1c0280f13d18a5e5))
+* add task lists commands and --list option to usage ([7145394](https://github.com/tenfourty/guten-morgen/commit/7145394f63522545fe2014ae8d57ded6237fe6a9))
+* add task lists feature design ([50ed3b0](https://github.com/tenfourty/guten-morgen/commit/50ed3b0a9fc319e00f14ca18e547cf0a4eea44f6))
+* add task lists implementation plan ([0256b21](https://github.com/tenfourty/guten-morgen/commit/0256b2188c9f79eb8cda1534be56bc018f04f8a4))
+
 ## [0.6.2](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.6.1...guten-morgen-v0.6.2) (2026-02-23)
 
 
