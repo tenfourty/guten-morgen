@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.8.0...guten-morgen-v0.8.1) (2026-02-24)
+
+
+### Bug Fixes
+
+* **markup:** wrap li content in p tags for Morgen TipTap editor ([3ea158a](https://github.com/tenfourty/guten-morgen/commit/3ea158a5f0f8e019cc8536086227445a8edbf20c))
+
 ## [0.8.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.7.0...guten-morgen-v0.8.0) (2026-02-24)
 
 

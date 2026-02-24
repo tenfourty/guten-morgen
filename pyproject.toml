@@ -1,6 +1,6 @@
 [project]
 name = "guten-morgen"
-version = "0.8.0"
+version = "0.8.1"
 description = "CLI for Morgen calendar and task management — optimised for LLM consumption"
 readme = "README.md"
 license = {text = "Apache-2.0"}
