@@ -71,6 +71,15 @@ class TestUsage:
         # Scenarios section
         assert "Morning Triage" in result.output or "Scenario" in result.output
 
+    def test_contains_lists_commands(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["usage"])
+        assert result.exit_code == 0
+        assert "gm lists list" in result.output
+        assert "gm lists create" in result.output
+        assert "gm lists update" in result.output
+        assert "gm lists delete" in result.output
+        assert "--list" in result.output
+
     def test_shows_connected_task_sources(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """usage dynamically discovers and shows connected task sources."""
         result = runner.invoke(cli, ["usage"])
