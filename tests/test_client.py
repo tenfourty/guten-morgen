@@ -338,6 +338,36 @@ class TestRetryWithBackoff:
             client._request("GET", "/test")
 
 
+class TestBearerAuth:
+    def test_uses_bearer_header_when_available(self) -> None:
+        """Client uses Bearer auth when bearer_token is set."""
+        requests_seen: list[httpx.Request] = []
+
+        def capture_handler(request: httpx.Request) -> httpx.Response:
+            requests_seen.append(request)
+            return httpx.Response(200, json={"data": {"tags": []}})
+
+        transport = httpx.MockTransport(capture_handler)
+        settings = Settings(api_key="api-key", bearer_token="my-bearer")
+        client = MorgenClient(settings, transport=transport)
+        client._request("GET", "/tags/list")
+        assert requests_seen[0].headers["authorization"] == "Bearer my-bearer"
+
+    def test_uses_apikey_when_no_bearer(self) -> None:
+        """Client uses ApiKey auth when bearer_token is None."""
+        requests_seen: list[httpx.Request] = []
+
+        def capture_handler(request: httpx.Request) -> httpx.Response:
+            requests_seen.append(request)
+            return httpx.Response(200, json={"data": {"tags": []}})
+
+        transport = httpx.MockTransport(capture_handler)
+        settings = Settings(api_key="api-key", bearer_token=None)
+        client = MorgenClient(settings, transport=transport)
+        client._request("GET", "/tags/list")
+        assert requests_seen[0].headers["authorization"] == "ApiKey api-key"
+
+
 class TestListTaskLists:
     def test_returns_all_lists(self, client: MorgenClient) -> None:
         lists = client.list_task_lists()

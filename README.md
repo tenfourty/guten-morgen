@@ -12,6 +12,7 @@ All commands emit structured JSON, making it easy to pipe into scripts, `jq`, or
 - **Tag lifecycle** — model task stages (Active, Waiting-On, Someday) with tags
 - **LLM-friendly output** — `--json`, `--response-format concise`, `--jq`, `--fields` for token-efficient responses
 - **Smart caching** — TTL-based cache with `cache clear` and `cache stats`
+- **Bearer token auth** — auto-detects Morgen desktop app for 5x higher rate limits
 
 ## Installation
 
@@ -55,7 +56,9 @@ All methods expose both `gm` (short) and `guten-morgen` (long) commands.
 
    Config discovery: `$GM_CONFIG` → `guten-morgen.toml` (walks up from CWD) → `~/.config/guten-morgen/config.toml`
 
-3. **Verify it works:**
+3. **(Optional) Install [Morgen desktop app](https://morgen.so)** for 5x higher API rate limits. `gm` auto-detects the desktop app's auth token and uses it when available. No configuration needed.
+
+4. **Verify it works:**
    ```bash
    gm accounts
    gm today --json
@@ -144,6 +147,7 @@ src/guten_morgen/
   output.py     Render pipeline (table/json/jsonl/csv + fields + jq)
   errors.py     Exception hierarchy -> structured JSON on stderr
   config.py     XDG config discovery + API settings
+  auth.py       Bearer token auth via Morgen desktop app
   time_utils.py Date range helpers
   cache.py      TTL-based request cache
   groups.py     Calendar group filtering from guten-morgen.toml
