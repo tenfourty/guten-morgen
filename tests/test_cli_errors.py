@@ -96,3 +96,10 @@ class TestErrorHandling:
         err = json.loads(result.output)
         assert "suggestions" in err["error"]
         assert any("MORGEN_API_KEY" in s for s in err["error"]["suggestions"])
+
+
+class TestRateLimitSuggestions:
+    def test_includes_bearer_suggestion(self) -> None:
+        err = RateLimitError("rate limited")
+        suggestions_text = " ".join(err.suggestions)
+        assert "Morgen desktop" in suggestions_text or "bearer" in suggestions_text

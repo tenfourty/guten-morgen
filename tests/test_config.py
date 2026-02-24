@@ -162,3 +162,40 @@ class TestLoadSettings:
         monkeypatch.setenv("MORGEN_TIMEOUT", "60.0")
         settings = load_settings()
         assert settings.timeout == 60.0
+
+
+class TestBearerTokenInSettings:
+    def test_settings_has_bearer_token_field(self) -> None:
+        s = Settings(api_key="test-key")
+        assert s.bearer_token is None
+
+    def test_settings_accepts_bearer_token(self) -> None:
+        s = Settings(api_key="test-key", bearer_token="my-bearer")
+        assert s.bearer_token == "my-bearer"
+
+    def test_load_settings_populates_bearer_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from unittest.mock import patch
+
+        monkeypatch.setenv("MORGEN_API_KEY", "test-key")
+        with patch("guten_morgen.auth.get_bearer_token", return_value="desktop-token"):
+            settings = load_settings()
+        assert settings.bearer_token == "desktop-token"
+        assert settings.api_key == "test-key"
+
+    def test_load_settings_bearer_none_when_unavailable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from unittest.mock import patch
+
+        monkeypatch.setenv("MORGEN_API_KEY", "test-key")
+        with patch("guten_morgen.auth.get_bearer_token", return_value=None):
+            settings = load_settings()
+        assert settings.bearer_token is None
+
+    def test_morgen_bearer_token_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """$MORGEN_BEARER_TOKEN env var overrides desktop app token."""
+        from unittest.mock import patch
+
+        monkeypatch.setenv("MORGEN_API_KEY", "test-key")
+        monkeypatch.setenv("MORGEN_BEARER_TOKEN", "env-bearer")
+        with patch("guten_morgen.auth.get_bearer_token", return_value="desktop-token"):
+            settings = load_settings()
+        assert settings.bearer_token == "env-bearer"

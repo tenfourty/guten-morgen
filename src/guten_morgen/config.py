@@ -76,6 +76,12 @@ class Settings:
     base_url: str = "https://api.morgen.so/v3"
     timeout: float = 30.0
     max_retries: int = 2
+    bearer_token: str | None = None
+
+
+def _default_cache_dir() -> Path:
+    """Return default cache directory for guten-morgen."""
+    return Path.home() / ".cache" / "guten-morgen"
 
 
 def load_settings() -> Settings:
@@ -95,8 +101,16 @@ def load_settings() -> Settings:
             ],
         )
 
+    # Bearer token: env var override > desktop app discovery
+    bearer_token = os.environ.get("MORGEN_BEARER_TOKEN")
+    if not bearer_token:
+        from guten_morgen.auth import get_bearer_token
+
+        bearer_token = get_bearer_token(_default_cache_dir())
+
     return Settings(
         api_key=api_key,
         base_url=os.environ.get("MORGEN_BASE_URL", "https://api.morgen.so/v3"),
         timeout=float(os.environ.get("MORGEN_TIMEOUT", "30.0")),
+        bearer_token=bearer_token or None,
     )

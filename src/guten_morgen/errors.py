@@ -35,7 +35,8 @@ class RateLimitError(MorgenError):
     error_type = "rate_limit_error"
     suggestions = [
         "Wait for the Retry-After period before retrying",
-        "Reduce request frequency (100 pts / 15 min)",
+        "Reduce request frequency",
+        "Install Morgen desktop app for 5x higher rate limits (bearer token auth)",
     ]
 
 

@@ -96,9 +96,14 @@ class MorgenClient:
         self._cache = cache
         self._settings = settings
         self._on_retry = on_retry
+        if settings.bearer_token:
+            auth_header = f"Bearer {settings.bearer_token}"
+        else:
+            auth_header = f"ApiKey {settings.api_key}"
+
         kwargs: dict[str, Any] = {
             "base_url": settings.base_url,
-            "headers": {"Authorization": f"ApiKey {settings.api_key}"},
+            "headers": {"Authorization": auth_header},
             "timeout": settings.timeout,
         }
         if transport is not None:
