@@ -13,6 +13,7 @@ gm groups --json                                      # configured calendar grou
 gm today --json --response-format concise             # today's calendar + tasks
 gm tasks list --status open --json --response-format concise  # all open tasks
 gm tags list --json                                   # available tags (Right-Now, Active, etc.)
+gm lists list --json --response-format concise        # task lists (Inbox, Run - Work, etc.)
 ```
 
 ## Setup
