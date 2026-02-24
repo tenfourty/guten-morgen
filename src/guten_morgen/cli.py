@@ -633,6 +633,20 @@ def _normalize_due(due: str) -> str:
     return due[:19]
 
 
+def _normalize_earliest_start(val: str) -> str:
+    """Normalize earliest start to 19-char ISO 8601 (YYYY-MM-DDTHH:MM:SS).
+
+    Same normalization as _normalize_due but date-only defaults to T00:00:00.
+    """
+    if val.endswith("Z"):
+        val = val[:-1]
+    if "+" in val[10:]:
+        val = val[: val.index("+", 10)]
+    if len(val) == 10:
+        val += "T00:00:00"
+    return val[:19]
+
+
 def _resolve_tag_names(client: MorgenClient, names: tuple[str, ...]) -> list[str]:
     """Resolve tag names to IDs. Case-insensitive matching."""
     all_tags = client.list_tags()
@@ -1137,11 +1151,12 @@ def tasks_get(
 @tasks.command("create")
 @click.option("--title", required=True, help="Task title.")
 @click.option("--due", default=None, help="Due datetime (ISO 8601).")
-@click.option("--priority", default=None, type=int, help="Priority (0-4).")
+@click.option("--priority", default=None, type=int, help="Priority (0-9).")
 @click.option("--description", default=None, help="Task description.")
 @click.option("--duration", default=None, type=int, help="Estimated duration in minutes.")
 @click.option("--tag", "tag_names", multiple=True, help="Tag name (repeatable). Resolved to IDs.")
 @click.option("--list", "list_name", default=None, help="Task list name. Resolved to ID.")
+@click.option("--earliest-start", default=None, help="Earliest start datetime (ISO 8601).")
 def tasks_create(
     title: str,
     due: str | None,
@@ -1150,6 +1165,7 @@ def tasks_create(
     duration: int | None,
     tag_names: tuple[str, ...],
     list_name: str | None,
+    earliest_start: str | None,
 ) -> None:
     """Create a new task."""
     try:
@@ -1167,6 +1183,8 @@ def tasks_create(
             task_data["tags"] = _resolve_tag_names(client, tag_names)
         if list_name:
             task_data["taskListId"] = _resolve_list_name(client, list_name)
+        if earliest_start:
+            task_data["earliestStart"] = _normalize_earliest_start(earliest_start)
         result = client.create_task(task_data)
         output = result.model_dump(exclude_none=True) if result else {"status": "created"}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
@@ -1178,11 +1196,12 @@ def tasks_create(
 @click.argument("task_id")
 @click.option("--title", default=None, help="New title.")
 @click.option("--due", default=None, help="New due datetime (ISO 8601).")
-@click.option("--priority", default=None, type=int, help="New priority (0-4).")
+@click.option("--priority", default=None, type=int, help="New priority (0-9).")
 @click.option("--description", default=None, help="New description.")
 @click.option("--duration", default=None, type=int, help="Estimated duration in minutes.")
 @click.option("--tag", "tag_names", multiple=True, help="Tag name (repeatable). Replaces existing tags.")
 @click.option("--list", "list_name", default=None, help="Task list name. Resolved to ID.")
+@click.option("--earliest-start", default=None, help="Earliest start datetime (ISO 8601).")
 def tasks_update(
     task_id: str,
     title: str | None,
@@ -1192,6 +1211,7 @@ def tasks_update(
     duration: int | None,
     tag_names: tuple[str, ...],
     list_name: str | None,
+    earliest_start: str | None,
 ) -> None:
     """Update a task."""
     try:
@@ -1211,6 +1231,8 @@ def tasks_update(
             task_data["tags"] = _resolve_tag_names(client, tag_names)
         if list_name:
             task_data["taskListId"] = _resolve_list_name(client, list_name)
+        if earliest_start:
+            task_data["earliestStart"] = _normalize_earliest_start(earliest_start)
         result = client.update_task(task_data)
         output = result.model_dump(exclude_none=True) if result else {"status": "updated", "id": task_id}
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
