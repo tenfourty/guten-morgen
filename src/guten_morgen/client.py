@@ -399,19 +399,26 @@ class MorgenClient:
 
         # Morgen-native tasks — Task model defaults integrationId="morgen"
         if source is None or source == "morgen":
-            params: dict[str, Any] = {"limit": limit}
-            if updated_after:
-                params["updatedAfter"] = updated_after
-            data = self._request("GET", "/tasks/list", params=params)
-            # Inline raw-dict extraction (Morgen wraps as {"data": {"tasks": [...]}})
-            if isinstance(data, dict):
-                inner = data.get("data", data)
-                if isinstance(inner, dict):
-                    all_tasks_raw.extend(inner.get("tasks", []))
-                elif isinstance(inner, list):
-                    all_tasks_raw.extend(inner)
-            elif isinstance(data, list):
-                all_tasks_raw.extend(data)
+            cache_key = "tasks/morgen"
+            cached_morgen = self._cache_get(cache_key)
+            if cached_morgen is not None:
+                all_tasks_raw.extend(cast("list[dict[str, Any]]", cached_morgen))
+            else:
+                params: dict[str, Any] = {"limit": limit}
+                if updated_after:
+                    params["updatedAfter"] = updated_after
+                data = self._request("GET", "/tasks/list", params=params)
+                morgen_tasks: list[dict[str, Any]] = []
+                if isinstance(data, dict):
+                    inner = data.get("data", data)
+                    if isinstance(inner, dict):
+                        morgen_tasks = inner.get("tasks", [])
+                    elif isinstance(inner, list):
+                        morgen_tasks = inner
+                elif isinstance(data, list):
+                    morgen_tasks = data
+                self._cache_set(cache_key, morgen_tasks, TTL_TASKS)
+                all_tasks_raw.extend(morgen_tasks)
 
         # External task sources
         task_accounts = self.list_task_accounts()
@@ -591,7 +598,9 @@ class MorgenClient:
         result = self._request("POST", url, json=data)
         self._cache_invalidate("taskLists")
         if isinstance(result, dict):
-            return TaskList.model_validate(result)
+            # API response may omit fields we sent (e.g. name) — merge them back
+            merged = {**data, **result}
+            return TaskList.model_validate(merged)
         return None
 
     def update_task_list(self, data: dict[str, Any]) -> TaskList | None:

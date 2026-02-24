@@ -44,6 +44,24 @@ class TestCachedListTasks:
         assert cache.get("tasks/list") is not None
 
 
+class TestCachedListAllTasks:
+    def test_caches_morgen_native_tasks(self, tmp_path: Path) -> None:
+        client, cache = _make_client(tmp_path)
+        client.list_all_tasks(source="morgen")
+        assert cache.get("tasks/morgen") is not None
+
+    def test_second_call_returns_cached_morgen_tasks(self, tmp_path: Path) -> None:
+        client, cache = _make_client(tmp_path)
+        result1 = client.list_all_tasks(source="morgen")
+        count1 = len(result1.tasks)
+        # Replace cache with a single fake task
+        cache.set("tasks/morgen", [{"id": "cached-task", "title": "Cached"}], ttl=3600)
+        result2 = client.list_all_tasks(source="morgen")
+        assert len(result2.tasks) == 1
+        assert result2.tasks[0].id == "cached-task"
+        assert count1 != 1  # original had more tasks
+
+
 class TestCachedGetTask:
     def test_caches_single_task(self, tmp_path: Path) -> None:
         client, cache = _make_client(tmp_path)
@@ -74,6 +92,13 @@ class TestCacheInvalidationOnWrite:
         client.create_event({"title": "New", "accountId": "acc-1", "calendarId": "cal-1"})
         events_keys = [k for k in cache._meta if k.startswith("events")]
         assert len(events_keys) == 0
+
+    def test_create_task_invalidates_morgen_cache(self, tmp_path: Path) -> None:
+        client, cache = _make_client(tmp_path)
+        client.list_all_tasks(source="morgen")
+        assert cache.get("tasks/morgen") is not None
+        client.create_task({"title": "New"})
+        assert cache.get("tasks/morgen") is None
 
     def test_create_tag_invalidates_tags_cache(self, tmp_path: Path) -> None:
         client, cache = _make_client(tmp_path)
