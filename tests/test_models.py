@@ -288,3 +288,55 @@ class TestTaskList:
         data = {"id": "test", "name": "Test", "myRights": {"mayAdmin": True}, "accountId": None}
         tl = TaskList.model_validate(data)
         assert tl.id == "test"
+
+
+class TestTaskNewFields:
+    def test_position_field(self) -> None:
+        data = {"id": "t1", "title": "Test", "position": 1771922554998}
+        task = Task.model_validate(data)
+        assert task.position == 1771922554998
+
+    def test_earliest_start_field(self) -> None:
+        data = {"id": "t1", "title": "Test", "earliestStart": "2026-02-25T00:00:00"}
+        task = Task.model_validate(data)
+        assert task.earliestStart == "2026-02-25T00:00:00"
+
+    def test_description_content_type_field(self) -> None:
+        data = {"id": "t1", "title": "Test", "descriptionContentType": "text/plain"}
+        task = Task.model_validate(data)
+        assert task.descriptionContentType == "text/plain"
+
+    def test_fields_optional_default_none(self) -> None:
+        data = {"id": "t1", "title": "Test"}
+        task = Task.model_validate(data)
+        assert task.position is None
+        assert task.earliestStart is None
+        assert task.descriptionContentType is None
+
+    def test_full_api_response(self) -> None:
+        data = {
+            "@type": "Task",
+            "id": "548211d9-8b34-4265-ada9-575b22769d30",
+            "taskListId": "inbox",
+            "tags": [],
+            "title": "Test for gm1",
+            "description": "<ul><li><p>bullet</p></li></ul><p></p>",
+            "descriptionContentType": "text/plain",
+            "estimatedDuration": "PT60M",
+            "priority": 1,
+            "progress": "needs-action",
+            "earliestStart": "2026-02-25T00:00:00",
+            "position": 1771922554998,
+            "created": "2026-02-24T08:42:41Z",
+            "updated": "2026-02-24T08:43:14.547Z",
+            "integrationId": "morgen",
+        }
+        task = Task.model_validate(data)
+        assert task.position == 1771922554998
+        assert task.earliestStart == "2026-02-25T00:00:00"
+        assert task.descriptionContentType == "text/plain"
+
+    def test_priority_range_nine(self) -> None:
+        data = {"id": "t1", "title": "Test", "priority": 9}
+        task = Task.model_validate(data)
+        assert task.priority == 9
