@@ -45,6 +45,12 @@ class TestMarkdownToHtml:
         assert "<li>" in result
         assert "item one" in result
 
+    def test_wraps_li_content_in_p_for_tiptap(self) -> None:
+        md = "- item one\n- item two"
+        result = markdown_to_html(md)
+        assert "<li><p>item one</p></li>" in result
+        assert "<li><p>item two</p></li>" in result
+
     def test_converts_bold(self) -> None:
         md = "**bold text**"
         result = markdown_to_html(md)
