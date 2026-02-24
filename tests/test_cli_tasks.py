@@ -602,3 +602,13 @@ class TestTaskDescriptionMarkdown:
         data = json.loads(result.output)
         task2 = next(t for t in data if t["id"] == "task-2")
         assert task2["description"] == "Plain text note, no formatting"
+
+
+class TestTaskDescriptionMarkdownWrite:
+    def test_create_converts_markdown_to_html(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "create", "--title", "Test", "--description", "- item one\n- item two"])
+        assert result.exit_code == 0
+
+    def test_update_converts_markdown_to_html(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "update", "task-1", "--description", "**bold note**"])
+        assert result.exit_code == 0
