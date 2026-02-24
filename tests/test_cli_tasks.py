@@ -510,6 +510,26 @@ class TestTaskOccurrence:
         assert "occurrenceStart" not in data
 
 
+class TestTasksListByList:
+    def test_filter_by_list_name(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Tasks can be filtered by --list name."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--list", "Inbox"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        # All fake tasks have taskListId="inbox"
+        assert len(data) > 0
+        for t in data:
+            assert t.get("list_name") == "Inbox"
+
+    def test_filter_excludes_other_lists(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--list filter excludes tasks in other lists."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--list", "Run - Work"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        # No fake tasks are in "Run - Work"
+        assert len(data) == 0
+
+
 class TestTasksCreateWithList:
     def test_create_with_list_name(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["tasks", "create", "--title", "New task", "--list", "Run - Work"])

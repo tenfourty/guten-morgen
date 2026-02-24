@@ -181,14 +181,16 @@ def enrich_tasks(
     *,
     label_defs: list[dict[str, Any]] | None = None,
     tags: list[dict[str, Any]] | None = None,
+    task_lists: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Add source, source_id, source_url, source_status, tag_names to tasks (shallow copy).
+    """Add source, source_id, source_url, source_status, tag_names, list_name to tasks (shallow copy).
 
     Normalizes external task metadata (Linear labels, Notion properties) into
     common fields so the agent never needs to learn source-specific schemas.
     """
     defs = label_defs or []
     tag_id_to_name: dict[str, str] = {t["id"]: t["name"] for t in (tags or []) if "id" in t and "name" in t}
+    list_id_to_name: dict[str, str] = {tl["id"]: tl["name"] for tl in (task_lists or []) if "id" in tl and "name" in tl}
     enriched: list[dict[str, Any]] = []
     for task in tasks:
         t = {**task}
@@ -217,6 +219,9 @@ def enrich_tasks(
 
         # tag_names: resolve tag IDs to human-readable names
         t["tag_names"] = [tag_id_to_name[tid] for tid in t.get("tags", []) if tid in tag_id_to_name]
+
+        # list_name: resolve taskListId to human-readable name
+        t["list_name"] = list_id_to_name.get(t.get("taskListId", ""))
 
         enriched.append(t)
     return enriched
