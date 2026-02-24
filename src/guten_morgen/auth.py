@@ -98,10 +98,11 @@ def _load_cached_token(cache_dir: Path) -> tuple[str, float] | None:
 
 
 def _save_cached_token(cache_dir: Path, token: str, expires_at: float) -> None:
-    """Save bearer token to cache."""
+    """Save bearer token to cache with restricted permissions."""
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_file = cache_dir / _BEARER_CACHE_FILE
     cache_file.write_text(json.dumps({"token": token, "expires_at": expires_at}))
+    cache_file.chmod(0o600)
 
 
 def get_bearer_token(cache_dir: Path) -> str | None:
