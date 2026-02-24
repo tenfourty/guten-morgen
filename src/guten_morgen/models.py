@@ -102,6 +102,9 @@ class Task(MorgenModel):
     labels: list[dict[str, Any]] = []
     links: dict[str, Any] = {}
     occurrenceStart: str | None = None
+    position: int | None = None
+    earliestStart: str | None = None
+    descriptionContentType: str | None = None
 
 
 class TaskListResponse(MorgenModel):
