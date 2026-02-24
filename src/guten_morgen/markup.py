@@ -42,6 +42,16 @@ def _wrap_bare_li(html: str) -> str:
     )
 
 
+def _minify_html(html: str) -> str:
+    """Remove whitespace between HTML tags.
+
+    TipTap (ProseMirror) treats whitespace between block-level tags as text
+    nodes, which Morgen renders as empty bullet artifacts.  Collapsing
+    inter-tag whitespace prevents this.
+    """
+    return re.sub(r">\s+<", "><", html)
+
+
 def markdown_to_html(md: str | None) -> str | None:
     """Convert markdown to HTML."""
     if md is None:
@@ -51,4 +61,4 @@ def markdown_to_html(md: str | None) -> str | None:
     import markdown as md_lib  # type: ignore[import-untyped]
 
     result: str = md_lib.markdown(md)
-    return _wrap_bare_li(result)
+    return _minify_html(_wrap_bare_li(result))
