@@ -65,6 +65,18 @@ class TestMarkdownToHtml:
         result = markdown_to_html(None)
         assert result is None
 
+    def test_minifies_whitespace_between_tags(self) -> None:
+        """TipTap treats inter-tag whitespace as text nodes → empty bullets."""
+        md = "- a\n- b"
+        result = markdown_to_html(md)
+        # No whitespace between closing and opening tags
+        assert ">\n<" not in result
+        assert "> <" not in result
+        # Tags are adjacent
+        assert "<ul><li>" in result
+        assert "</li><li>" in result
+        assert "</li></ul>" in result
+
     def test_empty_string(self) -> None:
         result = markdown_to_html("")
         assert result == ""
