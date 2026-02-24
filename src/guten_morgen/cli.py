@@ -939,8 +939,19 @@ def availability(
 # tasks
 # ---------------------------------------------------------------------------
 
-TASK_COLUMNS = ["id", "title", "progress", "priority", "due", "tag_names", "source", "source_id", "source_status"]
-TASK_CONCISE_FIELDS = ["id", "title", "progress", "due", "tag_names", "source"]
+TASK_COLUMNS = [
+    "id",
+    "title",
+    "progress",
+    "priority",
+    "due",
+    "list_name",
+    "tag_names",
+    "source",
+    "source_id",
+    "source_status",
+]
+TASK_CONCISE_FIELDS = ["id", "title", "progress", "due", "list_name", "tag_names", "source"]
 
 
 @cli.group()
@@ -963,6 +974,7 @@ def tasks() -> None:
 @click.option("--priority", "priority_filter", default=None, type=int, help="Filter by priority level (0-4).")
 @click.option("--source", default=None, help="Filter by task source (morgen, linear, notion, etc.).")
 @click.option("--tag", "tag_names", multiple=True, help="Filter by tag name (repeatable, OR logic).")
+@click.option("--list", "list_name", default=None, help="Filter by task list name.")
 @click.option("--group-by-source", is_flag=True, default=False, help="Group output by task source.")
 @click.option("--updated-after", default=None, help="Only tasks updated after this datetime (ISO 8601).")
 @output_options
@@ -975,6 +987,7 @@ def tasks_list(
     priority_filter: int | None,
     source: str | None,
     tag_names: tuple[str, ...],
+    list_name: str | None,
     group_by_source: bool,
     updated_after: str | None,
     fmt: str,
@@ -991,6 +1004,7 @@ def tasks_list(
 
         # Fetch tags for enrichment and filtering (cached)
         all_tags = [t.model_dump() for t in client.list_tags()]
+        all_task_lists = [tl.model_dump() for tl in client.list_task_lists()]
 
         # Resolve tag name filter to IDs (OR logic: match any)
         tag_id_filter: set[str] = set()
@@ -1001,10 +1015,15 @@ def tasks_list(
                 if tid:
                     tag_id_filter.add(tid)
 
-        # Enrich tasks with normalized source metadata + tag names
+        # Resolve list name filter to ID
+        list_id_filter: str | None = None
+        if list_name:
+            list_id_filter = _resolve_list_name(client, list_name)
+
+        # Enrich tasks with normalized source metadata + tag names + list_name
         from guten_morgen.output import enrich_tasks
 
-        data = enrich_tasks(data, label_defs=label_defs, tags=all_tags)
+        data = enrich_tasks(data, label_defs=label_defs, tags=all_tags, task_lists=all_task_lists)
 
         # Apply client-side filters
         if overdue:
@@ -1042,6 +1061,10 @@ def tasks_list(
                 task_tags = set(t.get("tags", []))
                 if not task_tags & tag_id_filter:
                     continue
+
+            # List filter
+            if list_id_filter and t.get("taskListId") != list_id_filter:
+                continue
 
             filtered.append(t)
 
@@ -1586,10 +1609,12 @@ def _combined_view(
             from guten_morgen.output import enrich_tasks
 
             all_tags = [t.model_dump() for t in client.list_tags()]
+            all_task_lists = [tl.model_dump() for tl in client.list_task_lists()]
             tasks_data = enrich_tasks(
                 [t.model_dump() for t in tasks_result.tasks],
                 label_defs=[ld.model_dump() for ld in tasks_result.labelDefs],
                 tags=all_tags,
+                task_lists=all_task_lists,
             )
             scheduled: list[dict[str, Any]] = []
             overdue: list[dict[str, Any]] = []
