@@ -562,3 +562,23 @@ class TestTasksDelete:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["status"] == "deleted"
+
+
+class TestTasksCreateWithEarliestStart:
+    def test_create_with_earliest_start_date(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "create", "--title", "New task", "--earliest-start", "2026-03-01"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data.get("earliestStart") is not None
+
+    def test_create_with_earliest_start_datetime(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(
+            cli, ["tasks", "create", "--title", "New task", "--earliest-start", "2026-03-01T09:00:00"]
+        )
+        assert result.exit_code == 0
+
+
+class TestTasksUpdateWithEarliestStart:
+    def test_update_with_earliest_start(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "update", "task-1", "--earliest-start", "2026-03-15"])
+        assert result.exit_code == 0
