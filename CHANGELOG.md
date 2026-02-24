@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.9.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.8.1...guten-morgen-v0.9.0) (2026-02-24)
+
+
+### Features
+
+* **auth:** add bearer token auth via Morgen desktop app ([7235ba2](https://github.com/tenfourty/guten-morgen/commit/7235ba2dc39690c79f384d95c8aa7b8889125f60))
+* **auth:** add Morgen desktop config reader ([1376bbf](https://github.com/tenfourty/guten-morgen/commit/1376bbfb2b08d81b195d430227adc3c71ec3d7a5))
+* **auth:** add token refresh and caching ([9892070](https://github.com/tenfourty/guten-morgen/commit/9892070a4e4aea36fbbe261d209c584abfe6b7d2))
+* **client:** use bearer token auth when available ([a7f884f](https://github.com/tenfourty/guten-morgen/commit/a7f884fa87a7a080b55945c0616fe9b3aa99b027))
+* **config:** wire bearer token into Settings ([8f459b3](https://github.com/tenfourty/guten-morgen/commit/8f459b3d4dfa64158d73bee17b06227006d99fb7))
+
+
+### Bug Fixes
+
+* **auth:** restrict bearer cache file to owner-only permissions (0600) ([9949302](https://github.com/tenfourty/guten-morgen/commit/99493022b37d89adeb8b5e44f0810bc1fd5c72df))
+* **errors:** add bearer token suggestion to rate limit error ([f5e63bf](https://github.com/tenfourty/guten-morgen/commit/f5e63bf2c3b3bbb8cd6ef352f6078c82ee59a965))
+* **markup:** minify HTML to prevent TipTap empty bullet artifacts ([659e864](https://github.com/tenfourty/guten-morgen/commit/659e864a5c80bdda86fd7aa8a6167e3217279a42))
+* **markup:** minify HTML to prevent TipTap empty bullet artifacts ([1ba2a55](https://github.com/tenfourty/guten-morgen/commit/1ba2a55e2b8761efe109fdd1b979a1ba282f4b15))
+
+
+### Documentation
+
+* add bearer token auth to README and CLAUDE.md ([e0696d5](https://github.com/tenfourty/guten-morgen/commit/e0696d5e0730adafe9d19536688a0891df5a1c86))
+
 ## [0.8.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.8.0...guten-morgen-v0.8.1) (2026-02-24)
 
 
