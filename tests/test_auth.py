@@ -139,6 +139,13 @@ class TestTokenCache:
         cache_file.write_text("not json")
         assert _load_cached_token(tmp_path) is None
 
+    def test_cache_file_has_restricted_permissions(self, tmp_path: Path) -> None:
+        """Cache file is owner-only (0600) to protect the token."""
+        _save_cached_token(tmp_path, "secret-token", time.time() + 3600)
+        cache_file = tmp_path / "_bearer.json"
+        mode = cache_file.stat().st_mode & 0o777
+        assert mode == 0o600
+
 
 class TestGetBearerToken:
     def test_returns_cached_token(self, tmp_path: Path) -> None:
