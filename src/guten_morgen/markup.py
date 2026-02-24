@@ -28,6 +28,20 @@ def html_to_markdown(html: str | None) -> str | None:
     return result.strip()
 
 
+def _wrap_bare_li(html: str) -> str:
+    """Wrap bare <li> content in <p> tags for Morgen's TipTap editor.
+
+    TipTap expects ``<li><p>text</p></li>``; bare ``<li>text</li>``
+    renders with empty bullet artifacts.
+    """
+    return re.sub(
+        r"<li>(?!<p>)(.*?)</li>",
+        r"<li><p>\1</p></li>",
+        html,
+        flags=re.DOTALL,
+    )
+
+
 def markdown_to_html(md: str | None) -> str | None:
     """Convert markdown to HTML."""
     if md is None:
@@ -37,4 +51,4 @@ def markdown_to_html(md: str | None) -> str | None:
     import markdown as md_lib  # type: ignore[import-untyped]
 
     result: str = md_lib.markdown(md)
-    return result
+    return _wrap_bare_li(result)
