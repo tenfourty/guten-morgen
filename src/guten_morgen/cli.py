@@ -212,20 +212,23 @@ def usage() -> None:
   output grouped by source. --updated-after returns only tasks modified
   since the given timestamp. --list filters by task list name (case-insensitive).
   Tasks are enriched with source, source_id, source_url, source_status,
-  tag_names, list_name fields.
+  tag_names, list_name fields. Descriptions are converted from HTML to markdown.
 
 - `gm tasks get ID [--json]`
   Get a single task by ID.
 
-- `gm tasks create --title TEXT [--due ISO] [--priority 0-4] [--description TEXT]`
-  `  [--duration MINUTES] [--tag NAME] [--list NAME]`
+- `gm tasks create --title TEXT [--due ISO] [--priority 0-9] [--description MARKDOWN]`
+  `  [--duration MINUTES] [--tag NAME] [--list NAME] [--earliest-start ISO]`
   Create a new task. --duration sets estimatedDuration for AI time-blocking.
   --tag assigns tags by name (repeatable). --list assigns to a task list by name.
+  --earliest-start sets the "not before" date. Descriptions accept markdown
+  (converted to HTML for the API).
 
-- `gm tasks update ID [--title TEXT] [--due ISO] [--priority 0-4] [--description TEXT]`
-  `  [--duration MINUTES] [--tag NAME] [--list NAME]`
+- `gm tasks update ID [--title TEXT] [--due ISO] [--priority 0-9] [--description MARKDOWN]`
+  `  [--duration MINUTES] [--tag NAME] [--list NAME] [--earliest-start ISO]`
   Update a task. --duration sets estimatedDuration. --tag replaces tags by name
-  (repeatable). --list moves task to a list by name.
+  (repeatable). --list moves task to a list by name. --earliest-start sets the
+  "not before" date. Descriptions accept markdown (converted to HTML for the API).
 
 - `gm tasks schedule ID --start ISO [--duration MINUTES] [--calendar-id ID] [--account-id ID]`
   Schedule a task as a linked calendar event. Fetches the task to derive

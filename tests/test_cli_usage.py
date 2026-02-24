@@ -80,6 +80,13 @@ class TestUsage:
         assert "gm lists delete" in result.output
         assert "--list" in result.output
 
+    def test_contains_task_field_updates(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["usage"])
+        assert result.exit_code == 0
+        assert "--earliest-start" in result.output
+        assert "0-9" in result.output
+        assert "markdown" in result.output.lower()
+
     def test_shows_connected_task_sources(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """usage dynamically discovers and shows connected task sources."""
         result = runner.invoke(cli, ["usage"])
