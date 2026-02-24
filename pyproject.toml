@@ -27,6 +27,8 @@ dependencies = [
     "rich>=13.0",
     "jq>=1.8",
     "tomli>=2.0; python_version < '3.11'",
+    "markdownify>=0.14",
+    "markdown>=3.7",
 ]
 
 [project.optional-dependencies]
