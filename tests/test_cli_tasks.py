@@ -582,3 +582,23 @@ class TestTasksUpdateWithEarliestStart:
     def test_update_with_earliest_start(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["tasks", "update", "task-1", "--earliest-start", "2026-03-15"])
         assert result.exit_code == 0
+
+
+class TestTaskDescriptionMarkdown:
+    def test_html_description_converted_to_markdown(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """HTML descriptions are converted to markdown in output."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--status", "open"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        task1 = next(t for t in data if t["id"] == "task-1")
+        assert "<ul>" not in task1["description"]
+        assert "<li>" not in task1["description"]
+        assert "check tests" in task1["description"]
+
+    def test_plain_text_description_unchanged(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Plain text descriptions pass through without conversion."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--status", "open"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        task2 = next(t for t in data if t["id"] == "task-2")
+        assert task2["description"] == "Plain text note, no formatting"
