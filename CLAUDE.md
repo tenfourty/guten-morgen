@@ -52,6 +52,7 @@ src/guten_morgen/
   output.py     Render pipeline (table/json/jsonl/csv + fields + jq)
   errors.py     Exception hierarchy → structured JSON on stderr
   config.py     XDG config discovery + API settings
+  auth.py       Bearer token auth via Morgen desktop app
   time_utils.py Date range helpers
   cache.py      TTL-based request cache
   groups.py     Calendar group filtering from guten-morgen.toml
@@ -67,6 +68,7 @@ src/guten_morgen/
 
 ## Gotchas
 
+- **Auth priority** — Bearer token (Morgen desktop app) → API key. Bearer gives 500pts/15min (1pt per list call) vs API key's 100pts/15min (10pt per list). Auto-detected from `~/Library/Application Support/Morgen/config.json`. Override with `$MORGEN_BEARER_TOKEN`. Cache at `~/.cache/guten-morgen/_bearer.json`.
 - **Config discovery** — `$GM_CONFIG` → `guten-morgen.toml` (walk up from CWD) → `~/.config/guten-morgen/config.toml`. Run `gm init` for first-time setup.
 - **Calendar groups** — configured in `guten-morgen.toml` under `[groups.*]`. Use `--group all` to bypass filtering.
 - **`morgen.so:metadata`** — Event model aliases this. Use `model_dump(by_alias=True)` for events
