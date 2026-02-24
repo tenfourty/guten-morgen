@@ -19,6 +19,7 @@ import click
 from guten_morgen.config import load_settings
 from guten_morgen.errors import MorgenError, output_error
 from guten_morgen.groups import CalendarFilter, load_morgen_config, resolve_filter
+from guten_morgen.markup import markdown_to_html
 from guten_morgen.output import render
 
 # ---------------------------------------------------------------------------
@@ -1176,7 +1177,7 @@ def tasks_create(
         if priority is not None:
             task_data["priority"] = priority
         if description:
-            task_data["description"] = description
+            task_data["description"] = markdown_to_html(description) or description
         if duration is not None:
             task_data["estimatedDuration"] = f"PT{duration}M"
         if tag_names:
@@ -1224,7 +1225,7 @@ def tasks_update(
         if priority is not None:
             task_data["priority"] = priority
         if description is not None:
-            task_data["description"] = description
+            task_data["description"] = markdown_to_html(description) or description
         if duration is not None:
             task_data["estimatedDuration"] = f"PT{duration}M"
         if tag_names:
