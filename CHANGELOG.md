@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.8.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.7.0...guten-morgen-v0.8.0) (2026-02-24)
+
+
+### Features
+
+* add markup module for markdown/HTML conversion ([89f9faf](https://github.com/tenfourty/guten-morgen/commit/89f9faf454ccd8af58150fd26bf810f225501486))
+* **cli:** add --earliest-start option and fix priority range to 0-9 ([ba005b0](https://github.com/tenfourty/guten-morgen/commit/ba005b0b10db4f52c05085a4b44e6f0e8bac7a15))
+* **cli:** convert markdown descriptions to HTML on write ([22e8275](https://github.com/tenfourty/guten-morgen/commit/22e8275712d5330981352445ccd07ceca7a8e35f))
+* **models:** add position, earliestStart, descriptionContentType to Task ([6023eaa](https://github.com/tenfourty/guten-morgen/commit/6023eaa58e8ea7a475b83bb0bd3ed2e7995ddfe2))
+* **output:** convert HTML descriptions to markdown in task enrichment ([8f3894a](https://github.com/tenfourty/guten-morgen/commit/8f3894aedad3ba81f15e997ef521957e372350f6))
+
+
+### Bug Fixes
+
+* **cache:** cache morgen-native tasks in list_all_tasks() ([b769a63](https://github.com/tenfourty/guten-morgen/commit/b769a63172d47aa732b67c5ed723bd54bf094e4c))
+* **cli:** convert HTML descriptions to markdown in tasks get ([9c9a931](https://github.com/tenfourty/guten-morgen/commit/9c9a9312f2d71c03ea4d957712372c4376a4c853))
+
+
+### Documentation
+
+* add missing task fields and markdown descriptions design ([7355ec4](https://github.com/tenfourty/guten-morgen/commit/7355ec4e88fe4fba10127f74ceb3482d4273ca29))
+* add missing task fields implementation plan ([167364a](https://github.com/tenfourty/guten-morgen/commit/167364a7ce5b354fcc3112fdfb2f9dc87db81e35))
+* update usage with --earliest-start, priority 0-9, markdown descriptions ([c969ca8](https://github.com/tenfourty/guten-morgen/commit/c969ca8fd631b1fa253bb650509c0e755044d0e9))
+
 ## [0.7.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.6.2...guten-morgen-v0.7.0) (2026-02-24)
 
 
