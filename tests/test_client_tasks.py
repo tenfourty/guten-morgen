@@ -49,6 +49,59 @@ class TestListAllTasks:
         assert sources == {"morgen"}
 
 
+class TestListAllTasksAccountFailure:
+    """list_all_tasks skips external accounts that return errors (e.g. disconnected)."""
+
+    @staticmethod
+    def _make_client_with_dead_account() -> MorgenClient:
+        """Build a client where Notion account returns 404 (disconnected)."""
+        from tests.conftest import (
+            ALL_ACCOUNTS,
+            FAKE_LINEAR_TASKS,
+            FAKE_TASKS,
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            path = request.url.path
+            if path == "/v3/integrations/accounts/list":
+                return httpx.Response(200, json={"data": {"accounts": ALL_ACCOUNTS}})
+            if path == "/v3/tasks/list":
+                account_id = dict(request.url.params).get("accountId")
+                if account_id is None:
+                    # Morgen-native tasks
+                    return httpx.Response(200, json={"data": {"tasks": FAKE_TASKS}})
+                if account_id == "acc-linear":
+                    return httpx.Response(200, json=FAKE_LINEAR_TASKS)
+                if account_id == "acc-notion":
+                    # Disconnected account — Morgen returns 404
+                    return httpx.Response(
+                        404,
+                        json={"message": "Account not found", "status": 404},
+                    )
+            return httpx.Response(404)
+
+        settings = Settings(api_key="test-key")
+        return MorgenClient(settings, transport=httpx.MockTransport(handler))
+
+    def test_skips_disconnected_account(self) -> None:
+        """A 404 from one external account should not kill the whole task listing."""
+        client = self._make_client_with_dead_account()
+        result = client.list_all_tasks()
+        sources = {t.integrationId for t in result.tasks}
+        # Morgen and Linear should still be present
+        assert "morgen" in sources
+        assert "linear" in sources
+        # Notion was disconnected — its tasks are absent, but no crash
+        assert "notion" not in sources
+
+    def test_skips_disconnected_account_returns_other_label_defs(self) -> None:
+        """Label defs from working accounts should still be returned."""
+        client = self._make_client_with_dead_account()
+        result = client.list_all_tasks()
+        # Linear labelDefs should still be present
+        assert len(result.labelDefs) > 0
+
+
 class TestScheduleTask:
     """Task 9: schedule_task() creates a linked event from a task."""
 
