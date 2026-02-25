@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.9.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.9.0...guten-morgen-v0.9.1) (2026-02-25)
+
+
+### Bug Fixes
+
+* **groups:** match accounts by providerUserDisplayName ([cb67423](https://github.com/tenfourty/guten-morgen/commit/cb6742377b740dbce8af25ebe732a410ffd72c9a))
+* **tasks:** skip disconnected accounts in list_all_tasks ([5923cf4](https://github.com/tenfourty/guten-morgen/commit/5923cf41d2ac70f046b12734288be0a3bbcf317e))
+
+
+### Documentation
+
+* add bearer token auth design and implementation plan ([e7f318e](https://github.com/tenfourty/guten-morgen/commit/e7f318e7cf0e550a2120e248888f3e51e1f3e1f5))
+
 ## [0.9.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.8.1...guten-morgen-v0.9.0) (2026-02-24)
 
 
