@@ -425,7 +425,7 @@ class MorgenClient:
                 self._cache_set(cache_key, morgen_tasks, TTL_TASKS)
                 all_tasks_raw.extend(morgen_tasks)
 
-        # External task sources
+        # External task sources — skip accounts that fail (e.g. disconnected)
         task_accounts = self.list_task_accounts()
         for account in task_accounts:
             integration = account.integrationId or ""
@@ -440,14 +440,18 @@ class MorgenClient:
             if cached is not None:
                 inner = cast("dict[str, Any]", cached)
             else:
-                ext_params: dict[str, Any] = {"accountId": account_id, "limit": limit}
-                if updated_after:
-                    ext_params["updatedAfter"] = updated_after
-                raw = self._request(
-                    "GET",
-                    "/tasks/list",
-                    params=ext_params,
-                )
+                try:
+                    ext_params: dict[str, Any] = {"accountId": account_id, "limit": limit}
+                    if updated_after:
+                        ext_params["updatedAfter"] = updated_after
+                    raw = self._request(
+                        "GET",
+                        "/tasks/list",
+                        params=ext_params,
+                    )
+                except (NotFoundError, MorgenAPIError):
+                    # Account may have been disconnected — skip silently
+                    continue
                 # _request returns resp.json() which is {"data": {...}}
                 # Unwrap the data envelope to get the inner dict
                 if isinstance(raw, dict):
