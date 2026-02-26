@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.9.1...guten-morgen-v0.10.0) (2026-02-26)
+
+
+### Features
+
+* **client:** add SOCKS proxy support for Cowork environments ([374eed1](https://github.com/tenfourty/guten-morgen/commit/374eed1e744942cf2953d505426d86921337c1a1))
+
 ## [0.9.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.9.0...guten-morgen-v0.9.1) (2026-02-25)
 
 
