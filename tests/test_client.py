@@ -396,3 +396,16 @@ class TestTaskListCRUD:
     def test_delete_task_list(self, client: MorgenClient) -> None:
         # Should not raise
         client.delete_task_list("list-work@morgen.so")
+
+
+class TestSocksProxySupport:
+    """Verify SOCKS proxy dependencies are available for httpx."""
+
+    def test_socksio_importable(self) -> None:
+        """socksio must be installed so httpx can use SOCKS proxies from env vars."""
+        import socksio  # noqa: F401
+
+    def test_httpx_accepts_socks5_proxy(self) -> None:
+        """httpx.Client should accept a socks5:// proxy URL without error."""
+        client = httpx.Client(proxy="socks5://127.0.0.1:1080")
+        client.close()
