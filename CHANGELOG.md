@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.10.0...guten-morgen-v0.11.0) (2026-03-02)
+
+
+### Features
+
+* **models:** add calendar_uid computed field to Event ([e14c859](https://github.com/tenfourty/guten-morgen/commit/e14c85982256ea98d255f740c2bfb09e3e4d1c21))
+
 ## [0.10.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.9.1...guten-morgen-v0.10.0) (2026-02-26)
 
 
