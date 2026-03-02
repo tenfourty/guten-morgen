@@ -627,6 +627,15 @@ EVENT_CONCISE_FIELDS = [
 ]
 
 
+def _normalize_datetime(value: str) -> str:
+    """Append T00:00:00 to bare date strings (YYYY-MM-DD) for the Morgen API."""
+    import re
+
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        return value + "T00:00:00"
+    return value
+
+
 def _is_frame_event(event: dict[str, Any]) -> bool:
     """Check if an event is a Morgen scheduling frame (time-blocking window)."""
     meta = event.get("morgen.so:metadata")
@@ -755,6 +764,8 @@ def events_list(
 ) -> None:
     """List events in a date range."""
     try:
+        start = _normalize_datetime(start)
+        end = _normalize_datetime(end)
         client = _get_client(fmt)
         if account_id and calendar_ids_str:
             cal_ids = [s.strip() for s in calendar_ids_str.split(",")]
