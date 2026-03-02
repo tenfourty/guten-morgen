@@ -184,6 +184,12 @@ def usage() -> None:
   Update calendar metadata (name, color, busy status).
 
 ### Events
+
+Event output includes a `calendar_uid` field — the raw provider event ID
+(e.g. Google Calendar event ID) extracted from Morgen's compound ID.
+Use this to match events against external sources (e.g. Granola transcripts).
+Available in all formats (json, jsonl, csv, table) and via `--fields calendar_uid`.
+
 - `gm events list --start ISO --end ISO [--group NAME] [--all-calendars] [--json]`
   List events in a date range. Auto-discovers account/calendar.
 
@@ -593,8 +599,17 @@ def calendars_update(
 # events
 # ---------------------------------------------------------------------------
 
-EVENT_COLUMNS = ["id", "title", "start", "duration", "participants_display", "location_display", "calendarId"]
-EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration", "participants_display", "location_display"]
+EVENT_COLUMNS = [
+    "id",
+    "title",
+    "start",
+    "duration",
+    "participants_display",
+    "location_display",
+    "calendarId",
+    "calendar_uid",
+]
+EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration", "participants_display", "location_display", "calendar_uid"]
 
 
 def _is_frame_event(event: dict[str, Any]) -> bool:
@@ -1591,7 +1606,15 @@ def next(
 # Quick views: today, this-week, this-month
 # ---------------------------------------------------------------------------
 
-VIEW_EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration", "participants_display", "location_display"]
+VIEW_EVENT_CONCISE_FIELDS = [
+    "id",
+    "title",
+    "start",
+    "duration",
+    "participants_display",
+    "location_display",
+    "calendar_uid",
+]
 VIEW_TASK_CONCISE_FIELDS = ["id", "title", "progress", "due", "source"]
 
 

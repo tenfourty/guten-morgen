@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import base64
+import json
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class MorgenModel(BaseModel):
@@ -62,6 +64,24 @@ class Event(MorgenModel):
     timeZone: str | None = None
     morgen_metadata: dict[str, Any] | None = Field(None, alias="morgen.so:metadata")
     request_virtual_room: str | None = Field(None, alias="morgen.so:requestVirtualRoom")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def calendar_uid(self) -> str | None:
+        """Extract the raw provider event ID from the Morgen compound ID.
+
+        Morgen IDs are base64-encoded JSON arrays: ["email", "gcal_event_id", "account_id"].
+        Returns the second element (provider event ID), or None if the ID isn't a compound ID.
+        """
+        try:
+            padded = self.id + "=" * (-len(self.id) % 4)
+            decoded = base64.b64decode(padded).decode()
+            parts = json.loads(decoded)
+            if isinstance(parts, list) and len(parts) >= 2:
+                return str(parts[1])
+        except Exception:  # noqa: BLE001  # nosec B110
+            pass
+        return None
 
 
 class LabelDef(MorgenModel):
