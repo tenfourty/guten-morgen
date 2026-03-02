@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.12.1...guten-morgen-v0.13.0) (2026-03-02)
+
+
+### Features
+
+* **events:** add --event-status filter and --counts meta wrapper ([374a9dc](https://github.com/tenfourty/guten-morgen/commit/374a9dcd93d5422896633650cf8fcfffc719977e))
+
 ## [0.12.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.12.0...guten-morgen-v0.12.1) (2026-03-02)
 
 
