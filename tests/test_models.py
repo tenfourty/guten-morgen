@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 
@@ -159,6 +160,80 @@ class TestEventModel:
         assert event.morgen_metadata == {"key": "val"}
         d = event.model_dump(by_alias=True)
         assert "morgen.so:metadata" in d
+
+
+class TestEventCalendarUid:
+    """Tests for Event.calendar_uid computed field."""
+
+    def _make_compound_id(self, email: str, gcal_id: str, account_id: str) -> str:
+        """Build a base64 Morgen compound ID."""
+        payload = json.dumps([email, gcal_id, account_id])
+        return base64.b64encode(payload.encode()).decode()
+
+    def test_extracts_gcal_id(self) -> None:
+        """calendar_uid extracts the second element from the compound ID."""
+        compound = self._make_compound_id("user@example.com", "abc123xyz", "acc-1")
+        event = Event(id=compound)
+        assert event.calendar_uid == "abc123xyz"
+
+    def test_non_base64_id_returns_none(self) -> None:
+        """Plain string IDs (not base64-encoded JSON arrays) return None."""
+        event = Event(id="evt-1")
+        assert event.calendar_uid is None
+
+    def test_base64_non_json_returns_none(self) -> None:
+        """Base64 content that isn't a JSON array returns None."""
+        encoded = base64.b64encode(b"not json").decode()
+        event = Event(id=encoded)
+        assert event.calendar_uid is None
+
+    def test_base64_short_array_returns_none(self) -> None:
+        """Base64 JSON array with fewer than 2 elements returns None."""
+        encoded = base64.b64encode(json.dumps(["only-one"]).encode()).decode()
+        event = Event(id=encoded)
+        assert event.calendar_uid is None
+
+    def test_included_in_model_dump(self) -> None:
+        """calendar_uid appears in model_dump() output."""
+        compound = self._make_compound_id("user@example.com", "gcal-event-id", "acc-1")
+        event = Event(id=compound)
+        d = event.model_dump()
+        assert d["calendar_uid"] == "gcal-event-id"
+
+    def test_included_in_model_dump_by_alias(self) -> None:
+        """calendar_uid appears in model_dump(by_alias=True) output."""
+        compound = self._make_compound_id("user@example.com", "gcal-event-id", "acc-1")
+        event = Event(id=compound)
+        d = event.model_dump(by_alias=True)
+        assert d["calendar_uid"] == "gcal-event-id"
+
+    def test_none_in_model_dump_for_plain_id(self) -> None:
+        """calendar_uid is None in model_dump() for non-compound IDs."""
+        event = Event(id="simple-id")
+        d = event.model_dump()
+        assert d["calendar_uid"] is None
+
+    def test_roundtrip_ignores_calendar_uid(self) -> None:
+        """calendar_uid in input is ignored (it's computed, not stored)."""
+        compound = self._make_compound_id("user@example.com", "the-gcal-id", "acc-1")
+        d = {"id": compound, "calendar_uid": "should-be-ignored"}
+        event = Event.model_validate(d)
+        assert event.calendar_uid == "the-gcal-id"
+
+    def test_real_morgen_id(self) -> None:
+        """Decodes a realistic Morgen compound ID."""
+        payload = json.dumps(["jeremy@example.com", "gd0vm7r3hk3s8vupk6ppra8th4", "673476aefe6a6bd01ba78a71"])
+        compound = base64.b64encode(payload.encode()).decode()
+        event = Event(id=compound)
+        assert event.calendar_uid == "gd0vm7r3hk3s8vupk6ppra8th4"
+
+    def test_unpadded_base64(self) -> None:
+        """Morgen IDs often omit trailing '=' padding — must still decode."""
+        payload = json.dumps(["jeremy@example.com", "gd0vm7r3hk3s8vupk6ppra8th4", "673476aefe6a6bd01ba78a71"])
+        compound = base64.b64encode(payload.encode()).decode().rstrip("=")
+        assert len(compound) % 4 != 0, "fixture should be unpadded"
+        event = Event(id=compound)
+        assert event.calendar_uid == "gd0vm7r3hk3s8vupk6ppra8th4"
 
 
 class TestTaskModel:
