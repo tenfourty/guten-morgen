@@ -432,6 +432,25 @@ class TestEnrichTasks:
         assert _resolve_label_display(None, [], "state") is None
 
 
+class TestComputeStatusCounts:
+    def test_basic(self) -> None:
+        from guten_morgen.cli import _compute_status_counts
+
+        events = [
+            {"my_status": "accepted"},
+            {"my_status": "accepted"},
+            {"my_status": "declined"},
+            {"my_status": None},
+        ]
+        counts = _compute_status_counts(events)
+        assert counts == {"accepted": 2, "declined": 1, "null": 1}
+
+    def test_empty(self) -> None:
+        from guten_morgen.cli import _compute_status_counts
+
+        assert _compute_status_counts([]) == {}
+
+
 class TestOutputError:
     def test_structured_output(self) -> None:
         with pytest.raises(SystemExit) as exc_info:

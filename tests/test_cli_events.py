@@ -327,6 +327,176 @@ class TestEventsRsvp:
         assert result.exit_code == 0
 
 
+class TestEventStatusFilter:
+    def test_include_accepted_only(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--event-status accepted returns only accepted events."""
+        result = runner.invoke(
+            cli,
+            [
+                "events",
+                "list",
+                "--start",
+                "2026-02-17T00:00:00",
+                "--end",
+                "2026-02-17T23:59:59",
+                "--json",
+                "--event-status",
+                "accepted",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        statuses = {e.get("my_status") or "null" for e in data}
+        assert statuses == {"accepted"}
+
+    def test_include_null_status(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--event-status null returns events with no participants (my_status is None)."""
+        result = runner.invoke(
+            cli,
+            [
+                "events",
+                "list",
+                "--start",
+                "2026-02-17T00:00:00",
+                "--end",
+                "2026-02-17T23:59:59",
+                "--json",
+                "--event-status",
+                "null",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        # Lunch, Tasks and Deep Work, Dentist have no accountOwner → my_status=null
+        assert all(e.get("my_status") is None for e in data)
+        assert len(data) >= 1
+
+    def test_include_multiple_statuses(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--event-status accepted,null returns both."""
+        result = runner.invoke(
+            cli,
+            [
+                "events",
+                "list",
+                "--start",
+                "2026-02-17T00:00:00",
+                "--end",
+                "2026-02-17T23:59:59",
+                "--json",
+                "--event-status",
+                "accepted,null",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        statuses = {e.get("my_status") or "null" for e in data}
+        assert "declined" not in statuses
+
+    def test_hide_declined_still_works(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--hide-declined continues to work as a convenience alias."""
+        result = runner.invoke(
+            cli,
+            [
+                "events",
+                "list",
+                "--start",
+                "2026-02-17T00:00:00",
+                "--end",
+                "2026-02-17T23:59:59",
+                "--json",
+                "--hide-declined",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        titles = [e["title"] for e in data]
+        assert "Optional Open Hours" not in titles
+
+    def test_event_status_overrides_hide_declined(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--event-status takes priority over --hide-declined."""
+        result = runner.invoke(
+            cli,
+            [
+                "events",
+                "list",
+                "--start",
+                "2026-02-17T00:00:00",
+                "--end",
+                "2026-02-17T23:59:59",
+                "--json",
+                "--event-status",
+                "declined",
+                "--hide-declined",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        # --event-status takes priority, so declined events are included
+        statuses = {e.get("my_status") or "null" for e in data}
+        assert statuses == {"declined"}
+
+
+class TestCounts:
+    def test_counts_wraps_output(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--counts wraps JSON output with events and meta."""
+        result = runner.invoke(
+            cli,
+            ["events", "list", "--start", "2026-02-17T00:00:00", "--end", "2026-02-17T23:59:59", "--json", "--counts"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "events" in data
+        assert "meta" in data
+        assert "status_counts" in data["meta"]
+        assert "total" in data["meta"]
+        assert data["meta"]["total"] == len(data["events"])
+
+    def test_counts_status_distribution(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--counts includes correct status distribution."""
+        result = runner.invoke(
+            cli,
+            ["events", "list", "--start", "2026-02-17T00:00:00", "--end", "2026-02-17T23:59:59", "--json", "--counts"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        counts = data["meta"]["status_counts"]
+        assert counts.get("accepted", 0) >= 1  # Standup
+        assert counts.get("declined", 0) >= 1  # Optional Open Hours
+        assert counts.get("null", 0) >= 1  # Lunch, etc.
+
+    def test_counts_without_json_ignored(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--counts without --json outputs normal table (not wrapped)."""
+        result = runner.invoke(
+            cli,
+            ["events", "list", "--start", "2026-02-17T00:00:00", "--end", "2026-02-17T23:59:59", "--counts"],
+        )
+        assert result.exit_code == 0
+        # Table output — should not be JSON-parseable
+        assert "Standup" in result.output
+
+    def test_counts_with_event_status_filter(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--counts respects --event-status filter in both events and counts."""
+        result = runner.invoke(
+            cli,
+            [
+                "events",
+                "list",
+                "--start",
+                "2026-02-17T00:00:00",
+                "--end",
+                "2026-02-17T23:59:59",
+                "--json",
+                "--counts",
+                "--event-status",
+                "accepted,null",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        counts = data["meta"]["status_counts"]
+        assert "declined" not in counts
+
+
 class TestNormalizeDatetime:
     def test_bare_date(self) -> None:
         from guten_morgen.cli import _normalize_datetime

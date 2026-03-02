@@ -45,7 +45,19 @@ def output_options(f: Callable[..., Any]) -> Callable[..., Any]:
     )
     @click.option("--short-ids", is_flag=True, default=False, help="Truncate IDs to 12 chars.")
     @click.option("--no-frames", is_flag=True, default=False, help="Exclude Morgen scheduling frames.")
-    @click.option("--hide-declined", is_flag=True, default=False, help="Exclude events you declined.")
+    @click.option(
+        "--hide-declined",
+        is_flag=True,
+        default=False,
+        help="Exclude events you declined (alias for --status with declined removed).",
+    )
+    @click.option(
+        "--event-status",
+        "event_status_filter",
+        default=None,
+        help="Comma-separated list of my_status values to include (accepted,tentative,needs-action,declined,null).",
+    )
+    @click.option("--counts", is_flag=True, default=False, help="Wrap JSON output with meta including status_counts.")
     @functools.wraps(f)
     def wrapper(
         *args: Any,
@@ -57,12 +69,16 @@ def output_options(f: Callable[..., Any]) -> Callable[..., Any]:
         short_ids: bool,
         no_frames: bool,
         hide_declined: bool,
+        event_status_filter: str | None,
+        counts: bool,
         **kwargs: Any,
     ) -> Any:
-        # short_ids, no_frames, hide_declined are read from click context where needed
+        # short_ids, no_frames, hide_declined, event_status_filter, counts read from click context
         _ = short_ids
         _ = no_frames
         _ = hide_declined
+        _ = event_status_filter
+        _ = counts
         if json_flag:
             fmt = "json"
         fields = [s.strip() for s in fields_str.split(",")] if fields_str else None
@@ -191,7 +207,8 @@ def usage() -> None:
 Event output includes enriched fields in all formats:
 - `calendar_uid`: raw provider event ID (e.g. Google Calendar ID), for matching against external sources
 - `my_status`: your participation status (accepted, declined, tentative, needs-action, or null)
-Use `--hide-declined` to exclude events you declined.
+Use `--event-status accepted,tentative` to include only specific statuses. `--hide-declined` is a convenience alias.
+Use `--counts` with `--json` to add status_counts meta wrapper.
 Use `--fields calendar_uid,my_status` to select specific fields.
 
 - `gm events list --start ISO --end ISO [--group NAME] [--all-calendars] [--json]`
@@ -323,7 +340,9 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `--response-format detailed|concise` (concise uses ~1/3 tokens)
 - `--short-ids` (truncate IDs to 12 chars, saves tokens)
 - `--no-frames` (exclude Morgen scheduling frames/time-blocking windows)
-- `--hide-declined` (exclude events you declined)
+- `--event-status <csv>` (filter by my_status: accepted, tentative, needs-action, declined, null)
+- `--hide-declined` (convenience alias: exclude events you declined)
+- `--counts` (wrap JSON output with meta including total and status_counts)
 - `--no-cache` (bypass cache, fetch fresh from API)
 - `--group NAME` (filter events by calendar group; use 'all' for no filtering)
 - `--all-calendars` (include inactive calendars, overrides active_only config)
@@ -647,6 +666,41 @@ def _is_declined_event(event: dict[str, Any]) -> bool:
     return event.get("my_status") == "declined"
 
 
+def _apply_status_filter(events: list[dict[str, Any]], ctx: click.Context | None) -> list[dict[str, Any]]:
+    """Filter events by my_status using --event-status or --hide-declined from click context."""
+    if ctx is None:
+        return events
+    status_str: str | None = ctx.params.get("event_status_filter")
+    hide_declined: bool = ctx.params.get("hide_declined", False)
+    if status_str:
+        allowed = {s.strip().lower() for s in status_str.split(",")}
+        # "null" in the filter means include events with no status
+        return [e for e in events if (e.get("my_status") or "null") in allowed]
+    if hide_declined:
+        return [e for e in events if not _is_declined_event(e)]
+    return events
+
+
+def _compute_status_counts(events: list[dict[str, Any]]) -> dict[str, int]:
+    """Count events by my_status value."""
+    from collections import Counter
+
+    counts: Counter[str] = Counter()
+    for e in events:
+        status = e.get("my_status") or "null"
+        counts[status] += 1
+    return dict(counts)
+
+
+def _wrap_with_counts(events: list[dict[str, Any]], fields: list[str] | None = None) -> dict[str, Any]:
+    """Wrap events list with meta including status_counts. Applies field selection to events."""
+    from guten_morgen.output import select_fields
+
+    counts = _compute_status_counts(events)
+    filtered = select_fields(events, fields) if fields else events
+    return {"events": filtered, "meta": {"total": len(events), "status_counts": counts}}
+
+
 @cli.group()
 def events() -> None:
     """Manage calendar events."""
@@ -780,11 +834,18 @@ def events_list(
         from guten_morgen.output import enrich_events
 
         data = enrich_events(data)
-        if ctx and ctx.params.get("hide_declined"):
-            data = [e for e in data if not _is_declined_event(e)]
+        data = _apply_status_filter(data, ctx)
         if response_format == "concise" and not fields:
             fields = EVENT_CONCISE_FIELDS
-        morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
+        if ctx and ctx.params.get("counts") and fmt in ("json", "jsonl"):
+            morgen_output(
+                _wrap_with_counts(data, fields),
+                fmt=fmt,
+                fields=None,
+                jq_expr=jq_expr,
+            )
+        else:
+            morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -1628,11 +1689,18 @@ def next(
         from guten_morgen.output import enrich_events
 
         upcoming_dicts = enrich_events(upcoming_dicts)
-        if ctx and ctx.params.get("hide_declined"):
-            upcoming_dicts = [e for e in upcoming_dicts if not _is_declined_event(e)]
+        upcoming_dicts = _apply_status_filter(upcoming_dicts, ctx)
         if response_format == "concise" and not fields:
             fields = EVENT_CONCISE_FIELDS
-        morgen_output(upcoming_dicts, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
+        if ctx and ctx.params.get("counts") and fmt in ("json", "jsonl"):
+            morgen_output(
+                _wrap_with_counts(upcoming_dicts, fields),
+                fmt=fmt,
+                fields=None,
+                jq_expr=jq_expr,
+            )
+        else:
+            morgen_output(upcoming_dicts, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -1702,8 +1770,9 @@ def _combined_view(
             from guten_morgen.output import enrich_events
 
             events_list_enriched = enrich_events(events_list_raw)
-            if ctx and ctx.params.get("hide_declined"):
-                events_list_enriched = [e for e in events_list_enriched if not _is_declined_event(e)]
+            events_list_enriched = _apply_status_filter(events_list_enriched, ctx)
+            if ctx and ctx.params.get("counts"):
+                result["meta"] = {"status_counts": _compute_status_counts(events_list_enriched)}
             if response_format == "concise" and not fields:
                 from guten_morgen.output import select_fields
 
