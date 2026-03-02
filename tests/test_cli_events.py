@@ -142,6 +142,24 @@ class TestShortIds:
         assert "id" in data[0]
 
 
+class TestBareDateNormalization:
+    def test_bare_date_accepted(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Bare dates (YYYY-MM-DD) are normalized to full ISO datetimes."""
+        result = runner.invoke(cli, ["events", "list", "--start", "2026-02-17", "--end", "2026-02-17", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data) >= 1
+
+    def test_full_datetime_unchanged(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Full ISO datetimes pass through unchanged."""
+        result = runner.invoke(
+            cli, ["events", "list", "--start", "2026-02-17T00:00:00", "--end", "2026-02-17T23:59:59", "--json"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data) == 5
+
+
 class TestEventsCreate:
     def test_create(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(
@@ -307,3 +325,20 @@ class TestEventsRsvp:
     def test_with_series_mode(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["events", "rsvp", "evt-1", "--action", "accept", "--series", "all"])
         assert result.exit_code == 0
+
+
+class TestNormalizeDatetime:
+    def test_bare_date(self) -> None:
+        from guten_morgen.cli import _normalize_datetime
+
+        assert _normalize_datetime("2026-03-03") == "2026-03-03T00:00:00"
+
+    def test_full_datetime_unchanged(self) -> None:
+        from guten_morgen.cli import _normalize_datetime
+
+        assert _normalize_datetime("2026-03-03T10:30:00") == "2026-03-03T10:30:00"
+
+    def test_datetime_with_timezone(self) -> None:
+        from guten_morgen.cli import _normalize_datetime
+
+        assert _normalize_datetime("2026-03-03T10:30:00+01:00") == "2026-03-03T10:30:00+01:00"
