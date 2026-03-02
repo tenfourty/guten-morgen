@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.11.1...guten-morgen-v0.12.0) (2026-03-02)
+
+
+### Features
+
+* **events:** add my_status field, --hide-declined flag, and table indicator ([a8c0e56](https://github.com/tenfourty/guten-morgen/commit/a8c0e5620af03c271ca17109cb693ff534608974))
+
 ## [0.11.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.11.0...guten-morgen-v0.11.1) (2026-03-02)
 
 
