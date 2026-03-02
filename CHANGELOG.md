@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.12.0...guten-morgen-v0.12.1) (2026-03-02)
+
+
+### Bug Fixes
+
+* **events:** normalize bare dates to full ISO datetimes in events list ([2595014](https://github.com/tenfourty/guten-morgen/commit/25950148012fa50bd119c1561bc6360ca35ea5c5))
+
 ## [0.12.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.11.1...guten-morgen-v0.12.0) (2026-03-02)
 
 
