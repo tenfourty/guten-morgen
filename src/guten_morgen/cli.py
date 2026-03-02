@@ -45,6 +45,7 @@ def output_options(f: Callable[..., Any]) -> Callable[..., Any]:
     )
     @click.option("--short-ids", is_flag=True, default=False, help="Truncate IDs to 12 chars.")
     @click.option("--no-frames", is_flag=True, default=False, help="Exclude Morgen scheduling frames.")
+    @click.option("--hide-declined", is_flag=True, default=False, help="Exclude events you declined.")
     @functools.wraps(f)
     def wrapper(
         *args: Any,
@@ -55,11 +56,13 @@ def output_options(f: Callable[..., Any]) -> Callable[..., Any]:
         response_format: str,
         short_ids: bool,
         no_frames: bool,
+        hide_declined: bool,
         **kwargs: Any,
     ) -> Any:
-        # short_ids and no_frames are read from click context where needed
+        # short_ids, no_frames, hide_declined are read from click context where needed
         _ = short_ids
         _ = no_frames
+        _ = hide_declined
         if json_flag:
             fmt = "json"
         fields = [s.strip() for s in fields_str.split(",")] if fields_str else None
@@ -185,10 +188,11 @@ def usage() -> None:
 
 ### Events
 
-Event output includes a `calendar_uid` field — the raw provider event ID
-(e.g. Google Calendar event ID) extracted from Morgen's compound ID.
-Use this to match events against external sources (e.g. Granola transcripts).
-Available in all formats (json, jsonl, csv, table) and via `--fields calendar_uid`.
+Event output includes enriched fields in all formats:
+- `calendar_uid`: raw provider event ID (e.g. Google Calendar ID), for matching against external sources
+- `my_status`: your participation status (accepted, declined, tentative, needs-action, or null)
+Use `--hide-declined` to exclude events you declined.
+Use `--fields calendar_uid,my_status` to select specific fields.
 
 - `gm events list --start ISO --end ISO [--group NAME] [--all-calendars] [--json]`
   List events in a date range. Auto-discovers account/calendar.
@@ -319,6 +323,7 @@ Available in all formats (json, jsonl, csv, table) and via `--fields calendar_ui
 - `--response-format detailed|concise` (concise uses ~1/3 tokens)
 - `--short-ids` (truncate IDs to 12 chars, saves tokens)
 - `--no-frames` (exclude Morgen scheduling frames/time-blocking windows)
+- `--hide-declined` (exclude events you declined)
 - `--no-cache` (bypass cache, fetch fresh from API)
 - `--group NAME` (filter events by calendar group; use 'all' for no filtering)
 - `--all-calendars` (include inactive calendars, overrides active_only config)
@@ -602,6 +607,7 @@ def calendars_update(
 EVENT_COLUMNS = [
     "id",
     "title",
+    "my_status",
     "start",
     "duration",
     "participants_display",
@@ -609,13 +615,27 @@ EVENT_COLUMNS = [
     "calendarId",
     "calendar_uid",
 ]
-EVENT_CONCISE_FIELDS = ["id", "title", "start", "duration", "participants_display", "location_display", "calendar_uid"]
+EVENT_CONCISE_FIELDS = [
+    "id",
+    "title",
+    "my_status",
+    "start",
+    "duration",
+    "participants_display",
+    "location_display",
+    "calendar_uid",
+]
 
 
 def _is_frame_event(event: dict[str, Any]) -> bool:
     """Check if an event is a Morgen scheduling frame (time-blocking window)."""
     meta = event.get("morgen.so:metadata")
     return isinstance(meta, dict) and "frameFilterMql" in meta
+
+
+def _is_declined_event(event: dict[str, Any]) -> bool:
+    """Check if the account owner declined this event."""
+    return event.get("my_status") == "declined"
 
 
 @cli.group()
@@ -749,6 +769,8 @@ def events_list(
         from guten_morgen.output import enrich_events
 
         data = enrich_events(data)
+        if ctx and ctx.params.get("hide_declined"):
+            data = [e for e in data if not _is_declined_event(e)]
         if response_format == "concise" and not fields:
             fields = EVENT_CONCISE_FIELDS
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
@@ -1595,6 +1617,8 @@ def next(
         from guten_morgen.output import enrich_events
 
         upcoming_dicts = enrich_events(upcoming_dicts)
+        if ctx and ctx.params.get("hide_declined"):
+            upcoming_dicts = [e for e in upcoming_dicts if not _is_declined_event(e)]
         if response_format == "concise" and not fields:
             fields = EVENT_CONCISE_FIELDS
         morgen_output(upcoming_dicts, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=EVENT_COLUMNS)
@@ -1609,6 +1633,7 @@ def next(
 VIEW_EVENT_CONCISE_FIELDS = [
     "id",
     "title",
+    "my_status",
     "start",
     "duration",
     "participants_display",
@@ -1666,6 +1691,8 @@ def _combined_view(
             from guten_morgen.output import enrich_events
 
             events_list_enriched = enrich_events(events_list_raw)
+            if ctx and ctx.params.get("hide_declined"):
+                events_list_enriched = [e for e in events_list_enriched if not _is_declined_event(e)]
             if response_format == "concise" and not fields:
                 from guten_morgen.output import select_fields
 

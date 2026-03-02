@@ -17,7 +17,7 @@ class TestEventsList:
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert len(data) == 4  # 3 from acc-1 + Dentist from acc-2 (synced copy deduped)
+        assert len(data) == 5  # 4 from acc-1 (incl. declined) + Dentist from acc-2 (synced copy deduped)
         assert data[0]["title"] == "Standup"
 
     def test_table_output(self, runner: CliRunner, mock_client: MorgenClient) -> None:
@@ -101,7 +101,7 @@ class TestNoRoutines:
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert len(data) == 3  # Standup, Lunch (acc-1) + Dentist (acc-2), frame filtered out
+        assert len(data) == 4  # Standup, Lunch, Optional Open Hours (acc-1) + Dentist (acc-2), frame filtered out
         titles = [e["title"] for e in data]
         assert "Standup" in titles
         assert "Lunch" in titles
@@ -214,6 +214,59 @@ class TestSeriesUpdateMode:
         """Invalid --series value is rejected by Click."""
         result = runner.invoke(cli, ["events", "update", "evt-1", "--series", "bogus"])
         assert result.exit_code != 0
+
+
+class TestHideDeclined:
+    def test_hide_declined_excludes_declined_events(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--hide-declined filters out events where account owner declined."""
+        result = runner.invoke(
+            cli,
+            [
+                "events",
+                "list",
+                "--start",
+                "2026-02-17T00:00:00",
+                "--end",
+                "2026-02-17T23:59:59",
+                "--json",
+                "--hide-declined",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        titles = [e["title"] for e in data]
+        assert "Optional Open Hours" not in titles
+        assert "Standup" in titles
+
+    def test_default_includes_declined_events(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """By default, declined events are included."""
+        result = runner.invoke(
+            cli,
+            ["events", "list", "--start", "2026-02-17T00:00:00", "--end", "2026-02-17T23:59:59", "--json"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        titles = [e["title"] for e in data]
+        assert "Optional Open Hours" in titles
+
+    def test_my_status_in_json_output(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """my_status field appears in JSON output."""
+        result = runner.invoke(
+            cli,
+            ["events", "list", "--start", "2026-02-17T00:00:00", "--end", "2026-02-17T23:59:59", "--json"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        standup = next(e for e in data if e["title"] == "Standup")
+        declined = next(e for e in data if e["title"] == "Optional Open Hours")
+        assert standup["my_status"] == "accepted"
+        assert declined["my_status"] == "declined"
+
+    def test_my_status_in_concise_output(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """my_status field is included in concise format."""
+        from guten_morgen.cli import EVENT_CONCISE_FIELDS
+
+        assert "my_status" in EVENT_CONCISE_FIELDS
 
 
 class TestEventsRsvp:

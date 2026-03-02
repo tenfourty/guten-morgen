@@ -78,9 +78,24 @@ FAKE_EVENTS = [
         "calendarId": "cal-1",
         "accountId": "acc-1",
         "participants": {
-            "p1": {"name": "Alice", "email": "alice@example.com", "kind": "individual"},
-            "p2": {"name": "Bob", "email": "bob@example.com", "kind": "individual"},
+            "p1": {
+                "name": "Alice",
+                "email": "alice@example.com",
+                "kind": "individual",
+                "participationStatus": "accepted",
+            },
+            "p2": {
+                "name": "Bob",
+                "email": "bob@example.com",
+                "kind": "individual",
+                "participationStatus": "accepted",
+            },
             "p3": {"name": "Room 42", "email": "room42@example.com", "kind": "resource"},
+            "owner": {
+                "email": "test@example.com",
+                "accountOwner": True,
+                "participationStatus": "accepted",
+            },
         },
         "locations": {
             "loc1": {"name": "https://meet.google.com/abc-defg-hij"},
@@ -106,6 +121,27 @@ FAKE_EVENTS = [
             "isAutoScheduled": False,
             "isFlexible": False,
             "canBeCompleted": False,
+        },
+    },
+    {
+        "id": "evt-declined",
+        "title": "Optional Open Hours",
+        "start": "2026-02-17T15:00:00",
+        "duration": "PT30M",
+        "calendarId": "cal-1",
+        "accountId": "acc-1",
+        "participants": {
+            "p1": {
+                "name": "Charlie",
+                "email": "charlie@example.com",
+                "kind": "individual",
+                "participationStatus": "accepted",
+            },
+            "owner": {
+                "email": "test@example.com",
+                "accountOwner": True,
+                "participationStatus": "declined",
+            },
         },
     },
 ]

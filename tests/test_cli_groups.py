@@ -64,7 +64,7 @@ class TestGroupFilterOption:
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert len(data) == 4  # same as unfiltered
+        assert len(data) == 5  # same as unfiltered (4 acc-1 incl. declined + Dentist acc-2)
 
     def test_next_with_group_all(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """--group all works on next command."""

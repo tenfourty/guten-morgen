@@ -10,6 +10,7 @@ from guten_morgen.errors import output_error
 from guten_morgen.output import (
     enrich_events,
     enrich_tasks,
+    extract_my_status,
     format_csv_str,
     format_json,
     format_jsonl,
@@ -227,6 +228,39 @@ class TestFormatLocations:
         assert format_locations({}) == ""
 
 
+class TestExtractMyStatus:
+    def test_accepted(self) -> None:
+        participants = {"owner": {"accountOwner": True, "participationStatus": "accepted"}}
+        assert extract_my_status(participants) == "accepted"
+
+    def test_declined(self) -> None:
+        participants = {
+            "p1": {"name": "Alice", "participationStatus": "accepted"},
+            "owner": {"accountOwner": True, "participationStatus": "declined"},
+        }
+        assert extract_my_status(participants) == "declined"
+
+    def test_tentative(self) -> None:
+        participants = {"owner": {"accountOwner": True, "participationStatus": "tentative"}}
+        assert extract_my_status(participants) == "tentative"
+
+    def test_needs_action(self) -> None:
+        participants = {"owner": {"accountOwner": True, "participationStatus": "needs-action"}}
+        assert extract_my_status(participants) == "needs-action"
+
+    def test_no_account_owner(self) -> None:
+        participants = {"p1": {"name": "Alice", "participationStatus": "accepted"}}
+        assert extract_my_status(participants) is None
+
+    def test_no_participants(self) -> None:
+        assert extract_my_status(None) is None
+        assert extract_my_status({}) is None
+
+    def test_no_participation_status_on_owner(self) -> None:
+        participants = {"owner": {"accountOwner": True}}
+        assert extract_my_status(participants) is None
+
+
 class TestEnrichEvents:
     def test_adds_display_fields(self) -> None:
         events = [
@@ -245,6 +279,24 @@ class TestEnrichEvents:
         assert result[0]["participants_display"] == "Alice"
         assert result[0]["location_display"] == "Room A"
 
+    def test_adds_my_status(self) -> None:
+        events = [
+            {
+                "id": "e1",
+                "title": "Meeting",
+                "participants": {
+                    "owner": {"accountOwner": True, "participationStatus": "accepted"},
+                },
+            },
+        ]
+        result = enrich_events(events)
+        assert result[0]["my_status"] == "accepted"
+
+    def test_my_status_none_when_no_participants(self) -> None:
+        events = [{"id": "e1", "title": "Test"}]
+        result = enrich_events(events)
+        assert result[0]["my_status"] is None
+
     def test_no_mutation(self) -> None:
         events = [{"id": "e1", "title": "Test"}]
         result = enrich_events(events)
@@ -256,6 +308,29 @@ class TestEnrichEvents:
         result = enrich_events(events)
         assert result[0]["participants_display"] == ""
         assert result[0]["location_display"] == ""
+
+
+class TestTableDeclinedIndicator:
+    def test_declined_events_get_prefix_in_table(self) -> None:
+        rows = [
+            {"id": "1", "title": "Standup", "my_status": "accepted"},
+            {"id": "2", "title": "Open Hours", "my_status": "declined"},
+        ]
+        output = format_table(rows, columns=["id", "title", "my_status"])
+        assert "[declined] Open Hours" in output
+        assert "[declined] Standup" not in output
+
+    def test_non_declined_events_unchanged(self) -> None:
+        rows = [{"id": "1", "title": "Standup", "my_status": "accepted"}]
+        output = format_table(rows, columns=["id", "title", "my_status"])
+        assert "Standup" in output
+        assert "[declined]" not in output
+
+    def test_no_my_status_field(self) -> None:
+        rows = [{"id": "1", "title": "Standup"}]
+        output = format_table(rows, columns=["id", "title"])
+        assert "Standup" in output
+        assert "[declined]" not in output
 
 
 class TestEnrichTasks:
