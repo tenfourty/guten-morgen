@@ -84,9 +84,9 @@ class TestListAllEvents:
     def test_keeps_all_originals(self, client: MorgenClient) -> None:
         """Original events from both accounts are preserved."""
         events = client.list_all_events("2026-02-17T00:00:00", "2026-02-17T23:59:59")
-        # acc-1: Standup, Lunch, Tasks and Deep Work
+        # acc-1: Standup, Lunch, Tasks and Deep Work, Optional Open Hours
         # acc-2: Dentist (synced copy removed)
-        assert len(events) == 4
+        assert len(events) == 5
 
 
 class TestListAllEventsFiltering:
@@ -122,7 +122,7 @@ class TestListAllEventsFiltering:
             "2026-02-17T23:59:59",
             active_only=True,
         )
-        assert len(events) == 4  # cal-2 has no events, so no change
+        assert len(events) == 5  # cal-2 has no events, so no change
 
     def test_filter_by_calendar_name(self, client: MorgenClient) -> None:
         """Only events from calendars with matching names are returned."""

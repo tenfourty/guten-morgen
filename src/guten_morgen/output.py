@@ -55,7 +55,14 @@ def format_table(rows: list[dict[str, Any]], columns: list[str] | None = None) -
     display_rows = truncate_ids(rows, length=16) if rows else rows
 
     for row in display_rows:
-        table.add_row(*[str(row.get(c, "")) for c in cols])
+        cells: list[str] = []
+        is_declined = row.get("my_status") == "declined"
+        for c in cols:
+            val = str(row.get(c, ""))
+            if c == "title" and is_declined:
+                val = f"\\[declined] {val}"
+            cells.append(val)
+        table.add_row(*cells)
 
     buf = io.StringIO()
     console = Console(file=buf, force_terminal=False, width=160)
@@ -145,13 +152,30 @@ def format_locations(locations: dict[str, Any] | None) -> str:
     return ", ".join(names)
 
 
+def extract_my_status(participants: dict[str, Any] | None) -> str | None:
+    """Extract the account owner's participationStatus from participants.
+
+    Returns 'accepted', 'declined', 'tentative', 'needs-action', or None.
+    """
+    if not participants:
+        return None
+    for p in participants.values():
+        if not isinstance(p, dict):
+            continue
+        if p.get("accountOwner"):
+            result: str | None = p.get("participationStatus")
+            return result
+    return None
+
+
 def enrich_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Add participants_display and location_display to events (shallow copy)."""
+    """Add participants_display, location_display, and my_status to events (shallow copy)."""
     enriched: list[dict[str, Any]] = []
     for event in events:
         e = {**event}
         e["participants_display"] = format_participants(e.get("participants"))
         e["location_display"] = format_locations(e.get("locations"))
+        e["my_status"] = extract_my_status(e.get("participants"))
         enriched.append(e)
     return enriched
 
