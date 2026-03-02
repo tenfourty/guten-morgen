@@ -74,3 +74,4 @@ src/guten_morgen/
 - **`morgen.so:metadata`** — Event model aliases this. Use `model_dump(by_alias=True)` for events
 - **Mutation output** — use `model_dump(exclude_none=True)` to avoid null flood
 - **`uv.lock`** — must be generated with `UV_INDEX="" uv lock --refresh` to avoid baking in private registries
+- **Do NOT reinstall after commits** — `uv tool install --editable .` is a one-time setup. Editable installs pick up code changes automatically. Never re-run it after commits, version bumps, or releases.
