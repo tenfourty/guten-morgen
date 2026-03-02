@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.11.0...guten-morgen-v0.11.1) (2026-03-02)
+
+
+### Documentation
+
+* warn agents not to reinstall editable packages after commits ([b1b813d](https://github.com/tenfourty/guten-morgen/commit/b1b813d7fbbf6c27c66643effe47c31c26e788f3))
+
 ## [0.11.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.10.0...guten-morgen-v0.11.0) (2026-03-02)
 
 
