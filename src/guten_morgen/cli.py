@@ -342,7 +342,7 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `--no-frames` (exclude Morgen scheduling frames/time-blocking windows)
 - `--event-status <csv>` (filter by my_status: accepted, tentative, needs-action, declined, null)
 - `--hide-declined` (convenience alias: exclude events you declined)
-- `--counts` (wrap JSON output with meta including total and status_counts)
+- `--counts` (wrap JSON in {{"events":[..], "meta":{{..}}}}; changes output shape)
 - `--no-cache` (bypass cache, fetch fresh from API)
 - `--group NAME` (filter events by calendar group; use 'all' for no filtering)
 - `--all-calendars` (include inactive calendars, overrides active_only config)
