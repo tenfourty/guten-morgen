@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.13.0...guten-morgen-v0.13.1) (2026-03-03)
+
+
+### Documentation
+
+* clarify --counts flag changes JSON output shape ([0583060](https://github.com/tenfourty/guten-morgen/commit/0583060ea8dabfdddc8f292b4de137c30361b06e))
+
 ## [0.13.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.12.1...guten-morgen-v0.13.0) (2026-03-02)
 
 
