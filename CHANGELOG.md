@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.13.2...guten-morgen-v0.14.0) (2026-03-03)
+
+
+### Features
+
+* replace usage command with enhanced --help ([ffb4dd6](https://github.com/tenfourty/guten-morgen/commit/ffb4dd6d31cb17c863b05dc54f19cebfe467e075))
+
 ## [0.13.2](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.13.1...guten-morgen-v0.13.2) (2026-03-03)
 
 
