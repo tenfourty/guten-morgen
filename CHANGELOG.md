@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.2](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.13.1...guten-morgen-v0.13.2) (2026-03-03)
+
+
+### Bug Fixes
+
+* counts jsonl guard, next count-before-filter, combined_view total ([98984a2](https://github.com/tenfourty/guten-morgen/commit/98984a29e1c4bb138989baeb8cf64ca2355b7bb4))
+
 ## [0.13.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.13.0...guten-morgen-v0.13.1) (2026-03-03)
 
 
