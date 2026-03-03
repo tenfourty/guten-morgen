@@ -496,6 +496,30 @@ class TestCounts:
         counts = data["meta"]["status_counts"]
         assert "declined" not in counts
 
+    def test_counts_jsonl_not_wrapped(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--counts with --format jsonl should NOT wrap output — JSONL is line-per-record."""
+        result = runner.invoke(
+            cli,
+            [
+                "events",
+                "list",
+                "--start",
+                "2026-02-17T00:00:00",
+                "--end",
+                "2026-02-17T23:59:59",
+                "--format",
+                "jsonl",
+                "--counts",
+            ],
+        )
+        assert result.exit_code == 0
+        lines = result.output.strip().split("\n")
+        # Each line should be a standalone event object, not a wrapper
+        for line in lines:
+            record = json.loads(line)
+            assert "meta" not in record
+            assert "title" in record
+
 
 class TestNormalizeDatetime:
     def test_bare_date(self) -> None:

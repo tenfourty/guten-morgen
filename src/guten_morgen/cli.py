@@ -5,6 +5,7 @@ from __future__ import annotations
 import functools
 import json
 import os
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -648,8 +649,6 @@ EVENT_CONCISE_FIELDS = [
 
 def _normalize_datetime(value: str) -> str:
     """Append T00:00:00 to bare date strings (YYYY-MM-DD) for the Morgen API."""
-    import re
-
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
         return value + "T00:00:00"
     return value
@@ -659,11 +658,6 @@ def _is_frame_event(event: dict[str, Any]) -> bool:
     """Check if an event is a Morgen scheduling frame (time-blocking window)."""
     meta = event.get("morgen.so:metadata")
     return isinstance(meta, dict) and "frameFilterMql" in meta
-
-
-def _is_declined_event(event: dict[str, Any]) -> bool:
-    """Check if the account owner declined this event."""
-    return event.get("my_status") == "declined"
 
 
 def _apply_status_filter(events: list[dict[str, Any]], ctx: click.Context | None) -> list[dict[str, Any]]:
@@ -677,7 +671,7 @@ def _apply_status_filter(events: list[dict[str, Any]], ctx: click.Context | None
         # "null" in the filter means include events with no status
         return [e for e in events if (e.get("my_status") or "null") in allowed]
     if hide_declined:
-        return [e for e in events if not _is_declined_event(e)]
+        return [e for e in events if e.get("my_status") != "declined"]
     return events
 
 
@@ -837,7 +831,7 @@ def events_list(
         data = _apply_status_filter(data, ctx)
         if response_format == "concise" and not fields:
             fields = EVENT_CONCISE_FIELDS
-        if ctx and ctx.params.get("counts") and fmt in ("json", "jsonl"):
+        if ctx and ctx.params.get("counts") and fmt == "json":
             morgen_output(
                 _wrap_with_counts(data, fields),
                 fmt=fmt,
@@ -1683,16 +1677,16 @@ def next(
         if ctx and ctx.params.get("no_frames"):
             upcoming_dicts = [e for e in upcoming_dicts if not _is_frame_event(e)]
         upcoming_dicts.sort(key=lambda x: x.get("start", ""))
-        if count is not None:
-            upcoming_dicts = upcoming_dicts[:count]
 
         from guten_morgen.output import enrich_events
 
         upcoming_dicts = enrich_events(upcoming_dicts)
         upcoming_dicts = _apply_status_filter(upcoming_dicts, ctx)
+        if count is not None:
+            upcoming_dicts = upcoming_dicts[:count]
         if response_format == "concise" and not fields:
             fields = EVENT_CONCISE_FIELDS
-        if ctx and ctx.params.get("counts") and fmt in ("json", "jsonl"):
+        if ctx and ctx.params.get("counts") and fmt == "json":
             morgen_output(
                 _wrap_with_counts(upcoming_dicts, fields),
                 fmt=fmt,
@@ -1771,8 +1765,9 @@ def _combined_view(
 
             events_list_enriched = enrich_events(events_list_raw)
             events_list_enriched = _apply_status_filter(events_list_enriched, ctx)
-            if ctx and ctx.params.get("counts"):
-                result["meta"] = {"status_counts": _compute_status_counts(events_list_enriched)}
+            if ctx and ctx.params.get("counts") and fmt == "json":
+                counts = _compute_status_counts(events_list_enriched)
+                result["meta"] = {"total": len(events_list_enriched), "status_counts": counts}
             if response_format == "concise" and not fields:
                 from guten_morgen.output import select_fields
 
