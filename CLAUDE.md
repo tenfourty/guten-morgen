@@ -7,7 +7,7 @@ Calendar and task management CLI wrapping the Morgen API. All commands emit stru
 Run these on first use in a session to orient:
 
 ```bash
-gm usage                                              # full command reference (the LLM API contract)
+gm --help                                              # full command reference (the LLM API contract)
 gm accounts --json                                    # connected accounts (Google, Outlook, etc.)
 gm groups --json                                      # configured calendar groups
 gm today --json --response-format concise             # today's calendar + tasks
@@ -22,7 +22,7 @@ gm lists list --json --response-format concise        # task lists (Inbox, Run -
 uv sync --all-extras && uv run pre-commit install   # first time
 cp config.toml.example guten-morgen.toml               # then add api_key (or run gm init)
 uv run pytest -x -q --cov && uv run mypy src/       # verify
-uv run gm usage                                      # CLI self-documentation
+uv run gm --help                                     # CLI self-documentation
 uv tool install --editable .                         # optional: global `gm` command
 ```
 
@@ -64,7 +64,7 @@ src/guten_morgen/
 
 - mypy strict, Pydantic v2, Python 3.10+
 - Coverage minimum 90% — enforced by pre-commit
-- **`gm usage` is the LLM API contract** — any command/option change MUST update the `usage()` docstring in `cli.py`. If it's not in `usage`, LLMs can't discover it.
+- **`gm --help` is the LLM API contract** — any command/option change MUST update `_build_llm_contract()` in `cli.py`. If it's not in `--help`, LLMs can't discover it.
 
 ## Gotchas
 
