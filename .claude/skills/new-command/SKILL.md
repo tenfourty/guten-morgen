@@ -77,11 +77,11 @@ Key patterns:
 - `model_dump(exclude_none=True)` for mutation results (create/update)
 - Always wrap in `try/except MorgenError`
 
-## Step 4: Update `usage` Command (CRITICAL)
+## Step 4: Update `--help` / LLM Contract (CRITICAL)
 
-**This is the most important step.** `gm usage` is the LLM-facing API contract — it's the first command any AI agent runs to orient itself. If a command isn't in `usage`, it doesn't exist to the LLM.
+**This is the most important step.** `gm --help` is the LLM-facing API contract — it's the first command any AI agent runs to orient itself. If a command isn't in `--help`, it doesn't exist to the LLM.
 
-Update the `usage()` function's docstring in `cli.py` to include:
+Update the `_build_llm_contract()` function in `cli.py` to include:
 1. The new command with all options and their descriptions
 2. Usage examples in the "Scenarios" section if applicable
 3. Any new global options or output fields

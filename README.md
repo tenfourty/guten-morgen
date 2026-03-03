@@ -84,7 +84,7 @@ gm tasks schedule <task-id> --start 2026-02-20T10:00:00
 gm tasks list --tag "Active" --status open --json
 ```
 
-Run `gm usage` for the full command reference.
+Run `gm --help` for the full command reference.
 
 ## Calendar Groups
 

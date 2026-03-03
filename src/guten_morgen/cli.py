@@ -147,35 +147,20 @@ def _filter_kwargs(cf: CalendarFilter) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# CLI group
+# CLI group with enhanced --help
 # ---------------------------------------------------------------------------
 
 
-@click.group()
-@click.option("--no-cache", is_flag=True, help="Bypass cache, fetch fresh from API.")
-@click.pass_context
-def cli(ctx: click.Context, no_cache: bool) -> None:
-    """guten-morgen (gm) — Morgen calendar and task management CLI."""
-    ctx.ensure_object(dict)
-    ctx.obj["no_cache"] = no_cache
-
-
-# ---------------------------------------------------------------------------
-# usage
-# ---------------------------------------------------------------------------
-
-
-@cli.command()
-def usage() -> None:
-    """Self-documentation for AI agents."""
-    config = load_morgen_config()
+def _build_init_status() -> str:
+    """Build initialization status frontmatter for --help output."""
     config_path = _config_file_path()
+    config = load_morgen_config()
 
     groups_section = ""
     if config.groups:
         lines: list[str] = []
         for name, g in sorted(config.groups.items()):
-            line = f"  - **{name}**: accounts={g.accounts}"
+            line = f"  - {name}: accounts={g.accounts}"
             if g.calendars:
                 line += f", calendars={g.calendars}"
             lines.append(line)
@@ -183,8 +168,37 @@ def usage() -> None:
     else:
         groups_section = "  (none configured)"
 
-    text = f"""# gm — Calendar & Task Management CLI
+    # Dynamic task source discovery
+    try:
+        client = _get_client()
+        task_accounts = client.list_task_accounts()
+        source_lines = ["  - morgen (native tasks)"]
+        for acc in task_accounts:
+            iid = acc.integrationId or ""
+            display_name = acc.providerUserDisplayName or ""
+            source_lines.append(f"  - {iid} ({display_name})")
+        sources_section = "\n".join(source_lines)
+        api_status = "reachable"
+    except Exception:
+        sources_section = "  (run `gm accounts` to check connections)"
+        api_status = "unreachable (check API key)"
 
+    return f"""--- Initialization Status ---
+Config: {config_path}
+API: {api_status}
+Default group: {config.default_group or "(none)"}
+Active-only: {config.active_only}
+Calendar groups:
+{groups_section}
+
+Connected Task Sources:
+{sources_section}
+---"""
+
+
+def _build_llm_contract() -> str:
+    """Build the LLM API contract text (formerly the usage command)."""
+    return """
 ## Commands
 
 ### Setup
@@ -312,7 +326,7 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `gm availability --date YYYY-MM-DD [--min-duration MINUTES] [--start HH:MM] [--end HH:MM] [--group NAME]`
   Find available time slots on a given date. Scans events within working hours
   (default 09:00-18:00) and returns gaps >= min-duration (default 30min).
-  Output: [{{start, end, duration_minutes}}]
+  Output: [{start, end, duration_minutes}]
 
 ### Quick Views
 - `gm today [--json] [--response-format concise] [--events-only] [--tasks-only] [--group NAME]`
@@ -343,7 +357,7 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `--no-frames` (exclude Morgen scheduling frames/time-blocking windows)
 - `--event-status <csv>` (filter by my_status: accepted, tentative, needs-action, declined, null)
 - `--hide-declined` (convenience alias: exclude events you declined)
-- `--counts` (wrap JSON in {{"events":[..], "meta":{{..}}}}; changes output shape)
+- `--counts` (wrap JSON in {"events":[..], "meta":{..}}; changes output shape)
 - `--no-cache` (bypass cache, fetch fresh from API)
 - `--group NAME` (filter events by calendar group; use 'all' for no filtering)
 - `--all-calendars` (include inactive calendars, overrides active_only config)
@@ -354,15 +368,6 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 
 - `gm cache stats`
   Show cache ages, TTLs, and sizes.
-
-## Calendar Groups
-
-Config file: `{config_path}`
-Default group: `{config.default_group or "(none)"}`
-Active-only: `{config.active_only}`
-
-Configured groups:
-{groups_section}
 
 ## Recommended Agent Workflow
 1. `gm next --json --response-format concise --no-frames`  (what's coming up?)
@@ -428,24 +433,39 @@ gm events create --title "1:1 with Pierre" --start 2026-02-21T14:00:00 --duratio
 ```
 gm events rsvp <event-id> --action accept --comment "On my way"
 gm events rsvp <event-id> --action decline --no-notify
-```
-"""
-    click.echo(text)
+```"""
 
-    # Dynamic task source discovery
-    try:
-        client = _get_client()
-        task_accounts = client.list_task_accounts()
-        source_lines = ["  - morgen (native tasks)"]
-        for acc in task_accounts:
-            name = acc.providerUserDisplayName or ""
-            iid = acc.integrationId or ""
-            source_lines.append(f"  - {iid} ({name})")
-        sources_section = "\n".join(source_lines)
-    except Exception:
-        sources_section = "  (run `gm accounts` to check connections)"
 
-    click.echo(f"\n## Connected Task Sources\n{sources_section}\n")
+class GmGroup(click.Group):
+    """Custom Click group that includes init status and LLM contract in --help."""
+
+    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        # Init status frontmatter
+        try:
+            init_status = _build_init_status()
+        except Exception:
+            init_status = "--- Initialization Status ---\n(could not load status)\n---"
+        formatter.write(init_status)
+        formatter.write("\n\n")
+
+        # Standard Click help (commands list, options)
+        super().format_help(ctx, formatter)
+
+        # LLM API contract
+        formatter.write("\n")
+        formatter.write(_build_llm_contract())
+        formatter.write("\n")
+
+
+@click.group(cls=GmGroup, invoke_without_command=True)
+@click.option("--no-cache", is_flag=True, help="Bypass cache, fetch fresh from API.")
+@click.pass_context
+def cli(ctx: click.Context, no_cache: bool) -> None:
+    """guten-morgen (gm) — Morgen calendar and task management CLI."""
+    ctx.ensure_object(dict)
+    ctx.obj["no_cache"] = no_cache
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
 def _config_file_path() -> str:
