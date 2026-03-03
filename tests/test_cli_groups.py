@@ -101,3 +101,22 @@ class TestGroupFilterOption:
                 ],
             )
         assert result.exit_code != 0
+
+
+class TestCombinedViewCounts:
+    def test_today_counts_has_total(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--counts on today includes total in meta."""
+        result = runner.invoke(cli, ["today", "--json", "--counts"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "meta" in data
+        assert "total" in data["meta"]
+        assert "status_counts" in data["meta"]
+        assert data["meta"]["total"] == len(data["events"])
+
+    def test_today_counts_table_no_meta(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--counts without --json on today does not inject meta into table output."""
+        result = runner.invoke(cli, ["today", "--counts"])
+        assert result.exit_code == 0
+        # Table output — meta should not appear as a section
+        assert "status_counts" not in result.output

@@ -80,3 +80,45 @@ class TestNext:
         titles = [e["title"] for e in data]
         assert "Tasks and Deep Work" not in titles
         assert "Standup" in titles
+
+    def test_counts_on_next(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--counts on next wraps output with meta including total."""
+        frozen = datetime(2026, 2, 17, 8, 0, 0, tzinfo=timezone.utc)
+        with patch("guten_morgen.cli._now_utc", return_value=frozen):
+            result = runner.invoke(cli, ["next", "--json", "--counts"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "events" in data
+        assert "meta" in data
+        assert data["meta"]["total"] == len(data["events"])
+
+    def test_count_applies_after_status_filter(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--count should slice AFTER --hide-declined, not before.
+
+        Fixture has 5 events sorted by start: Standup(09:00,accepted),
+        Lunch(12:00,null), DeepWork(14:00,null), OpenHours(15:00,declined),
+        Dentist(16:00,null). With --hide-declined, 4 remain.
+        --count 4 should return exactly 4 non-declined events.
+        Bug: count-before-filter slices to 4 first [Standup,Lunch,DeepWork,OpenHours],
+        then filter removes OpenHours → only 3 returned.
+        """
+        frozen = datetime(2026, 2, 17, 8, 0, 0, tzinfo=timezone.utc)
+        with patch("guten_morgen.cli._now_utc", return_value=frozen):
+            result = runner.invoke(cli, ["next", "--json", "--count", "4", "--hide-declined"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data) == 4
+        for event in data:
+            assert event.get("my_status") != "declined"
+
+    def test_count_with_event_status_filter(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--count should slice AFTER --event-status filter."""
+        frozen = datetime(2026, 2, 17, 8, 0, 0, tzinfo=timezone.utc)
+        with patch("guten_morgen.cli._now_utc", return_value=frozen):
+            result = runner.invoke(cli, ["next", "--json", "--count", "4", "--event-status", "accepted,null"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        # 4 non-declined events exist (Standup, Lunch, DeepWork, Dentist)
+        assert len(data) == 4
+        for event in data:
+            assert event.get("my_status") in ("accepted", None)
