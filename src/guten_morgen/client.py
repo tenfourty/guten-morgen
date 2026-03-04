@@ -403,9 +403,10 @@ class MorgenClient:
         all_spaces_raw: list[dict[str, Any]] = []
 
         # Morgen-native tasks — Task model defaults integrationId="morgen"
+        # Skip cache when updatedAfter is set — different query, different results
         if source is None or source == "morgen":
             cache_key = "tasks/morgen"
-            cached_morgen = self._cache_get(cache_key)
+            cached_morgen = self._cache_get(cache_key) if not updated_after else None
             if cached_morgen is not None:
                 all_tasks_raw.extend(cast("list[dict[str, Any]]", cached_morgen))
             else:
@@ -422,7 +423,8 @@ class MorgenClient:
                         morgen_tasks = inner
                 elif isinstance(data, list):
                     morgen_tasks = data
-                self._cache_set(cache_key, morgen_tasks, TTL_TASKS)
+                if not updated_after:
+                    self._cache_set(cache_key, morgen_tasks, TTL_TASKS)
                 all_tasks_raw.extend(morgen_tasks)
 
         # External task sources — skip accounts that fail (e.g. disconnected)
@@ -436,7 +438,7 @@ class MorgenClient:
                 continue
 
             cache_key = f"tasks/{account_id}"
-            cached = self._cache_get(cache_key)
+            cached = self._cache_get(cache_key) if not updated_after else None
             if cached is not None:
                 inner = cast("dict[str, Any]", cached)
             else:
@@ -458,7 +460,8 @@ class MorgenClient:
                     inner = raw.get("data", raw)
                 else:
                     inner = {}
-                self._cache_set(cache_key, inner, TTL_TASKS)
+                if not updated_after:
+                    self._cache_set(cache_key, inner, TTL_TASKS)
 
             all_tasks_raw.extend(inner.get("tasks", []))
             all_label_defs_raw.extend(inner.get("labelDefs", []))
