@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.15.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.14.0...guten-morgen-v0.15.0) (2026-03-04)
+
+
+### Features
+
+* **tasks:** make --status completed work with auto-injected updatedAfter ([944c754](https://github.com/tenfourty/guten-morgen/commit/944c7540d19cb0b1c819c97a4656ac0d28f1f3ca))
+
+
+### Bug Fixes
+
+* **tasks:** bypass cache when updatedAfter is set ([4021873](https://github.com/tenfourty/guten-morgen/commit/4021873df141ddcdb5fa635f35590ef6f8105566))
+
 ## [0.14.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.13.2...guten-morgen-v0.14.0) (2026-03-03)
 
 
