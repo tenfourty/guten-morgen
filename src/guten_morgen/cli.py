@@ -247,8 +247,12 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 ### Tasks
 - `gm tasks list [--limit N] [--status open|completed|all] [--overdue] [--json]`
   `  [--due-before ISO] [--due-after ISO] [--priority N] [--updated-after ISO]`
-  `  [--source morgen|linear|notion] [--tag NAME] [--group-by-source] [--list NAME]`
-  List tasks from all connected sources. Filters combine with AND logic.
+  `  [--since DURATION] [--source morgen|linear|notion] [--tag NAME]`
+  `  [--group-by-source] [--list NAME]`
+  List tasks from all connected sources. Default: open tasks only.
+  --status completed or --status all auto-fetch tasks updated in the last
+  30 days (override with --since or --updated-after).
+  --since accepts relative durations (7d, 2h, 1w, yesterday) or ISO dates.
   --source restricts to a single integration. --tag filters by tag name
   (repeatable, OR logic, case-insensitive). --group-by-source returns
   output grouped by source. --updated-after returns only tasks modified
@@ -1122,8 +1126,8 @@ def tasks() -> None:
     "--status",
     "status_filter",
     type=click.Choice(["open", "completed", "all"]),
-    default="all",
-    help="Filter by status (default: all).",
+    default="open",
+    help="Filter by status (default: open). completed/all auto-fetch tasks updated in last 30 days.",
 )
 @click.option("--due-before", default=None, help="Tasks due before this date (ISO 8601 or YYYY-MM-DD).")
 @click.option("--due-after", default=None, help="Tasks due after this date (ISO 8601 or YYYY-MM-DD).")
@@ -1134,6 +1138,9 @@ def tasks() -> None:
 @click.option("--list", "list_name", default=None, help="Filter by task list name.")
 @click.option("--group-by-source", is_flag=True, default=False, help="Group output by task source.")
 @click.option("--updated-after", default=None, help="Only tasks updated after this datetime (ISO 8601).")
+@click.option(
+    "--since", "since", default=None, help="Tasks updated since (e.g. 7d, 30d, 2h, 1w, yesterday, 2026-03-01)."
+)
 @output_options
 def tasks_list(
     limit: int,
@@ -1147,6 +1154,7 @@ def tasks_list(
     list_name: str | None,
     group_by_source: bool,
     updated_after: str | None,
+    since: str | None,
     fmt: str,
     fields: list[str] | None,
     jq_expr: str | None,
@@ -1154,6 +1162,20 @@ def tasks_list(
 ) -> None:
     """List tasks."""
     try:
+        # Resolve --since into updated_after (--updated-after takes precedence)
+        if since and not updated_after:
+            from guten_morgen.time_utils import parse_since
+
+            updated_after = parse_since(since)
+
+        # Auto-inject updatedAfter when showing completed tasks
+        if status_filter in ("completed", "all") and not updated_after:
+            from datetime import datetime, timedelta, timezone
+
+            from guten_morgen.time_utils import _SINCE_DEFAULT_DAYS
+
+            updated_after = (datetime.now(timezone.utc) - timedelta(days=_SINCE_DEFAULT_DAYS)).isoformat()
+
         client = _get_client(fmt)
         result = client.list_all_tasks(source=source, limit=limit, updated_after=updated_after)
         data = [t.model_dump() for t in result.tasks]

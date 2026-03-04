@@ -110,6 +110,55 @@ def _parse_duration_minutes(duration: str) -> int:
     return 0
 
 
+_SINCE_DEFAULT_DAYS = 30
+
+
+def parse_since(value: str) -> str:
+    """Parse a human-friendly relative time string into an ISO 8601 UTC timestamp.
+
+    Accepts:
+        7d, 30d   — days
+        2h, 4h    — hours
+        1w, 2w    — weeks
+        yesterday  — midnight yesterday UTC
+        ISO date   — 2026-03-01 or full ISO passthrough
+
+    Returns ISO 8601 string suitable for Morgen API ``updatedAfter``.
+    Raises ``click.BadParameter`` on unrecognised input.
+    """
+    import re
+
+    import click
+
+    v = value.strip().lower()
+    now = datetime.now(timezone.utc)
+
+    if v == "yesterday":
+        yesterday = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        return yesterday.isoformat()
+
+    m = re.fullmatch(r"(\d+)\s*([dhw])", v)
+    if m:
+        n = int(m.group(1))
+        unit = m.group(2)
+        if unit == "d":
+            delta = timedelta(days=n)
+        elif unit == "h":
+            delta = timedelta(hours=n)
+        else:  # w
+            delta = timedelta(weeks=n)
+        return (now - delta).isoformat()
+
+    # Try ISO date / datetime passthrough
+    try:
+        datetime.fromisoformat(value)
+        return value
+    except ValueError:
+        pass
+
+    raise click.BadParameter(f"Unrecognised --since value: {value!r}. Use e.g. 7d, 2h, 1w, yesterday, or ISO date.")
+
+
 def compute_free_slots(
     events: list[dict[str, Any]],
     day: str,
