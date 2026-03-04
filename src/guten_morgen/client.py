@@ -464,8 +464,11 @@ class MorgenClient:
             all_label_defs_raw.extend(inner.get("labelDefs", []))
             all_spaces_raw.extend(inner.get("spaces", []))
 
+        # Filter out deleted tombstones returned by updatedAfter queries
+        live_tasks = [t for t in all_tasks_raw if not t.get("deleted")]
+
         return TaskListResponse(
-            tasks=[Task.model_validate(t) for t in all_tasks_raw],
+            tasks=[Task.model_validate(t) for t in live_tasks],
             labelDefs=[LabelDef.model_validate(ld) for ld in all_label_defs_raw],
             spaces=[Space.model_validate(s) for s in all_spaces_raw],
         )

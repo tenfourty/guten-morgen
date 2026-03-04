@@ -207,6 +207,11 @@ FAKE_TASKS = [
         "taskListId": "inbox",
         "tags": [],
     },
+    {
+        "id": "deleted-1",
+        "deleted": True,
+        "integrationId": "morgen",
+    },
 ]
 
 FAKE_TAGS = [

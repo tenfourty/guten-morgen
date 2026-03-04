@@ -15,8 +15,8 @@ class TestTasksList:
         result = runner.invoke(cli, ["tasks", "list", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        # 4 morgen-native + 1 linear + 1 notion = 6 total
-        assert len(data) == 6
+        # Default is --status open: 3 open morgen + 1 linear + 1 notion = 5
+        assert len(data) == 5
         assert data[0]["title"] == "Review PR"
 
     def test_table_output(self, runner: CliRunner, mock_client: MorgenClient) -> None:
@@ -90,15 +90,15 @@ class TestTasksListFiltering:
         assert "task-3" not in ids
 
     def test_overdue(self, runner: CliRunner, mock_client: MorgenClient) -> None:
-        """--overdue is shortcut for due-before now."""
+        """--overdue is shortcut for due-before now. Default status is open."""
         result = runner.invoke(cli, ["tasks", "list", "--json", "--overdue"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         ids = [t["id"] for t in data]
-        # task-3 (due 2025-10-15) is overdue
+        # task-3 (due 2025-10-15) is overdue and open
         assert "task-3" in ids
-        # task-4 (due 2026-02-16) is in the past too but completed
-        assert "task-4" in ids
+        # task-4 (due 2026-02-16) is overdue but completed — excluded by default --status open
+        assert "task-4" not in ids
 
     def test_priority(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """--priority filters by priority level."""
@@ -219,8 +219,8 @@ class TestTasksSource:
         data = json.loads(result.output)
         sources = {t.get("source") for t in data}
         assert sources == {"morgen"}
-        # Should have the 4 morgen-native tasks
-        assert len(data) == 4
+        # 3 open morgen-native tasks (task-4 completed, excluded by default --status open)
+        assert len(data) == 3
 
     def test_source_filter_linear(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """--source linear returns only linear tasks."""
@@ -620,3 +620,83 @@ class TestTaskDescriptionMarkdownWrite:
     def test_update_converts_markdown_to_html(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["tasks", "update", "task-1", "--description", "**bold note**"])
         assert result.exit_code == 0
+
+
+class TestSinceOption:
+    """--since convenience flag for --updated-after."""
+
+    def test_since_7d(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--since 7d is accepted and returns tasks."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--since", "7d"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+
+    def test_since_yesterday(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--since yesterday is accepted."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--since", "yesterday"])
+        assert result.exit_code == 0
+
+    def test_since_iso_date(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--since accepts ISO dates."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--since", "2026-03-01"])
+        assert result.exit_code == 0
+
+    def test_since_invalid(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--since with invalid value shows error."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--since", "banana"])
+        assert result.exit_code != 0
+
+    def test_updated_after_takes_precedence(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--updated-after takes precedence over --since."""
+        result = runner.invoke(
+            cli, ["tasks", "list", "--json", "--updated-after", "2026-03-01T00:00:00", "--since", "7d"]
+        )
+        assert result.exit_code == 0
+
+
+class TestStatusAutoInject:
+    """--status completed/all auto-injects updatedAfter."""
+
+    def test_status_completed_returns_completed(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--status completed filters to completed tasks (auto-injects updatedAfter)."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--status", "completed"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        ids = [t["id"] for t in data]
+        assert "task-4" in ids
+        assert "task-1" not in ids
+
+    def test_status_all_returns_both(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--status all returns open and completed."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--status", "all"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        ids = [t["id"] for t in data]
+        assert "task-1" in ids
+        assert "task-4" in ids
+
+    def test_default_status_is_open(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Default --status is open, excludes completed tasks."""
+        result = runner.invoke(cli, ["tasks", "list", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        ids = [t["id"] for t in data]
+        assert "task-4" not in ids
+        assert "task-1" in ids
+
+
+class TestTombstoneFiltering:
+    """Deleted tombstones from updatedAfter queries are filtered out."""
+
+    def test_tombstones_excluded(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Deleted task tombstones (from fixture) are excluded from output."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--status", "all"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        ids = [t["id"] for t in data]
+        # deleted-1 is a tombstone in FAKE_TASKS — should be filtered out
+        assert "deleted-1" not in ids
+        # Real tasks should still be present
+        assert "task-1" in ids
+        assert "task-4" in ids

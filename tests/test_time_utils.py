@@ -9,6 +9,7 @@ from guten_morgen.time_utils import (
     end_of_next_day,
     format_duration_human,
     get_local_timezone,
+    parse_since,
     this_month_range,
     this_week_range,
     today_range,
@@ -120,6 +121,62 @@ class TestGetLocalTimezone:
         mock_result = Mock(returncode=0, stdout="Time Zone: Europe/London")
         monkeypatch.setattr("subprocess.run", Mock(return_value=mock_result))
         assert get_local_timezone() == "Europe/London"
+
+
+class TestParseSince:
+    def test_days(self) -> None:
+        result = parse_since("7d")
+        parsed = datetime.fromisoformat(result)
+        assert parsed.tzinfo is not None
+        # Should be roughly 7 days ago
+        diff = datetime.now(timezone.utc) - parsed
+        assert 6.9 < diff.total_seconds() / 86400 < 7.1
+
+    def test_hours(self) -> None:
+        result = parse_since("2h")
+        parsed = datetime.fromisoformat(result)
+        diff = datetime.now(timezone.utc) - parsed
+        assert 1.9 < diff.total_seconds() / 3600 < 2.1
+
+    def test_weeks(self) -> None:
+        result = parse_since("1w")
+        parsed = datetime.fromisoformat(result)
+        diff = datetime.now(timezone.utc) - parsed
+        assert 6.9 < diff.total_seconds() / 86400 < 7.1
+
+    def test_yesterday(self) -> None:
+        result = parse_since("yesterday")
+        parsed = datetime.fromisoformat(result)
+        # Should be midnight yesterday
+        assert parsed.hour == 0
+        assert parsed.minute == 0
+
+    def test_iso_date_passthrough(self) -> None:
+        result = parse_since("2026-03-01")
+        assert result == "2026-03-01"
+
+    def test_iso_datetime_passthrough(self) -> None:
+        result = parse_since("2026-03-01T10:00:00")
+        assert result == "2026-03-01T10:00:00"
+
+    def test_invalid_raises(self) -> None:
+        import click
+        import pytest
+
+        with pytest.raises(click.exceptions.BadParameter):
+            parse_since("banana")
+
+    def test_whitespace_stripped(self) -> None:
+        result = parse_since("  7d  ")
+        parsed = datetime.fromisoformat(result)
+        diff = datetime.now(timezone.utc) - parsed
+        assert 6.9 < diff.total_seconds() / 86400 < 7.1
+
+    def test_30d(self) -> None:
+        result = parse_since("30d")
+        parsed = datetime.fromisoformat(result)
+        diff = datetime.now(timezone.utc) - parsed
+        assert 29.9 < diff.total_seconds() / 86400 < 30.1
 
 
 class TestComputeFreeSlots:
