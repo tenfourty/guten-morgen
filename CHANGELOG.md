@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.15.0...guten-morgen-v0.15.1) (2026-03-05)
+
+
+### Documentation
+
+* add completed tasks gotcha to CLAUDE.md ([70e4389](https://github.com/tenfourty/guten-morgen/commit/70e4389a53717cdc62abe1ae7137b4356e6dab7c))
+
 ## [0.15.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.14.0...guten-morgen-v0.15.0) (2026-03-04)
 
 
