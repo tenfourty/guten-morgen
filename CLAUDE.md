@@ -72,6 +72,7 @@ src/guten_morgen/
 - **Config discovery** — `$GM_CONFIG` → `guten-morgen.toml` (walk up from CWD) → `~/.config/guten-morgen/config.toml`. Run `gm init` for first-time setup.
 - **Calendar groups** — configured in `guten-morgen.toml` under `[groups.*]`. Use `--group all` to bypass filtering.
 - **`morgen.so:metadata`** — Event model aliases this. Use `model_dump(by_alias=True)` for events
+- **Completed tasks** — Morgen API only returns completed tasks when `updatedAfter` is passed. `--status completed` and `--status all` auto-inject `updatedAfter=30d`. Use `--since` for custom ranges. Cache is bypassed for `updatedAfter` queries (different results shape).
 - **Mutation output** — use `model_dump(exclude_none=True)` to avoid null flood
 - **`uv.lock`** — must be generated with `UV_INDEX="" uv lock --refresh` to avoid baking in private registries
 - **Do NOT reinstall after commits** — `uv tool install --editable .` is a one-time setup. Editable installs pick up code changes automatically. Never re-run it after commits, version bumps, or releases.
