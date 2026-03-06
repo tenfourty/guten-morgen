@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.16.0...guten-morgen-v0.16.1) (2026-03-06)
+
+
+### Documentation
+
+* document task enrichment pipeline, project/ref convention ([df77b72](https://github.com/tenfourty/guten-morgen/commit/df77b72b2f5569b42dbd178b125ea4b0be0a13cc))
+
 ## [0.16.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.15.1...guten-morgen-v0.16.0) (2026-03-06)
 
 
