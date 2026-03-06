@@ -40,6 +40,15 @@ Pre-commit hooks enforce everything (ggshield, ruff, mypy, bandit, pytest+cov). 
 
 **The boundary rule:** client returns models, cli converts with `model_dump()`, output only sees dicts.
 
+**Task enrichment pipeline** (`output.py`): `enrich_tasks()` adds computed fields to raw task dicts:
+- `source`, `source_id`, `source_url`, `source_status` — normalised external task metadata
+- `tag_names`, `list_name` — resolved from IDs to human-readable names
+- `project` — parsed from first `project: <Name>` line in description (str | None)
+- `refs` — merged from Morgen API `source_url` + `ref: <url>` lines in description (list of {source, url})
+- Source inference via `_infer_source()` — hostname pattern matching for 10 integrations
+
+**`list_enriched_tasks(client)`** — convenience function combining `list_all_tasks()` + `enrich_tasks()` for Python consumers (e.g. brief-deck). Import from `guten_morgen.output`.
+
 Deep dive: [`docs/models.md`](docs/models.md) | [`docs/testing.md`](docs/testing.md)
 
 ## File Map
@@ -49,7 +58,8 @@ src/guten_morgen/
   cli.py        Click commands — boundary layer (model → dict)
   client.py     MorgenClient — typed API wrapper
   models.py     Pydantic v2 models (MorgenModel base)
-  output.py     Render pipeline (table/json/jsonl/csv + fields + jq)
+  output.py     Render pipeline + task enrichment (project, refs, source inference)
+  markup.py     HTML↔Markdown conversion for task descriptions
   errors.py     Exception hierarchy → structured JSON on stderr
   config.py     XDG config discovery + API settings
   auth.py       Bearer token auth via Morgen desktop app
@@ -73,6 +83,7 @@ src/guten_morgen/
 - **Calendar groups** — configured in `guten-morgen.toml` under `[groups.*]`. Use `--group all` to bypass filtering.
 - **`morgen.so:metadata`** — Event model aliases this. Use `model_dump(by_alias=True)` for events
 - **Completed tasks** — Morgen API only returns completed tasks when `updatedAfter` is passed. `--status completed` and `--status all` auto-inject `updatedAfter=30d`. Use `--since` for custom ranges. Cache is bypassed for `updatedAfter` queries (different results shape).
+- **Description metadata convention** — Task descriptions support `project: <Name>` (links task to a project) and `ref: <url>` (adds cross-references). Parsed at enrichment time by `_extract_project()` and `_extract_refs()`. CLI supports `--project` and `--ref` on `tasks create` and `tasks update`. `tasks list` supports `--project` for filtering.
 - **Mutation output** — use `model_dump(exclude_none=True)` to avoid null flood
 - **`uv.lock`** — must be generated with `UV_INDEX="" uv lock --refresh` to avoid baking in private registries
 - **Do NOT reinstall after commits** — `uv tool install --editable .` is a one-time setup. Editable installs pick up code changes automatically. Never re-run it after commits, version bumps, or releases.

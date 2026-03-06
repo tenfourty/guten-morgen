@@ -210,6 +210,47 @@ flowchart LR
 - `active_only = true` skips inactive calendars by default
 - Groups map to account emails and calendar names, resolved at CLI layer
 
+## Task Enrichment
+
+`enrich_tasks()` in `output.py` adds computed fields to raw task dicts after `model_dump()`. These fields don't exist in the Pydantic model — they're added at the dict layer.
+
+### Enrichment Fields
+
+| Field | Type | Source |
+|-------|------|--------|
+| `source` | `str` | `integrationId` (defaults to `"morgen"`) |
+| `source_url` | `str \| None` | `links.original.href` from Morgen API |
+| `source_id` | `str \| None` | `labels[id=identifier]` (Linear issue IDs) |
+| `source_status` | `str \| None` | Resolved via `labelDefs` (Linear state, Notion status) |
+| `tag_names` | `list[str]` | Tag IDs resolved to names |
+| `list_name` | `str \| None` | `taskListId` resolved to name |
+| `project` | `str \| None` | First `project: <Name>` line in description |
+| `refs` | `list[dict]` | Merged: `source_url` + `ref: <url>` lines from description |
+| `description` | `str` | HTML converted to markdown via `html_to_markdown()` |
+
+### Description Metadata Convention
+
+Task descriptions support structured metadata lines:
+
+```
+project: AI Adoption
+ref: https://linear.app/co/issue/ENG-1740
+ref: https://www.notion.so/doc123
+```
+
+- `project:` must be at the start of a line (case-insensitive). First match wins.
+- `ref:` must be at the start of a line with an `http(s)://` URL. Multiple allowed.
+- Source inference from URL hostname: linear.app→linear, notion.so→notion, slack.com→slack, github.com→github, etc. (10 patterns). Falls back to `"web"`.
+
+### Python Consumer API
+
+```python
+from guten_morgen.output import list_enriched_tasks
+
+tasks = list_enriched_tasks(client)  # fully enriched dicts
+tasks = list_enriched_tasks(client, source="linear")  # filter by source
+```
+
 ## Adding a New Model
 
 1. Add the Pydantic model to `src/morgen/models.py` inheriting `MorgenModel`
