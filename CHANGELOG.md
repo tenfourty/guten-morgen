@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.15.1...guten-morgen-v0.16.0) (2026-03-06)
+
+
+### Features
+
+* **tasks:** add project and ref enrichment with --project filter ([fd45567](https://github.com/tenfourty/guten-morgen/commit/fd45567a4e075e8810927af86fe2973809baa25c))
+
 ## [0.15.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.15.0...guten-morgen-v0.15.1) (2026-03-05)
 
 
