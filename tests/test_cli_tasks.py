@@ -700,3 +700,216 @@ class TestTombstoneFiltering:
         # Real tasks should still be present
         assert "task-1" in ids
         assert "task-4" in ids
+
+
+class TestTasksProjectFilter:
+    """--project filter on tasks list."""
+
+    def test_project_filter_matches(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Tasks with matching project: line are returned."""
+        from tests.conftest import FAKE_TASKS
+
+        original = FAKE_TASKS[1].get("description")
+        FAKE_TASKS[1]["description"] = "context\nproject: AI Adoption"
+        try:
+            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "AI Adoption"])
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert len(data) == 1
+            assert data[0]["id"] == "task-2"
+        finally:
+            FAKE_TASKS[1]["description"] = original
+
+    def test_project_filter_case_insensitive(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        from tests.conftest import FAKE_TASKS
+
+        original = FAKE_TASKS[1].get("description")
+        FAKE_TASKS[1]["description"] = "project: AI Adoption"
+        try:
+            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "ai adoption"])
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert len(data) == 1
+        finally:
+            FAKE_TASKS[1]["description"] = original
+
+    def test_project_filter_substring(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        from tests.conftest import FAKE_TASKS
+
+        original = FAKE_TASKS[1].get("description")
+        FAKE_TASKS[1]["description"] = "project: AI Adoption"
+        try:
+            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "ai"])
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert len(data) == 1
+        finally:
+            FAKE_TASKS[1]["description"] = original
+
+    def test_project_filter_no_match(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "nonexistent"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data) == 0
+
+    def test_project_filter_composes_with_tag(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--project + --tag compose as AND filters."""
+        from tests.conftest import FAKE_TASKS
+
+        original = FAKE_TASKS[1].get("description")
+        FAKE_TASKS[1]["description"] = "project: AI Adoption"
+        try:
+            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "AI", "--tag", "personal"])
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert len(data) == 1
+            assert data[0]["id"] == "task-2"
+
+            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "AI", "--tag", "urgent"])
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert not any(t["id"] == "task-2" for t in data)
+        finally:
+            FAKE_TASKS[1]["description"] = original
+
+
+class TestTasksCreateProject:
+    """--project and --ref on tasks create."""
+
+    def test_create_with_project(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "create", "--title", "New", "--project", "AI Adoption"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "project: AI Adoption" in (data.get("description") or "")
+
+    def test_create_with_project_and_description(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(
+            cli, ["tasks", "create", "--title", "New", "--description", "context", "--project", "Railway"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        desc = data.get("description", "")
+        assert "context" in desc
+        assert "project: Railway" in desc
+
+    def test_create_with_ref(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(
+            cli, ["tasks", "create", "--title", "Follow up", "--ref", "https://linear.app/co/issue/ENG-1740"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "ref: https://linear.app/co/issue/ENG-1740" in (data.get("description") or "")
+
+    def test_create_with_multiple_refs(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(
+            cli,
+            [
+                "tasks",
+                "create",
+                "--title",
+                "Follow up",
+                "--ref",
+                "https://linear.app/co/issue/ENG-1740",
+                "--ref",
+                "https://app.slack.com/archives/C123/p456",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        desc = data.get("description", "")
+        assert "ref: https://linear.app/co/issue/ENG-1740" in desc
+        assert "ref: https://app.slack.com/archives/C123/p456" in desc
+
+    def test_create_with_project_and_ref(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(
+            cli,
+            [
+                "tasks",
+                "create",
+                "--title",
+                "Follow up",
+                "--project",
+                "AI Adoption",
+                "--ref",
+                "https://linear.app/co/issue/ENG-1740",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        desc = data.get("description", "")
+        assert "project: AI Adoption" in desc
+        assert "ref: https://linear.app/co/issue/ENG-1740" in desc
+
+
+class TestTasksUpdateProject:
+    """--project and --ref on tasks update."""
+
+    def test_update_with_project_adds_to_existing(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Setting --project on a task without project: line adds it."""
+        result = runner.invoke(cli, ["tasks", "update", "task-2", "--project", "Platform Stability"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        desc = data.get("description", "")
+        assert "project: Platform Stability" in desc
+
+    def test_update_with_project_replaces_existing(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Setting --project on a task with existing project: replaces it."""
+        from tests.conftest import FAKE_TASKS
+
+        original = FAKE_TASKS[1].get("description")
+        FAKE_TASKS[1]["description"] = "context\nproject: Old Project"
+        try:
+            result = runner.invoke(cli, ["tasks", "update", "task-2", "--project", "New Project"])
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            desc = data.get("description", "")
+            assert "project: New Project" in desc
+            assert "Old Project" not in desc
+        finally:
+            FAKE_TASKS[1]["description"] = original
+
+    def test_update_with_project_clear(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Setting --project '' clears the project line."""
+        from tests.conftest import FAKE_TASKS
+
+        original = FAKE_TASKS[1].get("description")
+        FAKE_TASKS[1]["description"] = "context\nproject: AI Adoption"
+        try:
+            result = runner.invoke(cli, ["tasks", "update", "task-2", "--project", ""])
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            desc = data.get("description", "")
+            assert "project:" not in desc.lower()
+            assert "context" in desc
+        finally:
+            FAKE_TASKS[1]["description"] = original
+
+    def test_update_with_ref(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "update", "task-2", "--ref", "https://github.com/org/repo"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "ref: https://github.com/org/repo" in (data.get("description") or "")
+
+
+class TestTasksConciseProject:
+    """Concise output includes project field."""
+
+    def test_concise_includes_project(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        from tests.conftest import FAKE_TASKS
+
+        original = FAKE_TASKS[0].get("description")
+        FAKE_TASKS[0]["description"] = "project: AI Adoption"
+        try:
+            result = runner.invoke(cli, ["tasks", "list", "--json", "--response-format", "concise"])
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            t1 = next(t for t in data if t["id"] == "task-1")
+            assert t1["project"] == "AI Adoption"
+        finally:
+            FAKE_TASKS[0]["description"] = original
+
+    def test_concise_excludes_refs(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--response-format", "concise"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "refs" not in data[0]

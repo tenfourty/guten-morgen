@@ -5,9 +5,63 @@ from __future__ import annotations
 import csv
 import io
 import json
-from typing import Any
+import re
+from typing import TYPE_CHECKING, Any
 
 from guten_morgen.markup import html_to_markdown
+
+if TYPE_CHECKING:
+    from guten_morgen.client import MorgenClient
+
+# ---------------------------------------------------------------------------
+# Description metadata parsing
+# ---------------------------------------------------------------------------
+
+_PROJECT_LINE_RE = re.compile(r"^project:\s*(.+)", re.IGNORECASE | re.MULTILINE)
+_REF_LINE_RE = re.compile(r"^ref:\s*(https?://\S+)", re.IGNORECASE | re.MULTILINE)
+
+_SOURCE_PATTERNS: list[tuple[str, str]] = [
+    ("linear.app", "linear"),
+    ("notion.so", "notion"),
+    ("slack.com", "slack"),
+    ("github.com", "github"),
+    ("gitlab.com", "gitlab"),
+    ("atlassian.net", "jira"),
+    ("asana.com", "asana"),
+    ("clickup.com", "clickup"),
+    ("shortcut.com", "shortcut"),
+    ("monday.com", "monday"),
+]
+
+
+def _extract_project(description: str | None) -> str | None:
+    """Extract project name from first ``project:`` line. Returns stripped name or None."""
+    if not description:
+        return None
+    m = _PROJECT_LINE_RE.search(description)
+    return m.group(1).strip() if m else None
+
+
+def _extract_refs(description: str | None) -> list[dict[str, str]]:
+    """Extract ``ref: <url>`` lines from description. Returns list of {source, url}."""
+    if not description:
+        return []
+    return [
+        {"source": _infer_source(m.group(1).strip()), "url": m.group(1).strip()}
+        for m in _REF_LINE_RE.finditer(description)
+    ]
+
+
+def _infer_source(url: str) -> str:
+    """Infer source system from URL hostname. Returns 'web' if unknown."""
+    try:
+        hostname = url.split("//", 1)[1].split("/", 1)[0].lower()
+    except (IndexError, ValueError):
+        return "web"
+    for pattern, source in _SOURCE_PATTERNS:
+        if pattern in hostname:
+            return source
+    return "web"
 
 
 def format_json(data: Any, indent: int = 2) -> str:
@@ -209,10 +263,11 @@ def enrich_tasks(
     tags: list[dict[str, Any]] | None = None,
     task_lists: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Add source, source_id, source_url, source_status, tag_names, list_name to tasks (shallow copy).
+    """Add source, source_id, source_url, source_status, tag_names, list_name, project, refs to tasks.
 
     Normalizes external task metadata (Linear labels, Notion properties) into
     common fields so the agent never needs to learn source-specific schemas.
+    Also parses ``project:`` and ``ref:`` lines from descriptions.
     """
     defs = label_defs or []
     tag_id_to_name: dict[str, str] = {t["id"]: t["name"] for t in (tags or []) if "id" in t and "name" in t}
@@ -254,8 +309,40 @@ def enrich_tasks(
         if desc is not None:
             t["description"] = html_to_markdown(desc)
 
+        # project: first project: line from description (str | None)
+        t["project"] = _extract_project(t.get("description"))
+
+        # refs: merge source_url (from Morgen API) + ref: lines (from description)
+        refs: list[dict[str, str]] = []
+        if t.get("source_url"):
+            refs.append({"source": t["source"], "url": t["source_url"]})
+        refs.extend(_extract_refs(t.get("description")))
+        t["refs"] = refs
+
         enriched.append(t)
     return enriched
+
+
+def list_enriched_tasks(
+    client: MorgenClient,
+    *,
+    source: str | None = None,
+    updated_after: str | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch all tasks from all sources and return enriched dicts.
+
+    Convenience wrapper that combines list_all_tasks() + enrich_tasks().
+    Returns dicts (not Task models) with all enrichment fields.
+    """
+    result = client.list_all_tasks(source=source, updated_after=updated_after)
+    all_tags = [t.model_dump() for t in client.list_tags()]
+    all_task_lists = [tl.model_dump() for tl in client.list_task_lists()]
+    return enrich_tasks(
+        [t.model_dump() for t in result.tasks],
+        label_defs=[ld.model_dump() for ld in result.labelDefs],
+        tags=all_tags,
+        task_lists=all_task_lists,
+    )
 
 
 def render(

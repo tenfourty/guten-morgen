@@ -431,6 +431,154 @@ class TestEnrichTasks:
 
         assert _resolve_label_display(None, [], "state") is None
 
+    # --- project enrichment ---
+
+    def test_enrich_project_single(self) -> None:
+        desc = "context\nproject: AI Adoption"
+        tasks = [{"id": "t1", "title": "Do thing", "description": desc, "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert result[0]["project"] == "AI Adoption"
+
+    def test_enrich_project_multiple_first_wins(self) -> None:
+        desc = "project: Alpha\nproject: Beta"
+        tasks = [{"id": "t1", "title": "Do thing", "description": desc, "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert result[0]["project"] == "Alpha"
+
+    def test_enrich_project_none(self) -> None:
+        tasks = [{"id": "t1", "title": "Do thing", "description": "no project here", "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert result[0]["project"] is None
+
+    def test_enrich_project_none_no_description(self) -> None:
+        tasks = [{"id": "t1", "title": "Do thing", "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert result[0]["project"] is None
+
+    def test_enrich_project_case_insensitive(self) -> None:
+        tasks = [{"id": "t1", "title": "Do thing", "description": "Project: Railway", "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert result[0]["project"] == "Railway"
+
+    def test_enrich_project_whitespace_stripped(self) -> None:
+        desc = "project:  AI Adoption  "
+        tasks = [{"id": "t1", "title": "Do thing", "description": desc, "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert result[0]["project"] == "AI Adoption"
+
+    def test_enrich_project_not_matched_mid_line(self) -> None:
+        desc = "discussed the project: AI Adoption today"
+        tasks = [{"id": "t1", "title": "Do thing", "description": desc, "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert result[0]["project"] is None
+
+    def test_enrich_project_after_html_conversion(self) -> None:
+        """HTML descriptions are converted to markdown before project extraction."""
+        desc = "<p>context</p><p>project: Platform Stability</p>"
+        tasks = [{"id": "t1", "title": "Do thing", "description": desc, "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert result[0]["project"] == "Platform Stability"
+
+    # --- refs enrichment ---
+
+    def test_enrich_refs_single(self) -> None:
+        desc = "ref: https://linear.app/co/issue/ENG-1740"
+        tasks = [{"id": "t1", "title": "Do thing", "description": desc, "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        expected = [{"source": "linear", "url": "https://linear.app/co/issue/ENG-1740"}]
+        assert result[0]["refs"] == expected
+
+    def test_enrich_refs_multiple(self) -> None:
+        desc = "ref: https://linear.app/co/issue/ENG-1740\nref: https://app.slack.com/archives/C123/p456"
+        tasks = [{"id": "t1", "title": "Do thing", "description": desc, "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert len(result[0]["refs"]) == 2
+        assert result[0]["refs"][0]["source"] == "linear"
+        assert result[0]["refs"][1]["source"] == "slack"
+
+    def test_enrich_refs_empty(self) -> None:
+        tasks = [{"id": "t1", "title": "Do thing", "description": "no refs here", "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert result[0]["refs"] == []
+
+    def test_enrich_refs_empty_no_description(self) -> None:
+        tasks = [{"id": "t1", "title": "Do thing", "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert result[0]["refs"] == []
+
+    def test_enrich_refs_merges_source_url(self) -> None:
+        """Imported task source_url from Morgen API appears in refs alongside ref: lines."""
+        tasks = [
+            {
+                "id": "lt1",
+                "title": "Budget",
+                "integrationId": "linear",
+                "progress": "needs-action",
+                "links": {"original": {"href": "https://linear.app/co/issue/ENG-1740/budget"}},
+                "description": "ref: https://www.notion.so/doc123",
+            }
+        ]
+        result = enrich_tasks(tasks)
+        assert len(result[0]["refs"]) == 2
+        assert result[0]["refs"][0] == {"source": "linear", "url": "https://linear.app/co/issue/ENG-1740/budget"}
+        assert result[0]["refs"][1] == {"source": "notion", "url": "https://www.notion.so/doc123"}
+
+    def test_enrich_refs_invalid_url_skipped(self) -> None:
+        """ref: lines without http(s) URLs are not matched."""
+        desc = "ref: not-a-url\nref: ftp://example.com"
+        tasks = [{"id": "t1", "title": "Do thing", "description": desc, "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        assert result[0]["refs"] == []
+
+    def test_enrich_refs_case_insensitive_prefix(self) -> None:
+        desc = "REF: https://github.com/org/repo"
+        tasks = [{"id": "t1", "title": "Do thing", "description": desc, "progress": "needs-action"}]
+        result = enrich_tasks(tasks)
+        expected = [{"source": "github", "url": "https://github.com/org/repo"}]
+        assert result[0]["refs"] == expected
+
+
+class TestInferSource:
+    def test_linear(self) -> None:
+        from guten_morgen.output import _infer_source
+
+        assert _infer_source("https://linear.app/co/issue/ENG-1740") == "linear"
+
+    def test_slack(self) -> None:
+        from guten_morgen.output import _infer_source
+
+        assert _infer_source("https://app.slack.com/archives/C123/p456") == "slack"
+
+    def test_notion(self) -> None:
+        from guten_morgen.output import _infer_source
+
+        assert _infer_source("https://www.notion.so/workspace/doc-123") == "notion"
+
+    def test_github(self) -> None:
+        from guten_morgen.output import _infer_source
+
+        assert _infer_source("https://github.com/org/repo/issues/42") == "github"
+
+    def test_gitlab(self) -> None:
+        from guten_morgen.output import _infer_source
+
+        assert _infer_source("https://gitlab.com/org/repo/-/merge_requests/1") == "gitlab"
+
+    def test_jira(self) -> None:
+        from guten_morgen.output import _infer_source
+
+        assert _infer_source("https://company.atlassian.net/browse/PROJ-123") == "jira"
+
+    def test_unknown(self) -> None:
+        from guten_morgen.output import _infer_source
+
+        assert _infer_source("https://example.com/page") == "web"
+
+    def test_malformed(self) -> None:
+        from guten_morgen.output import _infer_source
+
+        assert _infer_source("not-a-url") == "web"
+
 
 class TestComputeStatusCounts:
     def test_basic(self) -> None:
