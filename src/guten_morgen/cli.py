@@ -248,7 +248,7 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `gm tasks list [--limit N] [--status open|completed|all] [--overdue] [--json]`
   `  [--due-before ISO] [--due-after ISO] [--priority N] [--updated-after ISO]`
   `  [--since DURATION] [--source morgen|linear|notion] [--tag NAME]`
-  `  [--group-by-source] [--list NAME]`
+  `  [--group-by-source] [--list NAME] [--project NAME]`
   List tasks from all connected sources. Default: open tasks only.
   --status completed or --status all auto-fetch tasks updated in the last
   30 days (override with --since or --updated-after).
@@ -257,24 +257,35 @@ Use `--fields calendar_uid,my_status` to select specific fields.
   (repeatable, OR logic, case-insensitive). --group-by-source returns
   output grouped by source. --updated-after returns only tasks modified
   since the given timestamp. --list filters by task list name (case-insensitive).
+  --project filters by project name (from 'project:' lines in description,
+  case-insensitive substring match).
   Tasks are enriched with source, source_id, source_url, source_status,
-  tag_names, list_name fields. Descriptions are converted from HTML to markdown.
+  tag_names, list_name, project, refs fields. project is parsed from
+  'project: <name>' in the description (str or null). refs is a list of
+  {source, url} objects merged from API source_url and 'ref: <url>' lines.
+  Descriptions are converted from HTML to markdown.
 
 - `gm tasks get ID [--json]`
   Get a single task by ID.
 
 - `gm tasks create --title TEXT [--due ISO] [--priority 0-9] [--description MARKDOWN]`
-  `  [--duration MINUTES] [--tag NAME] [--list NAME] [--earliest-start ISO]`
+  `  [--duration MINUTES] [--tag NAME] [--list NAME] [--project NAME]`
+  `  [--ref URL] [--earliest-start ISO]`
   Create a new task. --duration sets estimatedDuration for AI time-blocking.
   --tag assigns tags by name (repeatable). --list assigns to a task list by name.
+  --project appends 'project: <name>' to description (links task to a project).
+  --ref appends 'ref: <url>' to description (repeatable, links to external items).
   --earliest-start sets the "not before" date. Descriptions accept markdown
   (converted to HTML for the API).
 
 - `gm tasks update ID [--title TEXT] [--due ISO] [--priority 0-9] [--description MARKDOWN]`
-  `  [--duration MINUTES] [--tag NAME] [--list NAME] [--earliest-start ISO]`
+  `  [--duration MINUTES] [--tag NAME] [--list NAME] [--project NAME]`
+  `  [--ref URL] [--earliest-start ISO]`
   Update a task. --duration sets estimatedDuration. --tag replaces tags by name
-  (repeatable). --list moves task to a list by name. --earliest-start sets the
-  "not before" date. Descriptions accept markdown (converted to HTML for the API).
+  (repeatable). --list moves task to a list by name. --project replaces existing
+  'project:' line (pass empty string to clear). --ref replaces existing 'ref:'
+  lines (repeatable). --earliest-start sets the "not before" date.
+  Descriptions accept markdown (converted to HTML for the API).
 
 - `gm tasks schedule ID --start ISO [--duration MINUTES] [--calendar-id ID] [--account-id ID]`
   Schedule a task as a linked calendar event. Fetches the task to derive
@@ -1111,8 +1122,20 @@ TASK_COLUMNS = [
     "source",
     "source_id",
     "source_status",
+    "project",
 ]
-TASK_CONCISE_FIELDS = ["id", "title", "progress", "due", "list_name", "tag_names", "source"]
+TASK_CONCISE_FIELDS = [
+    "id",
+    "title",
+    "progress",
+    "due",
+    "list_name",
+    "tag_names",
+    "source",
+    "source_url",
+    "source_id",
+    "project",
+]
 
 
 @cli.group()
@@ -1136,6 +1159,12 @@ def tasks() -> None:
 @click.option("--source", default=None, help="Filter by task source (morgen, linear, notion, etc.).")
 @click.option("--tag", "tag_names", multiple=True, help="Filter by tag name (repeatable, OR logic).")
 @click.option("--list", "list_name", default=None, help="Filter by task list name.")
+@click.option(
+    "--project",
+    "project_filter",
+    default=None,
+    help="Filter by project name (from 'project:' lines in description). Case-insensitive substring.",
+)
 @click.option("--group-by-source", is_flag=True, default=False, help="Group output by task source.")
 @click.option("--updated-after", default=None, help="Only tasks updated after this datetime (ISO 8601).")
 @click.option(
@@ -1152,6 +1181,7 @@ def tasks_list(
     source: str | None,
     tag_names: tuple[str, ...],
     list_name: str | None,
+    project_filter: str | None,
     group_by_source: bool,
     updated_after: str | None,
     since: str | None,
@@ -1245,6 +1275,12 @@ def tasks_list(
             if list_id_filter and t.get("taskListId") != list_id_filter:
                 continue
 
+            # Project filter (case-insensitive substring against project: enrichment field)
+            if project_filter:
+                proj = t.get("project")
+                if not proj or project_filter.lower() not in proj.lower():
+                    continue
+
             filtered.append(t)
 
         if response_format == "concise" and not fields:
@@ -1308,6 +1344,8 @@ def tasks_get(
 @click.option("--duration", default=None, type=int, help="Estimated duration in minutes.")
 @click.option("--tag", "tag_names", multiple=True, help="Tag name (repeatable). Resolved to IDs.")
 @click.option("--list", "list_name", default=None, help="Task list name. Resolved to ID.")
+@click.option("--project", "project_name", default=None, help="Project name. Appends 'project: <name>' to description.")
+@click.option("--ref", "refs", multiple=True, help="Reference URL (repeatable). Appends 'ref: <url>' to description.")
 @click.option("--earliest-start", default=None, help="Earliest start datetime (ISO 8601).")
 def tasks_create(
     title: str,
@@ -1317,6 +1355,8 @@ def tasks_create(
     duration: int | None,
     tag_names: tuple[str, ...],
     list_name: str | None,
+    project_name: str | None,
+    refs: tuple[str, ...],
     earliest_start: str | None,
 ) -> None:
     """Create a new task."""
@@ -1327,8 +1367,17 @@ def tasks_create(
             task_data["due"] = _normalize_due(due)
         if priority is not None:
             task_data["priority"] = priority
+        # Build description from --description, --project, and --ref
+        desc_parts: list[str] = []
         if description:
-            task_data["description"] = markdown_to_html(description) or description
+            desc_parts.append(description)
+        if project_name:
+            desc_parts.append(f"project: {project_name}")
+        if refs:
+            desc_parts.extend(f"ref: {r}" for r in refs)
+        if desc_parts:
+            combined = "\n".join(desc_parts)
+            task_data["description"] = markdown_to_html(combined) or combined
         if duration is not None:
             task_data["estimatedDuration"] = f"PT{duration}M"
         if tag_names:
@@ -1353,6 +1402,13 @@ def tasks_create(
 @click.option("--duration", default=None, type=int, help="Estimated duration in minutes.")
 @click.option("--tag", "tag_names", multiple=True, help="Tag name (repeatable). Replaces existing tags.")
 @click.option("--list", "list_name", default=None, help="Task list name. Resolved to ID.")
+@click.option(
+    "--project",
+    "project_name",
+    default=None,
+    help="Project name. Replaces existing 'project:' line (empty string to clear).",
+)
+@click.option("--ref", "refs", multiple=True, help="Reference URL (repeatable). Replaces existing 'ref:' lines.")
 @click.option("--earliest-start", default=None, help="Earliest start datetime (ISO 8601).")
 def tasks_update(
     task_id: str,
@@ -1363,6 +1419,8 @@ def tasks_update(
     duration: int | None,
     tag_names: tuple[str, ...],
     list_name: str | None,
+    project_name: str | None,
+    refs: tuple[str, ...],
     earliest_start: str | None,
 ) -> None:
     """Update a task."""
@@ -1375,8 +1433,42 @@ def tasks_update(
             task_data["due"] = _normalize_due(due)
         if priority is not None:
             task_data["priority"] = priority
-        if description is not None:
-            task_data["description"] = markdown_to_html(description) or description
+
+        # Handle --description, --project, --ref interactions
+        # If --project or --ref is used without --description, fetch current description first
+        needs_desc_update = description is not None or project_name is not None or refs
+        if needs_desc_update:
+            import re
+
+            from guten_morgen.output import _PROJECT_LINE_RE, _REF_LINE_RE
+
+            if description is not None:
+                # Explicit --description replaces everything
+                current_desc = description
+            else:
+                # Fetch current description for surgical project/ref replacement
+                existing = client.get_task(task_id)
+                current_desc = (html_to_markdown(existing.description) or "") if existing.description else ""
+
+            # Remove existing project: and ref: lines if replacing them
+            if project_name is not None:
+                current_desc = _PROJECT_LINE_RE.sub("", current_desc)
+            if refs:
+                current_desc = _REF_LINE_RE.sub("", current_desc)
+
+            # Clean up blank lines from removals
+            current_desc = re.sub(r"\n{3,}", "\n\n", current_desc).strip()
+
+            # Append new metadata
+            parts = [current_desc] if current_desc else []
+            if project_name is not None and project_name:
+                parts.append(f"project: {project_name}")
+            if refs:
+                parts.extend(f"ref: {r}" for r in refs)
+
+            combined = "\n".join(parts)
+            task_data["description"] = markdown_to_html(combined) or combined
+
         if duration is not None:
             task_data["estimatedDuration"] = f"PT{duration}M"
         if tag_names:
