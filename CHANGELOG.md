@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.17.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.16.1...guten-morgen-v0.17.0) (2026-03-09)
+
+
+### Features
+
+* **events:** add --privacy option for event visibility (public/private/secret) ([c29a889](https://github.com/tenfourty/guten-morgen/commit/c29a889eb3193285679db4f9555422725ca6e105))
+
+
+### Bug Fixes
+
+* **client:** retry on timeout for idempotent requests with proxy-aware errors ([f52b05e](https://github.com/tenfourty/guten-morgen/commit/f52b05efeb16b32430fda261b73f76de666ef307))
+* **cli:** wrap long line in LLM contract to satisfy ruff E501 ([b0f97bf](https://github.com/tenfourty/guten-morgen/commit/b0f97bf9aefdc8393cd927401fd193df6b0af08c))
+
 ## [0.16.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.16.0...guten-morgen-v0.16.1) (2026-03-06)
 
 
