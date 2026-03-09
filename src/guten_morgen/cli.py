@@ -229,9 +229,11 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `gm events list --start ISO --end ISO [--group NAME] [--all-calendars] [--json]`
   List events in a date range. Auto-discovers account/calendar.
 
-- `gm events create --title TEXT --start ISO --duration MINUTES [--calendar-id ID] [--description TEXT] [--meet] [--privacy public|private|secret]`
+- `gm events create --title TEXT --start ISO --duration MINUTES [--calendar-id ID]`
+  `  [--description TEXT] [--meet] [--privacy public|private|secret]`
   Create a new event. --meet auto-attaches a Google Meet link.
-  --privacy sets visibility (JSCalendar): public (default), private (hidden details), secret (invisible to others).
+  --privacy sets visibility (JSCalendar): public (default), private
+  (hidden details), secret (invisible to others).
 
 - `gm events update ID [--title TEXT] [--start ISO] [--duration MINUTES]`
   `  [--description TEXT] [--privacy public|private|secret] [--series single|future|all]`
