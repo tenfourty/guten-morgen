@@ -83,6 +83,22 @@ def _extract_single(data: Any, key: str, model: type[T]) -> T | None:
     return model.model_validate(data)
 
 
+def _timeout_error(exc: httpx.TimeoutException) -> MorgenAPIError:
+    """Build a MorgenAPIError from a timeout with contextual suggestions."""
+    import os
+
+    suggestions = [
+        "Set MORGEN_TIMEOUT=60 to increase the timeout (default: 30s)",
+    ]
+    proxy_vars = [v for v in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy") if os.environ.get(v)]
+    if proxy_vars:
+        msg = f"Request timed out through HTTP proxy ({', '.join(proxy_vars)} set)"
+        suggestions.append("Try unsetting proxy env vars if the Morgen API is directly reachable")
+    else:
+        msg = f"Request timed out: {exc}"
+    return MorgenAPIError(msg, suggestions=suggestions)
+
+
 class MorgenClient:
     """Sync HTTP client for the Morgen v3 API."""
 
@@ -127,10 +143,18 @@ class MorgenClient:
             self._cache.invalidate(prefix)
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
-        """Make an API request with error mapping and retry on rate limit."""
+        """Make an API request with error mapping, retry on rate limit and timeout."""
         max_retries = self._settings.max_retries
+        is_idempotent = method.upper() in ("GET", "HEAD", "OPTIONS")
+
         for attempt in range(max_retries + 1):
-            resp = self._http.request(method, path, **kwargs)
+            try:
+                resp = self._http.request(method, path, **kwargs)
+            except httpx.TimeoutException as exc:
+                if is_idempotent and attempt < max_retries:
+                    time.sleep(min(2 * (attempt + 1), 10))
+                    continue
+                raise _timeout_error(exc) from exc
 
             if resp.status_code == 429:
                 if attempt >= max_retries:

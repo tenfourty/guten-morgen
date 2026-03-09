@@ -338,6 +338,94 @@ class TestRetryWithBackoff:
             client._request("GET", "/test")
 
 
+class TestReadTimeoutRetry:
+    """ReadTimeout should be retried for GET requests only."""
+
+    def test_get_retries_on_read_timeout_then_succeeds(self) -> None:
+        """GET request that times out once then succeeds should return data."""
+        call_count = {"n": 0}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            call_count["n"] += 1
+            if call_count["n"] <= 1:
+                raise httpx.ReadTimeout("timed out")
+            return httpx.Response(200, content=json.dumps({"data": "ok"}).encode())
+
+        client = _make_client_with_retry(httpx.MockTransport(handler))
+        result = client._request("GET", "/test")
+        assert result == {"data": "ok"}
+        assert call_count["n"] == 2
+
+    def test_get_exhausts_retries_raises_timeout_error(self) -> None:
+        """GET request that always times out should raise after max_retries."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ReadTimeout("timed out")
+
+        client = _make_client_with_retry(httpx.MockTransport(handler), max_retries=2)
+        with pytest.raises(MorgenAPIError, match="timed out"):
+            client._request("GET", "/test")
+
+    def test_post_does_not_retry_on_read_timeout(self) -> None:
+        """POST (non-idempotent) should NOT retry on ReadTimeout."""
+        call_count = {"n": 0}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            call_count["n"] += 1
+            raise httpx.ReadTimeout("timed out")
+
+        client = _make_client_with_retry(httpx.MockTransport(handler), max_retries=2)
+        with pytest.raises(MorgenAPIError, match="timed out"):
+            client._request("POST", "/test")
+        assert call_count["n"] == 1  # no retry
+
+    def test_timeout_error_includes_proxy_hint(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Error message should mention proxy when HTTP_PROXY is set."""
+        monkeypatch.delenv("HTTP_PROXY", raising=False)
+        monkeypatch.delenv("http_proxy", raising=False)
+        monkeypatch.delenv("https_proxy", raising=False)
+        monkeypatch.setenv("HTTPS_PROXY", "http://proxy:8080")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ReadTimeout("timed out")
+
+        client = _make_client_with_retry(httpx.MockTransport(handler), max_retries=0)
+        with pytest.raises(MorgenAPIError, match="proxy") as exc_info:
+            client._request("GET", "/test")
+        assert "HTTPS_PROXY" in str(exc_info.value)
+        assert "MORGEN_TIMEOUT" in " ".join(exc_info.value.suggestions)
+
+    def test_timeout_error_no_proxy_hint_when_no_proxy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Error message should NOT mention proxy when no proxy env vars set."""
+        monkeypatch.delenv("HTTP_PROXY", raising=False)
+        monkeypatch.delenv("HTTPS_PROXY", raising=False)
+        monkeypatch.delenv("http_proxy", raising=False)
+        monkeypatch.delenv("https_proxy", raising=False)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ReadTimeout("timed out")
+
+        client = _make_client_with_retry(httpx.MockTransport(handler), max_retries=0)
+        with pytest.raises(MorgenAPIError, match="timed out") as exc_info:
+            client._request("GET", "/test")
+        assert "proxy" not in str(exc_info.value).lower()
+
+    def test_connect_timeout_retries_for_get(self) -> None:
+        """ConnectTimeout should also be retried for GET requests."""
+        call_count = {"n": 0}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            call_count["n"] += 1
+            if call_count["n"] <= 1:
+                raise httpx.ConnectTimeout("connect timed out")
+            return httpx.Response(200, content=json.dumps({"data": "ok"}).encode())
+
+        client = _make_client_with_retry(httpx.MockTransport(handler))
+        result = client._request("GET", "/test")
+        assert result == {"data": "ok"}
+        assert call_count["n"] == 2
+
+
 class TestBearerAuth:
     def test_uses_bearer_header_when_available(self) -> None:
         """Client uses Bearer auth when bearer_token is set."""
