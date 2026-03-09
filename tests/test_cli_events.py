@@ -169,6 +169,56 @@ class TestEventsCreate:
         data = json.loads(result.output)
         assert data["title"] == "Test Event"
 
+    def test_create_with_privacy(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--privacy sets the privacy field on created events."""
+        result = runner.invoke(
+            cli,
+            [
+                "events",
+                "create",
+                "--title",
+                "Private Meeting",
+                "--start",
+                "2026-02-17T10:00:00",
+                "--duration",
+                "30",
+                "--privacy",
+                "private",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["privacy"] == "private"
+
+    def test_create_without_privacy(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Without --privacy, no privacy field in payload."""
+        result = runner.invoke(
+            cli,
+            ["events", "create", "--title", "Open Meeting", "--start", "2026-02-17T10:00:00", "--duration", "30"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data.get("privacy") is None
+
+    def test_create_privacy_invalid_choice(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Invalid --privacy value is rejected by Click."""
+        result = runner.invoke(
+            cli,
+            [
+                "events",
+                "create",
+                "--title",
+                "Bad",
+                "--start",
+                "2026-02-17T10:00:00",
+                "--duration",
+                "30",
+                "--privacy",
+                "confidential",
+            ],
+        )
+        assert result.exit_code != 0
+
 
 class TestEventsUpdate:
     def test_update(self, runner: CliRunner, mock_client: MorgenClient) -> None:
@@ -177,6 +227,21 @@ class TestEventsUpdate:
         data = json.loads(result.output)
         assert data["id"] == "evt-1"
         assert data["title"] == "Updated"
+
+    def test_update_privacy(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--privacy updates the visibility of an event."""
+        result = runner.invoke(cli, ["events", "update", "evt-1", "--privacy", "secret"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["id"] == "evt-1"
+        assert data["privacy"] == "secret"
+
+    def test_update_privacy_to_public(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Can set privacy back to public."""
+        result = runner.invoke(cli, ["events", "update", "evt-1", "--privacy", "public"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["privacy"] == "public"
 
 
 class TestEventsDelete:
@@ -519,6 +584,38 @@ class TestCounts:
             record = json.loads(line)
             assert "meta" not in record
             assert "title" in record
+
+
+class TestEventPrivacyModel:
+    def test_model_accepts_privacy(self) -> None:
+        """Event model parses privacy field from API response."""
+        from guten_morgen.models import Event
+
+        event = Event(id="evt-1", title="Private", privacy="private")
+        assert event.privacy == "private"
+
+    def test_model_accepts_free_busy_status(self) -> None:
+        """Event model parses freeBusyStatus field from API response."""
+        from guten_morgen.models import Event
+
+        event = Event(id="evt-1", title="Busy", freeBusyStatus="busy")
+        assert event.freeBusyStatus == "busy"
+
+    def test_privacy_in_model_dump(self) -> None:
+        """Privacy field appears in model_dump output."""
+        from guten_morgen.models import Event
+
+        event = Event(id="evt-1", title="Secret", privacy="secret")
+        dumped = event.model_dump(exclude_none=True)
+        assert dumped["privacy"] == "secret"
+
+    def test_privacy_none_excluded(self) -> None:
+        """Privacy field excluded from model_dump when None."""
+        from guten_morgen.models import Event
+
+        event = Event(id="evt-1", title="Normal")
+        dumped = event.model_dump(exclude_none=True)
+        assert "privacy" not in dumped
 
 
 class TestNormalizeDatetime:

@@ -61,6 +61,8 @@ class Event(MorgenModel):
     locations: dict[str, Any] | None = None
     showAs: str | None = None
     showWithoutTime: bool | None = None
+    privacy: str | None = None
+    freeBusyStatus: str | None = None
     timeZone: str | None = None
     morgen_metadata: dict[str, Any] | None = Field(None, alias="morgen.so:metadata")
     request_virtual_room: str | None = Field(None, alias="morgen.so:requestVirtualRoom")

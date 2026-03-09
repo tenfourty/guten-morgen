@@ -229,11 +229,12 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `gm events list --start ISO --end ISO [--group NAME] [--all-calendars] [--json]`
   List events in a date range. Auto-discovers account/calendar.
 
-- `gm events create --title TEXT --start ISO --duration MINUTES [--calendar-id ID] [--description TEXT] [--meet]`
+- `gm events create --title TEXT --start ISO --duration MINUTES [--calendar-id ID] [--description TEXT] [--meet] [--privacy public|private|secret]`
   Create a new event. --meet auto-attaches a Google Meet link.
+  --privacy sets visibility (JSCalendar): public (default), private (hidden details), secret (invisible to others).
 
 - `gm events update ID [--title TEXT] [--start ISO] [--duration MINUTES]`
-  `  [--description TEXT] [--series single|future|all]`
+  `  [--description TEXT] [--privacy public|private|secret] [--series single|future|all]`
   Update an existing event. --series controls recurring event scope.
 
 - `gm events delete ID [--series single|future|all]`
@@ -888,6 +889,12 @@ def events_list(
 @click.option("--description", default=None, help="Event description.")
 @click.option("--timezone", default=None, help="Time zone (e.g. Europe/Paris). Defaults to system timezone.")
 @click.option("--meet", is_flag=True, default=False, help="Auto-attach a Google Meet link.")
+@click.option(
+    "--privacy",
+    type=click.Choice(["public", "private", "secret"]),
+    default=None,
+    help="Event visibility (public, private, secret).",
+)
 def events_create(
     title: str,
     start: str,
@@ -897,6 +904,7 @@ def events_create(
     description: str | None,
     timezone: str | None,
     meet: bool,
+    privacy: str | None,
 ) -> None:
     """Create a new event."""
     try:
@@ -919,6 +927,8 @@ def events_create(
         }
         if description:
             event_data["description"] = description
+        if privacy is not None:
+            event_data["privacy"] = privacy
         if meet:
             event_data["morgen.so:requestVirtualRoom"] = "default"
         result = client.create_event(event_data)
@@ -937,6 +947,12 @@ def events_create(
 @click.option("--calendar-id", default=None, help="Calendar ID.")
 @click.option("--account-id", default=None, help="Account ID.")
 @click.option(
+    "--privacy",
+    type=click.Choice(["public", "private", "secret"]),
+    default=None,
+    help="Event visibility (public, private, secret).",
+)
+@click.option(
     "--series",
     "series_mode",
     type=click.Choice(["single", "future", "all"]),
@@ -949,6 +965,7 @@ def events_update(
     start: str | None,
     duration: int | None,
     description: str | None,
+    privacy: str | None,
     calendar_id: str | None,
     account_id: str | None,
     series_mode: str | None,
@@ -972,6 +989,8 @@ def events_update(
             event_data["duration"] = f"PT{duration}M"
         if description is not None:
             event_data["description"] = description
+        if privacy is not None:
+            event_data["privacy"] = privacy
         result = client.update_event(event_data, series_update_mode=series_mode)
         if result:
             output = result.model_dump(by_alias=True, exclude_none=True)
