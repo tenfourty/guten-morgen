@@ -6,7 +6,7 @@ repos:
         language_version: python3
         stages: [pre-commit]
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.6
+    rev: v0.15.1
     hooks:
       - id: ruff
         args: [--fix]
@@ -31,3 +31,17 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: ruff-check-pre-push
+        name: ruff check (pre-push)
+        entry: uv run ruff check .
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
+      - id: ruff-format-pre-push
+        name: ruff format check (pre-push)
+        entry: uv run ruff format --check .
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
