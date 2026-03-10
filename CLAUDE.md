@@ -28,6 +28,24 @@ uv tool install --editable .                         # optional: global `gm` com
 
 Pre-commit hooks enforce everything (ggshield, ruff, mypy, bandit, pytest+cov). Trust the hooks.
 
+Also install pre-push hooks for portable lint checks:
+```bash
+uv run pre-commit install --hook-type pre-push
+```
+
+## Local CI
+
+```bash
+make ci          # full CI mirror (lint → typecheck → security → test)
+make lint        # ruff check + format only
+make fix         # auto-fix lint issues
+make typecheck   # mypy
+make security    # bandit
+make test        # pytest with coverage
+```
+
+`scripts/ci-local.sh --fix` is the standalone equivalent (no Make required).
+
 ## TDD Workflow
 
 1. Write failing test in `tests/`
