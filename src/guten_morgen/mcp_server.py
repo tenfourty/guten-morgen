@@ -100,6 +100,15 @@ def _is_frame_event(event: dict[str, Any]) -> bool:
     return isinstance(meta, dict) and "frameFilterMql" in meta
 
 
+def _normalize_hour(h: str) -> str:
+    """Normalize hour input like '9', '09', '9:30', '09:00' → 'HH:MM'."""
+    h = h.strip()
+    if ":" not in h:
+        return f"{int(h):02d}:00"
+    parts = h.split(":", 1)
+    return f"{int(parts[0]):02d}:{parts[1]}"
+
+
 def _resolve_filter(config: MorgenConfig, group: str | None) -> CalendarFilter:
     """Resolve a group name to a CalendarFilter."""
     return resolve_filter(config, group=group, all_calendars=(group is None))
@@ -338,8 +347,8 @@ def handle_gm_availability(
         slots = compute_free_slots(
             events=events_data,
             day=date,
-            window_start=start_hour or "08:00",
-            window_end=end_hour or "18:00",
+            window_start=_normalize_hour(start_hour) if start_hour else "08:00",
+            window_end=_normalize_hour(end_hour) if end_hour else "18:00",
             min_duration_minutes=min_duration_minutes,
         )
         return json.dumps(slots, default=str, ensure_ascii=False)

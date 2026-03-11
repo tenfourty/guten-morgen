@@ -537,6 +537,49 @@ class TestHandleGmAvailability:
             assert "end" in result[0]
             assert "duration_minutes" in result[0]
 
+    def test_single_digit_start_hour(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_availability
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        # start_hour="9" should work the same as "09:00"
+        result = json.loads(handle_gm_availability(client, config, date="2026-02-17", start_hour="9"))
+
+        assert isinstance(result, list)
+        assert "error" not in result if isinstance(result, list) else "error" not in result
+
+    def test_single_digit_end_hour(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_availability
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_availability(client, config, date="2026-02-17", end_hour="6"))
+
+        # Should not error — "6" normalised to "06:00"
+        assert isinstance(result, list)
+
+
+class TestNormalizeHour:
+    def test_single_digit(self) -> None:
+        from guten_morgen.mcp_server import _normalize_hour
+
+        assert _normalize_hour("9") == "09:00"
+
+    def test_two_digit(self) -> None:
+        from guten_morgen.mcp_server import _normalize_hour
+
+        assert _normalize_hour("09") == "09:00"
+
+    def test_full_format(self) -> None:
+        from guten_morgen.mcp_server import _normalize_hour
+
+        assert _normalize_hour("09:00") == "09:00"
+
+    def test_single_digit_with_minutes(self) -> None:
+        from guten_morgen.mcp_server import _normalize_hour
+
+        assert _normalize_hour("9:30") == "09:30"
+
 
 # ---------------------------------------------------------------------------
 # gm_tasks_list handler tests
