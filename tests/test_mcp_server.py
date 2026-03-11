@@ -517,6 +517,28 @@ class TestHandleGmEventsList:
         for event in result:
             assert "description" not in event
 
+    def test_bare_date_start_normalised(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_list
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        handle_gm_events_list(client, config, start="2026-02-17", end="2026-02-17T23:59:59")
+
+        # Verify the client received the normalised datetime, not the bare date
+        call_args = client.list_all_events.call_args
+        assert call_args[0][0] == "2026-02-17T00:00:00"
+
+    def test_bare_date_end_normalised(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_list
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        handle_gm_events_list(client, config, start="2026-02-17T00:00:00", end="2026-02-17")
+
+        # Verify end date normalised to T23:59:59
+        call_args = client.list_all_events.call_args
+        assert call_args[0][1] == "2026-02-17T23:59:59"
+
 
 # ---------------------------------------------------------------------------
 # gm_availability handler tests
@@ -1439,6 +1461,28 @@ class TestHandleGmListsDelete:
 # ---------------------------------------------------------------------------
 # Issue 2: Proxy vars must include HTTP_PROXY / HTTPS_PROXY
 # ---------------------------------------------------------------------------
+
+
+class TestNormalizeDatetime:
+    def test_bare_date_start(self) -> None:
+        from guten_morgen.mcp_server import _normalize_datetime_start
+
+        assert _normalize_datetime_start("2026-03-12") == "2026-03-12T00:00:00"
+
+    def test_full_datetime_unchanged(self) -> None:
+        from guten_morgen.mcp_server import _normalize_datetime_start
+
+        assert _normalize_datetime_start("2026-03-12T09:30:00") == "2026-03-12T09:30:00"
+
+    def test_bare_date_end(self) -> None:
+        from guten_morgen.mcp_server import _normalize_datetime_end
+
+        assert _normalize_datetime_end("2026-03-12") == "2026-03-12T23:59:59"
+
+    def test_full_datetime_end_unchanged(self) -> None:
+        from guten_morgen.mcp_server import _normalize_datetime_end
+
+        assert _normalize_datetime_end("2026-03-12T18:00:00") == "2026-03-12T18:00:00"
 
 
 class TestProxyVars:

@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 # Description metadata parsing
 # ---------------------------------------------------------------------------
 
-_PROJECT_LINE_RE = re.compile(r"^project:\s*(.+)", re.IGNORECASE | re.MULTILINE)
+_PROJECT_LINE_RE = re.compile(r"^project:\s*([^\r\n]+)", re.IGNORECASE | re.MULTILINE)
 _REF_LINE_RE = re.compile(r"^ref:\s*(https?://\S+)", re.IGNORECASE | re.MULTILINE)
 
 _SOURCE_PATTERNS: list[tuple[str, str]] = [

@@ -100,6 +100,16 @@ def _is_frame_event(event: dict[str, Any]) -> bool:
     return isinstance(meta, dict) and "frameFilterMql" in meta
 
 
+def _normalize_datetime_start(s: str) -> str:
+    """Normalize bare date 'YYYY-MM-DD' → 'YYYY-MM-DDT00:00:00'. Full datetimes pass through."""
+    return f"{s}T00:00:00" if len(s) == 10 else s
+
+
+def _normalize_datetime_end(s: str) -> str:
+    """Normalize bare date 'YYYY-MM-DD' → 'YYYY-MM-DDT23:59:59'. Full datetimes pass through."""
+    return f"{s}T23:59:59" if len(s) == 10 else s
+
+
 def _normalize_hour(h: str) -> str:
     """Normalize hour input like '9', '09', '9:30', '09:00' → 'HH:MM'."""
     h = h.strip()
@@ -310,8 +320,10 @@ def handle_gm_events_list(
     end: str,
     group: str | None = None,
 ) -> str:
-    """List events in a date range (max 90 days). Returns JSON string."""
+    """List events in a date range (max 90 days). Accepts bare dates (YYYY-MM-DD). Returns JSON string."""
     try:
+        start = _normalize_datetime_start(start)
+        end = _normalize_datetime_end(end)
         start_dt = datetime.fromisoformat(start)
         end_dt = datetime.fromisoformat(end)
         if (end_dt - start_dt).days > 90:
