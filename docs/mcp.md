@@ -323,7 +323,7 @@ Errors are also logged to stderr.
 Handler + wrapper pattern:
 - **Handlers** (`handle_gm_*`) — testable functions that receive a `MorgenClient` and return JSON strings. All business logic lives here.
 - **Wrappers** (`@mcp.tool()`) — thin MCP transport adapters that create the client singleton and delegate to handlers.
-- **Resources** (`@mcp.resource()`) — static data endpoints reusing the same handlers.
+- **Resources** (`@mcp.resource()`) — cached data endpoints reusing the same handlers.
 
 Concise field projections (`_EVENT_CONCISE_FIELDS`, `_TASK_CONCISE_FIELDS`) strip description bodies and internal fields from list responses, keeping context usage low.
 
