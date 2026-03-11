@@ -599,6 +599,35 @@ class TestComputeStatusCounts:
         assert _compute_status_counts([]) == {}
 
 
+class TestExtractProject:
+    def test_newline_separator(self) -> None:
+        from guten_morgen.output import _extract_project
+
+        assert _extract_project("project: AI Adoption\nPromised in Staffs meeting") == "AI Adoption"
+
+    def test_crlf_separator(self) -> None:
+        from guten_morgen.output import _extract_project
+
+        # CRLF must not leak \r into the project name
+        assert _extract_project("project: AI Adoption\r\nPromised in Staffs meeting") == "AI Adoption"
+
+    def test_single_line_no_trailing_content(self) -> None:
+        from guten_morgen.output import _extract_project
+
+        assert _extract_project("project: AI Adoption") == "AI Adoption"
+
+    def test_last_line_no_trailing_newline(self) -> None:
+        from guten_morgen.output import _extract_project
+
+        desc = "Some preamble\nproject: Observability Migration"
+        assert _extract_project(desc) == "Observability Migration"
+
+    def test_trailing_whitespace_stripped(self) -> None:
+        from guten_morgen.output import _extract_project
+
+        assert _extract_project("project: AI Adoption   \nMore text") == "AI Adoption"
+
+
 class TestOutputError:
     def test_structured_output(self) -> None:
         with pytest.raises(SystemExit) as exc_info:
