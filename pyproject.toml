@@ -34,6 +34,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=8.0", "pytest-cov>=5.0"]
+mcp = ["mcp>=1.2"]
 dev = [
     "guten-morgen[test]",
     "mypy>=1.10",
@@ -45,6 +46,7 @@ dev = [
 [project.scripts]
 gm = "guten_morgen.cli:cli"
 guten-morgen = "guten_morgen.cli:cli"
+gm-mcp = "guten_morgen.mcp_server:main"
 
 [project.urls]
 Repository = "https://github.com/tenfourty/guten-morgen"

@@ -48,9 +48,26 @@ make test        # pytest with coverage
 
 ## TDD Workflow
 
-1. Write failing test in `tests/`
-2. Implement in `src/guten_morgen/`
-3. `uv run pytest -x -q` — green, then `uv run mypy src/` — clean
+Every new feature must have:
+1. **A happy-path integration test** — exercises `MorgenClient` against a respx transport mock that returns realistic API payloads. Tests the full request/response/enrichment pipeline, not just isolated functions.
+2. **A happy-path E2E test** — a subprocess smoke test invoking `gm <command> --json` as a real process against a mock server (or with `--no-cache` + recorded fixtures) and asserting on stdout JSON + exit code.
+
+**TDD order is mandatory:**
+- Write integration and E2E tests first (red), then implement until they pass (green)
+- When fixing a bug: write a test that reproduces the bug first, then fix the code
+- Never write implementation code before a failing test exists
+
+**Exceptions (must be explicitly noted in a comment, not silently skipped):**
+- Pure infrastructure (retry logic, rate-limit backoff, cache TTL) — unit test only is acceptable
+- MCP handler functions — handler unit tests with mock `MorgenClient` are sufficient; do not test FastMCP transport wiring (that's FastMCP's responsibility)
+- Auth token discovery (`auth.py`) — unit only; live OAuth flows are not testable in CI
+
+Quick commands:
+```bash
+uv run pytest tests/test_tasks.py::test_name -x -v   # single test
+uv run pytest -x -q --cov                             # full suite
+```
+Then: `uv run mypy src/` — clean before committing.
 
 ## Architecture
 
