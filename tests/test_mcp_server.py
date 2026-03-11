@@ -1160,6 +1160,16 @@ class TestHandleGmTagsCreate:
         result = json.loads(handle_gm_tags_create(client, name="Fail"))
         assert "error" in result
 
+    def test_error_when_api_returns_none(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tags_create
+
+        client = _make_mock_client()
+        client.create_tag.return_value = None
+
+        result = json.loads(handle_gm_tags_create(client, name="Ghost"))
+        assert "error" in result
+        assert "no ID" in result["error"]
+
 
 class TestHandleGmTagsUpdate:
     def test_updates_tag(self) -> None:
@@ -1171,6 +1181,16 @@ class TestHandleGmTagsUpdate:
         result = json.loads(handle_gm_tags_update(client, tag_id="tag-1", name="Renamed"))
         assert result["status"] == "ok"
         assert result["tag_id"] == "tag-1"
+
+    def test_error_no_fields(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tags_update
+
+        client = _make_mock_client()
+
+        result = json.loads(handle_gm_tags_update(client, tag_id="tag-1"))
+        assert "error" in result
+        assert "No fields" in result["error"]
+        client.update_tag.assert_not_called()
 
     def test_error_on_failure(self) -> None:
         from guten_morgen.mcp_server import handle_gm_tags_update
@@ -1215,6 +1235,16 @@ class TestHandleGmListsCreate:
         assert result["list_id"] == "list-new"
         assert result["name"] == "Projects"
 
+    def test_error_when_api_returns_none(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_lists_create
+
+        client = _make_mock_client()
+        client.create_task_list.return_value = None
+
+        result = json.loads(handle_gm_lists_create(client, name="Ghost"))
+        assert "error" in result
+        assert "no ID" in result["error"]
+
     def test_error_on_failure(self) -> None:
         from guten_morgen.mcp_server import handle_gm_lists_create
 
@@ -1235,6 +1265,16 @@ class TestHandleGmListsUpdate:
         result = json.loads(handle_gm_lists_update(client, list_id="inbox", name="Renamed"))
         assert result["status"] == "ok"
         assert result["list_id"] == "inbox"
+
+    def test_error_no_fields(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_lists_update
+
+        client = _make_mock_client()
+
+        result = json.loads(handle_gm_lists_update(client, list_id="inbox"))
+        assert "error" in result
+        assert "No fields" in result["error"]
+        client.update_task_list.assert_not_called()
 
     def test_error_on_failure(self) -> None:
         from guten_morgen.mcp_server import handle_gm_lists_update

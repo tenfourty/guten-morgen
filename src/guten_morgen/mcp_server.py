@@ -917,8 +917,9 @@ def handle_gm_tags_create(
         if color:
             tag_data["color"] = color
         result = client.create_tag(tag_data)
-        tag_id = result.id if result else "unknown"
-        return _mutation_ok("created", tag_id=tag_id, name=name)
+        if result is None:
+            return _error_json("Tag created but API returned no ID — verify in Morgen.")
+        return _mutation_ok("created", tag_id=result.id, name=name)
     except Exception as e:
         print(f"gm_tags_create error: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
@@ -934,6 +935,8 @@ def handle_gm_tags_update(
 ) -> str:
     """Update a tag. Returns JSON string."""
     try:
+        if name is None and color is None:
+            return _error_json("No fields to update — provide name or color.")
         tag_data: dict[str, Any] = {"id": tag_id}
         if name is not None:
             tag_data["name"] = name
@@ -974,8 +977,9 @@ def handle_gm_lists_create(
         if color:
             list_data["color"] = color
         result = client.create_task_list(list_data)
-        list_id = result.id if result else "unknown"
-        return _mutation_ok("created", list_id=list_id, name=name)
+        if result is None:
+            return _error_json("List created but API returned no ID — verify in Morgen.")
+        return _mutation_ok("created", list_id=result.id, name=name)
     except Exception as e:
         print(f"gm_lists_create error: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
@@ -991,6 +995,8 @@ def handle_gm_lists_update(
 ) -> str:
     """Update a task list. Returns JSON string."""
     try:
+        if name is None and color is None:
+            return _error_json("No fields to update — provide name or color.")
         list_data: dict[str, Any] = {"id": list_id}
         if name is not None:
             list_data["name"] = name
