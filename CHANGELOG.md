@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.2](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.18.1...guten-morgen-v0.18.2) (2026-03-11)
+
+
+### Bug Fixes
+
+* **mcp:** normalise single-digit start_hour/end_hour in gm_availability ([d8c139d](https://github.com/tenfourty/guten-morgen/commit/d8c139d5594e748c295602b2680810d4fe234960))
+
 ## [0.18.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.18.0...guten-morgen-v0.18.1) (2026-03-11)
 
 
