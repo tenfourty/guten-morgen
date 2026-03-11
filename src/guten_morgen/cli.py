@@ -550,6 +550,14 @@ def init(force: bool) -> None:
     click.echo("Run `gm events today` to verify.")
 
 
+@cli.command("mcp")
+def mcp_command() -> None:
+    """Start the MCP server on stdio transport."""
+    from guten_morgen.mcp_server import main as mcp_main
+
+    mcp_main()
+
+
 def _get_cache_store() -> CacheStore:
     """Return a CacheStore instance (default location)."""
     from guten_morgen.cache import CacheStore
