@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.3](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.18.2...guten-morgen-v0.18.3) (2026-03-11)
+
+
+### Bug Fixes
+
+* harden project parser regex and accept bare dates in gm_events_list ([0be45bf](https://github.com/tenfourty/guten-morgen/commit/0be45bf094f4e01513378f42fc7dd90edffbfa5c))
+
 ## [0.18.2](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.18.1...guten-morgen-v0.18.2) (2026-03-11)
 
 
