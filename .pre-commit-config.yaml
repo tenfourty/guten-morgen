@@ -15,32 +15,32 @@ repos:
     hooks:
       - id: mypy
         name: mypy
-        entry: uv run mypy src/
+        entry: uv run --frozen mypy src/
         language: system
         types: [python]
         pass_filenames: false
       - id: bandit
         name: bandit
-        entry: uv run bandit -c pyproject.toml -r src/
+        entry: uv run --frozen bandit -c pyproject.toml -r src/
         language: system
         types: [python]
         pass_filenames: false
       - id: pytest
         name: pytest
-        entry: uv run pytest -x -q --cov --cov-fail-under=90
+        entry: uv run --frozen pytest -x -q --cov --cov-fail-under=90
         language: system
         types: [python]
         pass_filenames: false
       - id: ruff-check-pre-push
         name: ruff check (pre-push)
-        entry: uv run ruff check .
+        entry: uv run --frozen ruff check .
         language: system
         types: [python]
         pass_filenames: false
         stages: [pre-push]
       - id: ruff-format-pre-push
         name: ruff format check (pre-push)
-        entry: uv run ruff format --check .
+        entry: uv run --frozen ruff format --check .
         language: system
         types: [python]
         pass_filenames: false
