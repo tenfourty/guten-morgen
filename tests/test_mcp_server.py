@@ -1122,3 +1122,146 @@ class TestHandleGmTasksUpdateProjectRef:
         result = json.loads(handle_gm_tasks_create(client, title="Test", list_name="Nonexistent"))
         assert "error" in result
         assert "not found" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Tag/list CRUD handler tests
+# ---------------------------------------------------------------------------
+
+
+class TestHandleGmTagsCreate:
+    def test_creates_tag(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tags_create
+
+        client = _make_mock_client()
+        client.create_tag.return_value = Tag(id="tag-new", name="Focus", color="#0000ff")
+
+        result = json.loads(handle_gm_tags_create(client, name="Focus"))
+        assert result["status"] == "ok"
+        assert result["tag_id"] == "tag-new"
+        assert result["name"] == "Focus"
+
+    def test_creates_tag_with_colour(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tags_create
+
+        client = _make_mock_client()
+        client.create_tag.return_value = Tag(id="tag-new", name="Focus", color="#0000ff")
+
+        handle_gm_tags_create(client, name="Focus", color="#0000ff")
+        call_data = client.create_tag.call_args[0][0]
+        assert call_data["color"] == "#0000ff"
+
+    def test_error_on_failure(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tags_create
+
+        client = _make_mock_client()
+        client.create_tag.side_effect = Exception("Duplicate name")
+
+        result = json.loads(handle_gm_tags_create(client, name="Fail"))
+        assert "error" in result
+
+
+class TestHandleGmTagsUpdate:
+    def test_updates_tag(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tags_update
+
+        client = _make_mock_client()
+        client.update_tag.return_value = Tag(id="tag-1", name="Renamed")
+
+        result = json.loads(handle_gm_tags_update(client, tag_id="tag-1", name="Renamed"))
+        assert result["status"] == "ok"
+        assert result["tag_id"] == "tag-1"
+
+    def test_error_on_failure(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tags_update
+
+        client = _make_mock_client()
+        client.update_tag.side_effect = Exception("Not found")
+
+        result = json.loads(handle_gm_tags_update(client, tag_id="bad"))
+        assert "error" in result
+
+
+class TestHandleGmTagsDelete:
+    def test_deletes_tag(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tags_delete
+
+        client = _make_mock_client()
+        client.delete_tag.return_value = None
+
+        result = json.loads(handle_gm_tags_delete(client, tag_id="tag-1"))
+        assert result["status"] == "ok"
+        assert result["tag_id"] == "tag-1"
+
+    def test_error_on_failure(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tags_delete
+
+        client = _make_mock_client()
+        client.delete_tag.side_effect = Exception("Not found")
+
+        result = json.loads(handle_gm_tags_delete(client, tag_id="bad"))
+        assert "error" in result
+
+
+class TestHandleGmListsCreate:
+    def test_creates_list(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_lists_create
+
+        client = _make_mock_client()
+        client.create_task_list.return_value = TaskList(id="list-new", name="Projects", color="#ff0000")
+
+        result = json.loads(handle_gm_lists_create(client, name="Projects"))
+        assert result["status"] == "ok"
+        assert result["list_id"] == "list-new"
+        assert result["name"] == "Projects"
+
+    def test_error_on_failure(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_lists_create
+
+        client = _make_mock_client()
+        client.create_task_list.side_effect = Exception("API error")
+
+        result = json.loads(handle_gm_lists_create(client, name="Fail"))
+        assert "error" in result
+
+
+class TestHandleGmListsUpdate:
+    def test_updates_list(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_lists_update
+
+        client = _make_mock_client()
+        client.update_task_list.return_value = TaskList(id="inbox", name="Renamed")
+
+        result = json.loads(handle_gm_lists_update(client, list_id="inbox", name="Renamed"))
+        assert result["status"] == "ok"
+        assert result["list_id"] == "inbox"
+
+    def test_error_on_failure(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_lists_update
+
+        client = _make_mock_client()
+        client.update_task_list.side_effect = Exception("Not found")
+
+        result = json.loads(handle_gm_lists_update(client, list_id="bad"))
+        assert "error" in result
+
+
+class TestHandleGmListsDelete:
+    def test_deletes_list(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_lists_delete
+
+        client = _make_mock_client()
+        client.delete_task_list.return_value = None
+
+        result = json.loads(handle_gm_lists_delete(client, list_id="inbox"))
+        assert result["status"] == "ok"
+        assert result["list_id"] == "inbox"
+
+    def test_error_on_failure(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_lists_delete
+
+        client = _make_mock_client()
+        client.delete_task_list.side_effect = Exception("Not found")
+
+        result = json.loads(handle_gm_lists_delete(client, list_id="bad"))
+        assert "error" in result

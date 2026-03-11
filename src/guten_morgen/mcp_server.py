@@ -2,6 +2,7 @@
 
 Phase 1: Read-only tools (12 tools).
 Phase 2: Mutation tools (11 tools) — events + tasks CRUD.
+Phase 3: Tag/list CRUD (6 tools) + MCP resources (3).
 """
 
 from __future__ import annotations
@@ -900,6 +901,125 @@ def handle_gm_events_rsvp(
 
 
 # ---------------------------------------------------------------------------
+# Phase 3: Tag/list CRUD handler functions
+# ---------------------------------------------------------------------------
+
+
+def handle_gm_tags_create(
+    client: MorgenClient,
+    *,
+    name: str,
+    color: str | None = None,
+) -> str:
+    """Create a tag. Returns JSON string."""
+    try:
+        tag_data: dict[str, Any] = {"name": name}
+        if color:
+            tag_data["color"] = color
+        result = client.create_tag(tag_data)
+        tag_id = result.id if result else "unknown"
+        return _mutation_ok("created", tag_id=tag_id, name=name)
+    except Exception as e:
+        print(f"gm_tags_create error: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return _error_json(str(e))
+
+
+def handle_gm_tags_update(
+    client: MorgenClient,
+    *,
+    tag_id: str,
+    name: str | None = None,
+    color: str | None = None,
+) -> str:
+    """Update a tag. Returns JSON string."""
+    try:
+        tag_data: dict[str, Any] = {"id": tag_id}
+        if name is not None:
+            tag_data["name"] = name
+        if color is not None:
+            tag_data["color"] = color
+        client.update_tag(tag_data)
+        return _mutation_ok("updated", tag_id=tag_id)
+    except Exception as e:
+        print(f"gm_tags_update error: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return _error_json(str(e))
+
+
+def handle_gm_tags_delete(
+    client: MorgenClient,
+    *,
+    tag_id: str,
+) -> str:
+    """Delete a tag. Returns JSON string."""
+    try:
+        client.delete_tag(tag_id)
+        return _mutation_ok("deleted", tag_id=tag_id)
+    except Exception as e:
+        print(f"gm_tags_delete error: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return _error_json(str(e))
+
+
+def handle_gm_lists_create(
+    client: MorgenClient,
+    *,
+    name: str,
+    color: str | None = None,
+) -> str:
+    """Create a task list. Returns JSON string."""
+    try:
+        list_data: dict[str, Any] = {"name": name}
+        if color:
+            list_data["color"] = color
+        result = client.create_task_list(list_data)
+        list_id = result.id if result else "unknown"
+        return _mutation_ok("created", list_id=list_id, name=name)
+    except Exception as e:
+        print(f"gm_lists_create error: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return _error_json(str(e))
+
+
+def handle_gm_lists_update(
+    client: MorgenClient,
+    *,
+    list_id: str,
+    name: str | None = None,
+    color: str | None = None,
+) -> str:
+    """Update a task list. Returns JSON string."""
+    try:
+        list_data: dict[str, Any] = {"id": list_id}
+        if name is not None:
+            list_data["name"] = name
+        if color is not None:
+            list_data["color"] = color
+        client.update_task_list(list_data)
+        return _mutation_ok("updated", list_id=list_id)
+    except Exception as e:
+        print(f"gm_lists_update error: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return _error_json(str(e))
+
+
+def handle_gm_lists_delete(
+    client: MorgenClient,
+    *,
+    list_id: str,
+) -> str:
+    """Delete a task list. Returns JSON string."""
+    try:
+        client.delete_task_list(list_id)
+        return _mutation_ok("deleted", list_id=list_id)
+    except Exception as e:
+        print(f"gm_lists_delete error: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return _error_json(str(e))
+
+
+# ---------------------------------------------------------------------------
 # MCP tool wrappers (thin — delegate to handlers)
 # ---------------------------------------------------------------------------
 
@@ -1254,6 +1374,79 @@ def gm_events_rsvp(  # pragma: no cover
     return handle_gm_events_rsvp(
         client, event_id=event_id, action=action, comment=comment, notify=notify, series_mode=series_mode
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Tag/list CRUD MCP tool wrappers
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def gm_tags_create(name: str, color: str | None = None) -> str:  # pragma: no cover
+    """Create a new tag (lifecycle status label)."""
+    client, _ = _get_client_and_config()
+    return handle_gm_tags_create(client, name=name, color=color)
+
+
+@mcp.tool()
+def gm_tags_update(tag_id: str, name: str | None = None, color: str | None = None) -> str:  # pragma: no cover
+    """Update an existing tag's name or colour."""
+    client, _ = _get_client_and_config()
+    return handle_gm_tags_update(client, tag_id=tag_id, name=name, color=color)
+
+
+@mcp.tool()
+def gm_tags_delete(tag_id: str) -> str:  # pragma: no cover
+    """Delete a tag permanently."""
+    client, _ = _get_client_and_config()
+    return handle_gm_tags_delete(client, tag_id=tag_id)
+
+
+@mcp.tool()
+def gm_lists_create(name: str, color: str | None = None) -> str:  # pragma: no cover
+    """Create a new task list (area of focus)."""
+    client, _ = _get_client_and_config()
+    return handle_gm_lists_create(client, name=name, color=color)
+
+
+@mcp.tool()
+def gm_lists_update(list_id: str, name: str | None = None, color: str | None = None) -> str:  # pragma: no cover
+    """Update an existing task list's name or colour."""
+    client, _ = _get_client_and_config()
+    return handle_gm_lists_update(client, list_id=list_id, name=name, color=color)
+
+
+@mcp.tool()
+def gm_lists_delete(list_id: str) -> str:  # pragma: no cover
+    """Delete a task list permanently."""
+    client, _ = _get_client_and_config()
+    return handle_gm_lists_delete(client, list_id=list_id)
+
+
+# ---------------------------------------------------------------------------
+# MCP resources
+# ---------------------------------------------------------------------------
+
+
+@mcp.resource("gm://lists")
+def resource_lists() -> str:  # pragma: no cover
+    """Task lists (areas of focus) — id, name, colour."""
+    client, _ = _get_client_and_config()
+    return handle_gm_lists(client)
+
+
+@mcp.resource("gm://tags")
+def resource_tags() -> str:  # pragma: no cover
+    """Tags (lifecycle status) — id, name, colour."""
+    client, _ = _get_client_and_config()
+    return handle_gm_tags(client)
+
+
+@mcp.resource("gm://groups")
+def resource_groups() -> str:  # pragma: no cover
+    """Calendar groups — configured group names and their accounts."""
+    _, config = _get_client_and_config()
+    return handle_gm_groups(config)
 
 
 # ---------------------------------------------------------------------------
