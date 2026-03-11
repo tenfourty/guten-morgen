@@ -413,6 +413,92 @@ class TestHandleGmNext:
 
 
 # ---------------------------------------------------------------------------
+# gm_this_week handler tests
+# ---------------------------------------------------------------------------
+
+
+class TestHandleGmThisWeek:
+    @patch("guten_morgen.time_utils.this_week_range", return_value=("2026-02-17T00:00:00", "2026-02-23T23:59:59"))
+    def test_returns_events_and_tasks(self, _mock_range: Any) -> None:
+        from guten_morgen.mcp_server import handle_gm_this_week
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_this_week(client, config))
+
+        assert "events" in result
+        assert "scheduled_tasks" in result
+        assert "overdue_tasks" in result
+        assert "unscheduled_tasks" in result
+        assert "meta" in result
+
+    @patch("guten_morgen.time_utils.this_week_range", return_value=("2026-02-17T00:00:00", "2026-02-23T23:59:59"))
+    def test_events_only(self, _mock_range: Any) -> None:
+        from guten_morgen.mcp_server import handle_gm_this_week
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_this_week(client, config, events_only=True))
+
+        assert "events" in result
+        assert "scheduled_tasks" not in result
+
+    @patch("guten_morgen.time_utils.this_week_range", return_value=("2026-02-17T00:00:00", "2026-02-23T23:59:59"))
+    def test_tasks_only(self, _mock_range: Any) -> None:
+        from guten_morgen.mcp_server import handle_gm_this_week
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_this_week(client, config, tasks_only=True))
+
+        assert "events" not in result
+        assert "scheduled_tasks" in result
+
+
+# ---------------------------------------------------------------------------
+# gm_this_month handler tests
+# ---------------------------------------------------------------------------
+
+
+class TestHandleGmThisMonth:
+    @patch("guten_morgen.time_utils.this_month_range", return_value=("2026-02-01T00:00:00", "2026-02-28T23:59:59"))
+    def test_returns_events_and_tasks(self, _mock_range: Any) -> None:
+        from guten_morgen.mcp_server import handle_gm_this_month
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_this_month(client, config))
+
+        assert "events" in result
+        assert "scheduled_tasks" in result
+        assert "overdue_tasks" in result
+        assert "unscheduled_tasks" in result
+        assert "meta" in result
+
+    @patch("guten_morgen.time_utils.this_month_range", return_value=("2026-02-01T00:00:00", "2026-02-28T23:59:59"))
+    def test_events_only(self, _mock_range: Any) -> None:
+        from guten_morgen.mcp_server import handle_gm_this_month
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_this_month(client, config, events_only=True))
+
+        assert "events" in result
+        assert "scheduled_tasks" not in result
+
+    @patch("guten_morgen.time_utils.this_month_range", return_value=("2026-02-01T00:00:00", "2026-02-28T23:59:59"))
+    def test_tasks_only(self, _mock_range: Any) -> None:
+        from guten_morgen.mcp_server import handle_gm_this_month
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_this_month(client, config, tasks_only=True))
+
+        assert "events" not in result
+        assert "scheduled_tasks" in result
+
+
+# ---------------------------------------------------------------------------
 # gm_events_list handler tests
 # ---------------------------------------------------------------------------
 
@@ -880,7 +966,7 @@ class TestHandleGmEventsRsvp:
         result = json.loads(handle_gm_events_rsvp(client, event_id="evt-1", action="accept"))
         assert result["status"] == "ok"
         assert result["event_id"] == "evt-1"
-        assert result["action"] == "accept"
+        assert result["action"] == "rsvped"
 
     def test_error_on_failure(self) -> None:
         from guten_morgen.mcp_server import handle_gm_events_rsvp
@@ -1305,3 +1391,70 @@ class TestHandleGmListsDelete:
 
         result = json.loads(handle_gm_lists_delete(client, list_id="bad"))
         assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Issue 2: Proxy vars must include HTTP_PROXY / HTTPS_PROXY
+# ---------------------------------------------------------------------------
+
+
+class TestProxyVars:
+    def test_includes_http_and_https_proxy(self) -> None:
+        from guten_morgen.mcp_server import _PROXY_VARS
+
+        for var in ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"):
+            assert var in _PROXY_VARS, f"{var} missing from _PROXY_VARS"
+
+
+# ---------------------------------------------------------------------------
+# Issue 3: RSVP response should use _mutation_ok pattern
+# ---------------------------------------------------------------------------
+
+
+class TestHandleGmEventsRsvpResponse:
+    def test_rsvp_uses_mutation_ok_shape(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_rsvp
+
+        client = _make_mock_client()
+        client.list_accounts.return_value = [Account(**_ACCOUNTS[0])]
+        client.list_calendars.return_value = [
+            MagicMock(id="cal-1", accountId="acc-1", integrationGroups=["calendars"], model_dump=lambda: {}),
+        ]
+        client.rsvp_event.return_value = {"status": "ok"}
+
+        result = json.loads(handle_gm_events_rsvp(client, event_id="evt-1", action="accept"))
+        # Should have "action" key with past-tense verb from _mutation_ok, not the raw input
+        assert result["status"] == "ok"
+        assert result["action"] == "rsvped"
+        assert result["event_id"] == "evt-1"
+
+
+# ---------------------------------------------------------------------------
+# Issue 4: Date range guard on gm_events_list
+# ---------------------------------------------------------------------------
+
+
+class TestHandleGmEventsListDateGuard:
+    def test_rejects_range_over_90_days(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_list
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(
+            handle_gm_events_list(client, config, start="2026-01-01T00:00:00", end="2026-12-31T23:59:59")
+        )
+
+        assert "error" in result
+        assert "90" in result["error"]
+
+    def test_allows_range_within_90_days(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_list
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(
+            handle_gm_events_list(client, config, start="2026-02-17T00:00:00", end="2026-03-17T23:59:59")
+        )
+
+        # Should succeed (28 days)
+        assert isinstance(result, list)

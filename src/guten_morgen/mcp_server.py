@@ -301,8 +301,12 @@ def handle_gm_events_list(
     end: str,
     group: str | None = None,
 ) -> str:
-    """List events in a date range. Returns JSON string."""
+    """List events in a date range (max 90 days). Returns JSON string."""
     try:
+        start_dt = datetime.fromisoformat(start)
+        end_dt = datetime.fromisoformat(end)
+        if (end_dt - start_dt).days > 90:
+            return _error_json("Date range exceeds 90 days. Use a shorter range to avoid context overflow.")
         events = _fetch_enriched_events(client, config, start, end, group)
         return json.dumps([_concise_event(e) for e in events], default=str, ensure_ascii=False)
     except Exception as e:
@@ -889,11 +893,7 @@ def handle_gm_events_rsvp(
             comment=comment,
             series_update_mode=series_mode,
         )
-        return json.dumps(
-            {"status": "ok", "event_id": event_id, "action": action},
-            default=str,
-            ensure_ascii=False,
-        )
+        return _mutation_ok("rsvped", event_id=event_id)
     except Exception as e:
         print(f"gm_events_rsvp error: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
@@ -1459,7 +1459,19 @@ def resource_groups() -> str:  # pragma: no cover
 # Entry point
 # ---------------------------------------------------------------------------
 
-_PROXY_VARS = ("ALL_PROXY", "all_proxy", "FTP_PROXY", "ftp_proxy", "GRPC_PROXY", "grpc_proxy", "RSYNC_PROXY")
+_PROXY_VARS = (
+    "ALL_PROXY",
+    "all_proxy",
+    "HTTP_PROXY",
+    "http_proxy",
+    "HTTPS_PROXY",
+    "https_proxy",
+    "FTP_PROXY",
+    "ftp_proxy",
+    "GRPC_PROXY",
+    "grpc_proxy",
+    "RSYNC_PROXY",
+)
 
 
 def main() -> None:  # pragma: no cover
