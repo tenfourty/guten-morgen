@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.18.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.17.0...guten-morgen-v0.18.0) (2026-03-11)
+
+
+### Features
+
+* add MCP server with 23 tools (Phase 1 + 2) ([32c4068](https://github.com/tenfourty/guten-morgen/commit/32c406899116fba45864949f4a7ac2068d79e39d))
+* add tag/list CRUD, MCP resources, and docs (Phase 3) ([8da492d](https://github.com/tenfourty/guten-morgen/commit/8da492d9536b19c694f4d2b12939204ff8173b91))
+
+
+### Bug Fixes
+
+* **mcp:** guard update no-ops and masked create failures in Phase 3 ([f86151d](https://github.com/tenfourty/guten-morgen/commit/f86151d0d8ff1d84889b4888e02f1035f2e4405f))
+
+
+### Documentation
+
+* add local CI and pre-push setup to CLAUDE.md ([3ae9a48](https://github.com/tenfourty/guten-morgen/commit/3ae9a48fc0b7b5f368bd70fddf6658e15620502c))
+
 ## [0.17.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.16.1...guten-morgen-v0.17.0) (2026-03-09)
 
 
