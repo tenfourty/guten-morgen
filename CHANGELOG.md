@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.18.0...guten-morgen-v0.18.1) (2026-03-11)
+
+
+### Bug Fixes
+
+* **mcp:** add missing tests, proxy vars, RSVP shape, and date range guard ([125c7fc](https://github.com/tenfourty/guten-morgen/commit/125c7fc9340a7ef3c47cc4706f00bbb26f815b01))
+* use uv run --frozen in pre-commit hooks to prevent uv.lock mutation ([e3e537d](https://github.com/tenfourty/guten-morgen/commit/e3e537df64d6fa67cd0cf29eaa86a9263b1bb7ed))
+
 ## [0.18.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.17.0...guten-morgen-v0.18.0) (2026-03-11)
 
 
