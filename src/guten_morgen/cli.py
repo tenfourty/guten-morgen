@@ -356,10 +356,10 @@ Use `--fields calendar_uid,my_status` to select specific fields.
   Combined events + tasks for today. Returns categorised output:
   events, scheduled_tasks, overdue_tasks, unscheduled_tasks.
 
-- `gm this-week [--json] [--response-format concise] [--events-only] [--tasks-only] [--group NAME]`
+- `gm this-week [--json] [--response-format concise] [--events-only] [--tasks-only] [--compact] [--group NAME]`
   Combined events + tasks for this week (Mon-Sun). Same categories.
 
-- `gm this-month [--json] [--response-format concise] [--events-only] [--tasks-only] [--group NAME]`
+- `gm this-month [--json] [--response-format concise] [--events-only] [--tasks-only] [--compact] [--group NAME]`
   Combined events + tasks for this month. Same categories.
 
 - `gm next [--count N] [--hours N] [--json] [--response-format concise] [--group NAME]`
@@ -929,14 +929,15 @@ def events_get(
 
         if target is None:
             output_error("not_found", f"Event '{event_id}' not found.", ["Check the event ID with gm events list"])
+            return
 
         # Enrich
-        enriched = enrich_events([target])[0]  # type: ignore[list-item]
+        enriched = enrich_events([target])[0]
 
         # Replace participants dict with structured list
         from guten_morgen.mcp_server import _structured_participants
 
-        enriched["participants"] = _structured_participants(target.get("participants"))  # type: ignore[union-attr]
+        enriched["participants"] = _structured_participants(target.get("participants"))
 
         # Convert description HTML to markdown
         desc = enriched.get("description")
@@ -1205,7 +1206,7 @@ def availability(
 
             start_dt = dt.strptime(date, "%Y-%m-%d")
             end_dt = dt.strptime(end_date, "%Y-%m-%d")
-            if (end_dt - start_dt).days > 14:
+            if (end_dt - start_dt).days + 1 > 14:
                 output_error("validation_error", "Date range exceeds 14 days.", ["Use a shorter range."])
             result: dict[str, list[dict[str, Any]]] = {}
             current = start_dt
@@ -2063,6 +2064,8 @@ def _combined_view(
             start_date = start[:10]
             end_date = end[:10]
             for t in tasks_data:
+                if t.get("progress") == "completed":
+                    continue
                 due = t.get("due", "")
                 if due:
                     due_date = due[:10]
@@ -2073,6 +2076,22 @@ def _combined_view(
                     # Tasks with due > end are outside the range — skip them
                 else:
                     unscheduled.append(t)
+
+            # Sort unscheduled: priority (lower = higher, nulls last), then due (soonest first, nulls last)
+            _PRIORITY_NULL = 999
+            _DUE_NULL = "9999-99-99"
+            unscheduled.sort(
+                key=lambda t: (
+                    t.get("priority") if t.get("priority") is not None else _PRIORITY_NULL,
+                    (t.get("due") or _DUE_NULL)[:10],
+                )
+            )
+
+            # Truncate to keep output manageable (matches MCP behaviour)
+            max_unscheduled = 20
+            total_unscheduled = len(unscheduled)
+            truncated = total_unscheduled > max_unscheduled
+            unscheduled = unscheduled[:max_unscheduled]
 
             if compact:
                 from guten_morgen.mcp_server import _compact_task
@@ -2092,6 +2111,11 @@ def _combined_view(
             result["scheduled_tasks"] = scheduled
             result["overdue_tasks"] = overdue
             result["unscheduled_tasks"] = unscheduled
+            if truncated:
+                meta = result.get("meta", {})
+                meta["unscheduled_truncated"] = True
+                meta["unscheduled_total"] = total_unscheduled
+                result["meta"] = meta
 
         if fields:
             # Apply field selection to each list in result

@@ -913,3 +913,31 @@ class TestTasksConciseProject:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "refs" not in data[0]
+
+
+class TestTasksQuery:
+    """CLI --query text search filter."""
+
+    def test_title_match(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--query matches against task title (case-insensitive)."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--query", "review"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        ids = [t["id"] for t in data]
+        assert "task-1" in ids  # "Review PR"
+        assert "task-2" not in ids  # "Write docs"
+
+    def test_description_match(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--query matches against task description (case-insensitive)."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--query", "formatting"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        ids = [t["id"] for t in data]
+        assert "task-2" in ids  # description: "Plain text note, no formatting"
+
+    def test_no_match(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--query with no matches returns empty list."""
+        result = runner.invoke(cli, ["tasks", "list", "--json", "--query", "zzz_nonexistent_zzz"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data == []
