@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.22.0...guten-morgen-v0.23.0) (2026-03-12)
+
+
+### Features
+
+* **cli:** add text search, multi-day availability, events get, and compact mode ([23190e7](https://github.com/tenfourty/guten-morgen/commit/23190e7c3d2c0dbbae577aef9b57c56cc917d85b))
+
 ## [0.22.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.21.0...guten-morgen-v0.22.0) (2026-03-12)
 
 
