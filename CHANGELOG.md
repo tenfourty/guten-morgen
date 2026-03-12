@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.22.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.21.0...guten-morgen-v0.22.0) (2026-03-12)
+
+
+### Features
+
+* **mcp:** add ToolAnnotations to all 31 MCP tools ([a1a72db](https://github.com/tenfourty/guten-morgen/commit/a1a72db7a83cb808ee63db3643028d99ec3e91df))
+
+
+### Bug Fixes
+
+* **mcp:** handle integer start_hour in availability + robust date normalisation ([b24046e](https://github.com/tenfourty/guten-morgen/commit/b24046e2ea2e18dc9c4795564fde0a72afd6f4d5))
+* **mcp:** restrict bare-date regex to zero-padded + pad minutes in _normalize_hour ([a50db60](https://github.com/tenfourty/guten-morgen/commit/a50db60b6fa9ccfa43c122c7fadd1797b93adbaa))
+* **output:** stop project parser leaking text past Unicode line separators ([fa4962a](https://github.com/tenfourty/guten-morgen/commit/fa4962ae3c7803433ede9074f7fb28df40ffe12e))
+
 ## [0.21.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.20.0...guten-morgen-v0.21.0) (2026-03-12)
 
 
