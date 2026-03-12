@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.20.0...guten-morgen-v0.21.0) (2026-03-12)
+
+
+### Features
+
+* **mcp:** Phase D — is_frame enrichment, exclude_frames, compact mode ([dbdab73](https://github.com/tenfourty/guten-morgen/commit/dbdab737978c8b2618bf1deb38cede5957e429dd))
+
 ## [0.20.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.19.0...guten-morgen-v0.20.0) (2026-03-12)
 
 
