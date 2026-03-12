@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.19.0...guten-morgen-v0.20.0) (2026-03-12)
+
+
+### Features
+
+* **mcp:** Phase C — due filters, order_by, tasks_count, multi-day availability ([d89b68b](https://github.com/tenfourty/guten-morgen/commit/d89b68b8dafab7e5bfc77d315efdd6cde244d843))
+
 ## [0.19.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.18.3...guten-morgen-v0.19.0) (2026-03-12)
 
 
