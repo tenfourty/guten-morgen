@@ -602,6 +602,17 @@ class TestNormalizeHour:
 
         assert _normalize_hour("9:30") == "09:30"
 
+    def test_integer_input(self) -> None:
+        from guten_morgen.mcp_server import _normalize_hour
+
+        # MCP JSON sends integers — must coerce to string before parsing
+        assert _normalize_hour(9) == "09:00"  # type: ignore[arg-type]
+
+    def test_integer_two_digit(self) -> None:
+        from guten_morgen.mcp_server import _normalize_hour
+
+        assert _normalize_hour(17) == "17:00"  # type: ignore[arg-type]
+
 
 # ---------------------------------------------------------------------------
 # gm_tasks_list handler tests
@@ -1488,6 +1499,29 @@ class TestNormalizeDatetime:
         from guten_morgen.mcp_server import _normalize_datetime_end
 
         assert _normalize_datetime_end("2026-03-12T18:00:00") == "2026-03-12T18:00:00"
+
+    def test_bare_date_with_trailing_space(self) -> None:
+        from guten_morgen.mcp_server import _normalize_datetime_start
+
+        # Trailing whitespace from MCP JSON — must still normalise
+        assert _normalize_datetime_start("2026-03-12 ") == "2026-03-12T00:00:00"
+
+    def test_bare_date_no_zero_padding(self) -> None:
+        from guten_morgen.mcp_server import _normalize_datetime_start
+
+        # Non-padded month/day (e.g. LLM sends "2026-3-12") — normalise
+        assert _normalize_datetime_start("2026-3-12") == "2026-3-12T00:00:00"
+
+    def test_events_list_bare_date_normalised(self) -> None:
+        """Integration: handle_gm_events_list accepts bare date strings."""
+        from guten_morgen.mcp_server import handle_gm_events_list
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+
+        result = json.loads(handle_gm_events_list(client, config, start="2026-03-12", end="2026-03-12"))
+        # Must not return an error — bare dates are normalised before API call
+        assert isinstance(result, list)
 
 
 class TestProxyVars:

@@ -135,19 +135,24 @@ def _is_frame_event(event: dict[str, Any]) -> bool:
     return isinstance(meta, dict) and "frameFilterMql" in meta
 
 
+_BARE_DATE_RE = re.compile(r"^\d{4}-\d{1,2}-\d{1,2}$")
+
+
 def _normalize_datetime_start(s: str) -> str:
     """Normalize bare date 'YYYY-MM-DD' → 'YYYY-MM-DDT00:00:00'. Full datetimes pass through."""
-    return f"{s}T00:00:00" if len(s) == 10 else s
+    s = s.strip()
+    return f"{s}T00:00:00" if _BARE_DATE_RE.match(s) else s
 
 
 def _normalize_datetime_end(s: str) -> str:
     """Normalize bare date 'YYYY-MM-DD' → 'YYYY-MM-DDT23:59:59'. Full datetimes pass through."""
-    return f"{s}T23:59:59" if len(s) == 10 else s
+    s = s.strip()
+    return f"{s}T23:59:59" if _BARE_DATE_RE.match(s) else s
 
 
-def _normalize_hour(h: str) -> str:
+def _normalize_hour(h: str | int) -> str:
     """Normalize hour input like '9', '09', '9:30', '09:00' → 'HH:MM'."""
-    h = h.strip()
+    h = str(h).strip()
     if ":" not in h:
         return f"{int(h):02d}:00"
     parts = h.split(":", 1)
