@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.18.3...guten-morgen-v0.19.0) (2026-03-12)
+
+
+### Features
+
+* **mcp:** Phase B audit fixes — query search, smart truncation, events_get ([9e93544](https://github.com/tenfourty/guten-morgen/commit/9e93544d31a512dfd556bd425c0045841db006c7))
+
 ## [0.18.3](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.18.2...guten-morgen-v0.18.3) (2026-03-11)
 
 
