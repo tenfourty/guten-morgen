@@ -1766,3 +1766,231 @@ class TestHandleGmEventsGet:
 
         none_keys = [k for k, v in result.items() if v is None]
         assert none_keys == [], f"Keys with None values: {none_keys}"
+
+
+# ---------------------------------------------------------------------------
+# Phase C item 1: due_before / due_after on gm_tasks_list
+# ---------------------------------------------------------------------------
+
+
+class TestTasksListDueFilters:
+    """Phase C item 1: due_before/due_after date filtering."""
+
+    def test_due_before_filters_correctly(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_list
+
+        tasks = [
+            {"id": "t-early", "title": "Early", "progress": "needs-action", "due": "2026-02-10T23:59:59Z"},
+            {"id": "t-late", "title": "Late", "progress": "needs-action", "due": "2026-03-15T23:59:59Z"},
+            {"id": "t-mid", "title": "Mid", "progress": "needs-action", "due": "2026-02-20T23:59:59Z"},
+        ]
+        client = _make_mock_client(tasks=tasks)
+        result = json.loads(handle_gm_tasks_list(client, due_before="2026-02-15"))
+
+        ids = [t["id"] for t in result]
+        assert "t-early" in ids
+        assert "t-late" not in ids
+        assert "t-mid" not in ids
+
+    def test_due_after_filters_correctly(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_list
+
+        tasks = [
+            {"id": "t-early", "title": "Early", "progress": "needs-action", "due": "2026-02-10T23:59:59Z"},
+            {"id": "t-late", "title": "Late", "progress": "needs-action", "due": "2026-03-15T23:59:59Z"},
+        ]
+        client = _make_mock_client(tasks=tasks)
+        result = json.loads(handle_gm_tasks_list(client, due_after="2026-03-01"))
+
+        ids = [t["id"] for t in result]
+        assert "t-late" in ids
+        assert "t-early" not in ids
+
+    def test_tasks_with_no_due_excluded(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_list
+
+        tasks = [
+            {"id": "t-due", "title": "Has due", "progress": "needs-action", "due": "2026-02-10T23:59:59Z"},
+            {"id": "t-nodue", "title": "No due", "progress": "needs-action"},
+        ]
+        client = _make_mock_client(tasks=tasks)
+        # Both due_before and due_after should exclude tasks without due dates
+        result_before = json.loads(handle_gm_tasks_list(client, due_before="2026-12-31"))
+        ids_before = [t["id"] for t in result_before]
+        assert "t-due" in ids_before
+        assert "t-nodue" not in ids_before
+
+        result_after = json.loads(handle_gm_tasks_list(client, due_after="2026-01-01"))
+        ids_after = [t["id"] for t in result_after]
+        assert "t-due" in ids_after
+        assert "t-nodue" not in ids_after
+
+
+# ---------------------------------------------------------------------------
+# Phase C item 2: order_by on gm_tasks_list
+# ---------------------------------------------------------------------------
+
+
+class TestTasksListOrderBy:
+    """Phase C item 2: order_by sorting on gm_tasks_list."""
+
+    def test_order_by_due_date(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_list
+
+        tasks = [
+            {"id": "t-late", "title": "Late", "progress": "needs-action", "due": "2026-03-15T23:59:59Z"},
+            {"id": "t-early", "title": "Early", "progress": "needs-action", "due": "2026-02-10T23:59:59Z"},
+            {"id": "t-mid", "title": "Mid", "progress": "needs-action", "due": "2026-02-20T23:59:59Z"},
+        ]
+        client = _make_mock_client(tasks=tasks)
+        result = json.loads(handle_gm_tasks_list(client, order_by="due_date"))
+
+        ids = [t["id"] for t in result]
+        assert ids == ["t-early", "t-mid", "t-late"]
+
+    def test_order_by_tag_priority(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_list
+
+        tags = [
+            {"id": "tag-rn", "name": "Right-Now", "color": "#dc2626"},
+            {"id": "tag-sd", "name": "Someday", "color": "#6b7280"},
+        ]
+        tasks = [
+            {"id": "t-someday", "title": "Someday", "progress": "needs-action", "tags": ["tag-sd"]},
+            {"id": "t-now", "title": "Now", "progress": "needs-action", "tags": ["tag-rn"]},
+            {"id": "t-none", "title": "None", "progress": "needs-action", "tags": []},
+        ]
+        client = _make_mock_client(tasks=tasks, tags=tags)
+        result = json.loads(handle_gm_tasks_list(client, order_by="tag_priority"))
+
+        ids = [t["id"] for t in result]
+        assert ids[0] == "t-now"
+        assert ids[-1] == "t-none"
+
+    def test_order_by_list_name(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_list
+
+        task_lists = [
+            {"id": "list-z", "name": "Zzz", "color": "#000", "serviceName": "morgen"},
+            {"id": "list-a", "name": "Alpha", "color": "#000", "serviceName": "morgen"},
+        ]
+        tasks = [
+            {"id": "t-z", "title": "Z task", "progress": "needs-action", "taskListId": "list-z"},
+            {"id": "t-a", "title": "A task", "progress": "needs-action", "taskListId": "list-a"},
+        ]
+        client = _make_mock_client(tasks=tasks, task_lists=task_lists)
+        result = json.loads(handle_gm_tasks_list(client, order_by="list_name"))
+
+        ids = [t["id"] for t in result]
+        assert ids[0] == "t-a"
+        assert ids[1] == "t-z"
+
+    def test_order_by_title(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_list
+
+        tasks = [
+            {"id": "t-c", "title": "Charlie", "progress": "needs-action"},
+            {"id": "t-a", "title": "Alpha", "progress": "needs-action"},
+            {"id": "t-b", "title": "Bravo", "progress": "needs-action"},
+        ]
+        client = _make_mock_client(tasks=tasks)
+        result = json.loads(handle_gm_tasks_list(client, order_by="title"))
+
+        ids = [t["id"] for t in result]
+        assert ids == ["t-a", "t-b", "t-c"]
+
+    def test_invalid_order_by_returns_error(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_list
+
+        client = _make_mock_client()
+        result = json.loads(handle_gm_tasks_list(client, order_by="invalid"))
+
+        assert "error" in result
+        # Should list valid options
+        assert "due_date" in result["error"] or "due_date" in result.get("suggestion", "")
+
+
+# ---------------------------------------------------------------------------
+# Phase C item 3: gm_tasks_count
+# ---------------------------------------------------------------------------
+
+
+class TestTasksCount:
+    """Phase C item 3: gm_tasks_count handler."""
+
+    def test_unfiltered_count(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_count
+
+        client = _make_mock_client()
+        result = json.loads(handle_gm_tasks_count(client))
+
+        assert "count" in result
+        assert "filters" in result
+        # Default is open tasks — 3 open out of 4 (_TASKS has task-4 completed)
+        assert result["count"] == 3
+
+    def test_filtered_count(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_count
+
+        client = _make_mock_client()
+        result = json.loads(handle_gm_tasks_count(client, tag="urgent"))
+
+        assert result["count"] > 0
+        assert result["filters"]["tag"] == "urgent"
+
+    def test_filter_extraction_shared_with_tasks_list(self) -> None:
+        """_filter_tasks is used by both gm_tasks_list and gm_tasks_count."""
+        from guten_morgen.mcp_server import _filter_tasks
+
+        tasks = [
+            {"id": "t-1", "title": "Match", "progress": "needs-action", "due": "2026-02-10T23:59:59Z"},
+            {"id": "t-2", "title": "No match", "progress": "completed"},
+        ]
+        # Should filter to open tasks only
+        filtered = _filter_tasks(tasks)
+        assert len(filtered) == 1
+        assert filtered[0]["id"] == "t-1"
+
+
+# ---------------------------------------------------------------------------
+# Phase C item 4: Multi-day availability
+# ---------------------------------------------------------------------------
+
+
+class TestMultiDayAvailability:
+    """Phase C item 4: multi-day availability via end_date param."""
+
+    def test_single_day_unchanged(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_availability
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        # Without end_date, returns list of slots (unchanged behaviour)
+        result = json.loads(handle_gm_availability(client, config, date="2026-02-17"))
+
+        assert isinstance(result, list)
+
+    def test_multi_day_returns_dict(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_availability
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_availability(client, config, date="2026-02-17", end_date="2026-02-19"))
+
+        assert isinstance(result, dict)
+        assert "2026-02-17" in result
+        assert "2026-02-18" in result
+        assert "2026-02-19" in result
+        # Each day's value should be a list of slots
+        for day_slots in result.values():
+            assert isinstance(day_slots, list)
+
+    def test_cap_exceeded_error(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_availability
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        # 15 days exceeds the 14-day cap
+        result = json.loads(handle_gm_availability(client, config, date="2026-02-01", end_date="2026-02-15"))
+
+        assert "error" in result
