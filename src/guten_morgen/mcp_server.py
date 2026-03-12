@@ -35,7 +35,7 @@ mcp = FastMCP("guten-morgen", instructions="Calendar and task management via Mor
 _EVENT_CONCISE_FIELDS = frozenset(
     {"id", "title", "start", "duration", "my_status", "participants_display", "location_display"}
 )
-_TASK_CONCISE_FIELDS = frozenset({"id", "title", "progress", "due", "source", "tag_names", "list_name", "project"})
+_TASK_CONCISE_FIELDS = frozenset({"id", "title", "due", "source", "tag_names", "list_name", "project"})
 
 
 def _concise_event(event: dict[str, Any]) -> dict[str, Any]:
@@ -143,6 +143,29 @@ def _fetch_enriched_events(
     return [e for e in enriched if e.get("my_status") != "declined"]
 
 
+_TAG_PRIORITY: dict[str, int] = {
+    "right-now": 0,
+    "active": 1,
+    "waiting-on": 2,
+    "someday": 3,
+}
+_TAG_PRIORITY_UNTAGGED = 4
+
+
+def _tag_sort_key(tag_ids: list[str], tag_id_to_name: dict[str, str]) -> int:
+    """Return sort priority for a task based on its best tag.
+
+    Right-Now (0) > Active (1) > Waiting-On (2) > Someday (3) > untagged (4).
+    """
+    best = _TAG_PRIORITY_UNTAGGED
+    for tid in tag_ids:
+        name = tag_id_to_name.get(tid, "")
+        prio = _TAG_PRIORITY.get(name.lower(), _TAG_PRIORITY_UNTAGGED)
+        if prio < best:
+            best = prio
+    return best
+
+
 def _fetch_categorised_tasks(
     client: MorgenClient,
     start: str,
@@ -159,6 +182,9 @@ def _fetch_categorised_tasks(
         tags=all_tags,
         task_lists=all_task_lists,
     )
+
+    # Build tag ID→name map for sort key
+    tag_id_to_name: dict[str, str] = {t["id"]: t["name"] for t in all_tags if "id" in t and "name" in t}
 
     scheduled: list[dict[str, Any]] = []
     overdue: list[dict[str, Any]] = []
@@ -178,6 +204,9 @@ def _fetch_categorised_tasks(
                 overdue.append(t)
         else:
             unscheduled.append(t)
+
+    # Sort unscheduled by tag priority (Right-Now first) before truncation
+    unscheduled.sort(key=lambda t: _tag_sort_key(t.get("tags", []), tag_id_to_name))
 
     total_unscheduled = len(unscheduled)
     truncated = total_unscheduled > max_unscheduled
@@ -336,6 +365,80 @@ def handle_gm_events_list(
         return _error_json(str(e))
 
 
+def _structured_participants(participants: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Convert JSCalendar participants dict to a structured list.
+
+    Filters out resource-type participants (rooms, equipment).
+    Returns [{name, email, status, is_organiser}].
+    """
+    if not participants:
+        return []
+    result: list[dict[str, Any]] = []
+    for p in participants.values():
+        if not isinstance(p, dict):
+            continue
+        if p.get("kind") == "resource":
+            continue
+        result.append(
+            {
+                "name": p.get("name") or p.get("email", ""),
+                "email": p.get("email", ""),
+                "status": p.get("participationStatus", ""),
+                "is_organiser": bool(p.get("accountOwner")),
+            }
+        )
+    return result
+
+
+def handle_gm_events_get(
+    client: MorgenClient,
+    config: MorgenConfig,
+    *,
+    event_id: str,
+) -> str:
+    """Get a single event by ID — full detail view with structured participants. Returns JSON string."""
+    try:
+        from datetime import timedelta
+
+        # Search today and surrounding window (±30 days) to find the event
+        start_dt = datetime.now(timezone.utc)
+
+        search_start = (start_dt - timedelta(days=30)).isoformat()
+        search_end = (start_dt + timedelta(days=30)).isoformat()
+
+        cf = _resolve_filter(config, None)
+        events_models = client.list_all_events(search_start, search_end, **_filter_kwargs(cf))
+
+        target: dict[str, Any] | None = None
+        for e in events_models:
+            if e.id == event_id:
+                target = e.model_dump(by_alias=True)
+                break
+
+        if target is None:
+            return _error_json(f"Event '{event_id}' not found", "Check the event ID with gm_events_list")
+
+        # Enrich
+        enriched = enrich_events([target])[0]
+
+        # Replace participants dict with structured list
+        enriched["participants"] = _structured_participants(target.get("participants"))
+
+        # Convert description HTML to markdown
+        desc = enriched.get("description")
+        if desc is not None:
+            enriched["description"] = html_to_markdown(desc)
+
+        # Strip None values
+        enriched = {k: v for k, v in enriched.items() if v is not None}
+
+        return json.dumps(enriched, default=str, ensure_ascii=False)
+    except Exception as e:
+        print(f"gm_events_get error: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return _error_json(str(e))
+
+
 def handle_gm_availability(
     client: MorgenClient,
     config: MorgenConfig,
@@ -379,6 +482,7 @@ def handle_gm_tasks_list(
     tag: str | None = None,
     list_name: str | None = None,
     project: str | None = None,
+    query: str | None = None,
     limit: int = 25,
 ) -> str:
     """List tasks with filtering. Returns JSON string."""
@@ -403,6 +507,7 @@ def handle_gm_tasks_list(
             list_id_filter = name_map.get(list_name.lower())
 
         now_iso = datetime.now(timezone.utc).isoformat()
+        query_lower = query.lower() if query else None
 
         filtered: list[dict[str, Any]] = []
         for t in tasks_data:
@@ -428,6 +533,12 @@ def handle_gm_tasks_list(
             if project:
                 proj = t.get("project")
                 if not proj or project.lower() not in proj.lower():
+                    continue
+
+            if query_lower:
+                title = (t.get("title") or "").lower()
+                desc = (t.get("description") or "").lower()
+                if query_lower not in title and query_lower not in desc:
                     continue
 
             filtered.append(t)
@@ -458,7 +569,10 @@ def handle_gm_tasks_get(
         all_tags = [t.model_dump() for t in client.list_tags()]
         all_task_lists = [tl.model_dump() for tl in client.list_task_lists()]
         enriched = enrich_tasks([data], tags=all_tags, task_lists=all_task_lists)
-        return json.dumps(enriched[0] if enriched else data, default=str, ensure_ascii=False)
+        result_data = enriched[0] if enriched else data
+        # Strip None values to reduce noise
+        result_data = {k: v for k, v in result_data.items() if v is not None}
+        return json.dumps(result_data, default=str, ensure_ascii=False)
     except Exception as e:
         print(f"gm_tasks_get error: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
@@ -1124,6 +1238,18 @@ def gm_events_list(start: str, end: str, group: str | None = None) -> str:  # pr
 
 
 @mcp.tool()
+def gm_events_get(event_id: str) -> str:  # pragma: no cover
+    """Get a single event by ID — full detail view.
+
+    Returns all fields including description, structured participants
+    ([{name, email, status, is_organiser}]), and location. Use gm_events_list
+    to find event IDs first.
+    """
+    client, config = _get_client_and_config()
+    return handle_gm_events_get(client, config, event_id=event_id)
+
+
+@mcp.tool()
 def gm_availability(  # pragma: no cover
     date: str,
     min_duration_minutes: int = 30,
@@ -1156,11 +1282,13 @@ def gm_tasks_list(  # pragma: no cover
     tag: str | None = None,
     list_name: str | None = None,
     project: str | None = None,
+    query: str | None = None,
     limit: int = 25,
 ) -> str:
     """List tasks with filtering.
 
     Status: open (default), completed, all. Tag/list_name filter by name.
+    query: case-insensitive text search on title and description.
     Limit defaults to 25, max 100. Returns concise task list.
 
     Note: status="completed" only returns tasks from local cache. The Morgen API
@@ -1176,6 +1304,7 @@ def gm_tasks_list(  # pragma: no cover
         tag=tag,
         list_name=list_name,
         project=project,
+        query=query,
         limit=limit,
     )
 

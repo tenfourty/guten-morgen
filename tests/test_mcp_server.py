@@ -238,7 +238,6 @@ class TestConciseProjection:
         full = {
             "id": "1",
             "title": "Task",
-            "progress": "needs-action",
             "due": "2026-02-17",
             "source": "morgen",
             "tag_names": ["urgent"],
@@ -247,8 +246,9 @@ class TestConciseProjection:
             "extra": "dropped",
         }
         result = _concise_task(full)
-        assert len(result) == 8
+        assert len(result) == 7
         assert "extra" not in result
+        assert "progress" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -616,10 +616,13 @@ class TestHandleGmTasksList:
         result = json.loads(handle_gm_tasks_list(client, status="open"))
 
         assert isinstance(result, list)
+        # Completed task (task-4) should be excluded from open list
+        ids = [t["id"] for t in result]
+        assert "task-4" not in ids
+        # Should be concise — no description or progress
         for task in result:
-            assert task.get("progress") != "completed"
-            # Should be concise
             assert "description" not in task
+            assert "progress" not in task
 
     def test_returns_completed_tasks(self) -> None:
         from guten_morgen.mcp_server import handle_gm_tasks_list
@@ -627,8 +630,10 @@ class TestHandleGmTasksList:
         client = _make_mock_client()
         result = json.loads(handle_gm_tasks_list(client, status="completed"))
 
-        for task in result:
-            assert task.get("progress") == "completed"
+        # Only completed tasks should be returned — task-4 is the only completed one
+        ids = [t["id"] for t in result]
+        assert "task-4" in ids
+        assert len(result) == 1
 
     def test_limit_clamped(self) -> None:
         from guten_morgen.mcp_server import handle_gm_tasks_list
@@ -1545,3 +1550,219 @@ class TestHandleGmEventsListDateGuard:
 
         # Should succeed (28 days)
         assert isinstance(result, list)
+
+
+# ---------------------------------------------------------------------------
+# Phase B: Audit fix tests
+# ---------------------------------------------------------------------------
+
+
+class TestTasksListQueryFilter:
+    """Phase B item 1: text search on gm_tasks_list via query param."""
+
+    def test_query_matches_title_case_insensitive(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_list
+
+        client = _make_mock_client()
+        result = json.loads(handle_gm_tasks_list(client, query="review"))
+
+        ids = [t["id"] for t in result]
+        assert "task-1" in ids  # "Review PR"
+        assert "task-2" not in ids  # "Write docs"
+
+    def test_query_matches_description(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_list
+
+        tasks = [
+            {
+                "id": "t-a",
+                "title": "Fix bug",
+                "progress": "needs-action",
+                "description": "<p>Check the auth module</p>",
+            },
+            {"id": "t-b", "title": "Other", "progress": "needs-action"},
+        ]
+        client = _make_mock_client(tasks=tasks)
+        result = json.loads(handle_gm_tasks_list(client, query="auth"))
+
+        ids = [t["id"] for t in result]
+        assert "t-a" in ids
+        assert "t-b" not in ids
+
+    def test_query_none_returns_all(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_list
+
+        client = _make_mock_client()
+        with_query = json.loads(handle_gm_tasks_list(client))
+        without_query = json.loads(handle_gm_tasks_list(client, query=None))
+
+        assert len(with_query) == len(without_query)
+
+
+class TestSmartUnscheduledTruncation:
+    """Phase B item 2: sort unscheduled by tag priority before truncation."""
+
+    @patch("guten_morgen.time_utils.today_range", return_value=("2026-02-17T00:00:00", "2026-02-17T23:59:59"))
+    def test_right_now_tasks_appear_first(self, _mock_range: Any) -> None:
+        from guten_morgen.mcp_server import handle_gm_today
+
+        tags = [
+            {"id": "tag-rn", "name": "Right-Now", "color": "#dc2626"},
+            {"id": "tag-sd", "name": "Someday", "color": "#6b7280"},
+            {"id": "tag-ac", "name": "Active", "color": "#22c55e"},
+        ]
+        tasks = [
+            {"id": "someday-1", "title": "Someday task", "progress": "needs-action", "tags": ["tag-sd"]},
+            {"id": "right-now-1", "title": "Right now task", "progress": "needs-action", "tags": ["tag-rn"]},
+            {"id": "active-1", "title": "Active task", "progress": "needs-action", "tags": ["tag-ac"]},
+            {"id": "no-tag-1", "title": "No tag task", "progress": "needs-action", "tags": []},
+        ]
+        client = _make_mock_client(tasks=tasks, tags=tags, events=[])
+        config = _make_mock_config()
+        result = json.loads(handle_gm_today(client, config, max_unscheduled=3))
+
+        ids = [t["id"] for t in result["unscheduled_tasks"]]
+        # Right-Now should come first, then Active, then Someday
+        assert ids[0] == "right-now-1"
+        assert ids[1] == "active-1"
+
+    def test_tag_sort_key_priority_order(self) -> None:
+        from guten_morgen.mcp_server import _tag_sort_key
+
+        tag_id_to_name = {"t1": "Right-Now", "t2": "Active", "t3": "Waiting-On", "t4": "Someday"}
+
+        # Right-Now < Active < Waiting-On < Someday < untagged
+        assert _tag_sort_key(["t1"], tag_id_to_name) < _tag_sort_key(["t2"], tag_id_to_name)
+        assert _tag_sort_key(["t2"], tag_id_to_name) < _tag_sort_key(["t3"], tag_id_to_name)
+        assert _tag_sort_key(["t3"], tag_id_to_name) < _tag_sort_key(["t4"], tag_id_to_name)
+        assert _tag_sort_key(["t4"], tag_id_to_name) < _tag_sort_key([], tag_id_to_name)
+
+
+class TestConciseTaskDropsProgress:
+    """Phase B item 3: progress field removed from concise projection."""
+
+    def test_concise_task_has_no_progress(self) -> None:
+        from guten_morgen.mcp_server import _concise_task
+
+        full = {"id": "1", "title": "Task", "progress": "needs-action", "due": "2026-02-17"}
+        result = _concise_task(full)
+        assert "progress" not in result
+
+    @patch("guten_morgen.time_utils.today_range", return_value=("2026-02-17T00:00:00", "2026-02-17T23:59:59"))
+    def test_today_tasks_have_no_progress(self, _mock_range: Any) -> None:
+        from guten_morgen.mcp_server import handle_gm_today
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_today(client, config))
+
+        for key in ("scheduled_tasks", "overdue_tasks", "unscheduled_tasks"):
+            for t in result[key]:
+                assert "progress" not in t
+
+
+class TestTasksGetSuppressNulls:
+    """Phase B item 4: suppress None values in gm_tasks_get output."""
+
+    def test_no_none_values_in_output(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_get
+
+        client = _make_mock_client()
+        task_data = {
+            "id": "task-1",
+            "title": "Review PR",
+            "progress": "needs-action",
+            "due": None,
+            "description": None,
+            "priority": 2,
+        }
+        client.get_task.return_value = Task(**task_data)
+
+        result = json.loads(handle_gm_tasks_get(client, task_id="task-1"))
+        none_keys = [k for k, v in result.items() if v is None]
+        assert none_keys == [], f"Keys with None values: {none_keys}"
+
+
+class TestHandleGmEventsGet:
+    """Phase B item 5: gm_events_get — full event detail with structured participants."""
+
+    def test_returns_full_event(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_get
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_events_get(client, config, event_id="evt-1"))
+
+        assert result["id"] == "evt-1"
+        assert result["title"] == "Standup"
+        assert "description" in result or result.get("description") is None  # full view includes all fields
+
+    def test_participants_structured(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_get
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_events_get(client, config, event_id="evt-1"))
+
+        assert "participants" in result
+        participants = result["participants"]
+        assert isinstance(participants, list)
+        # Should have name, email, status, is_organiser
+        for p in participants:
+            assert "name" in p or "email" in p
+            assert "status" in p
+            assert "is_organiser" in p
+
+    def test_filters_resource_participants(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_get
+
+        events = [
+            {
+                "id": "evt-room",
+                "title": "Meeting with room",
+                "start": "2026-02-17T10:00:00",
+                "duration": "PT1H",
+                "calendarId": "cal-1",
+                "accountId": "acc-1",
+                "participants": {
+                    "p1": {
+                        "name": "Alice",
+                        "email": "alice@example.com",
+                        "kind": "individual",
+                        "participationStatus": "accepted",
+                    },
+                    "room": {
+                        "name": "Room A",
+                        "email": "room-a@example.com",
+                        "kind": "resource",
+                        "participationStatus": "accepted",
+                    },
+                },
+            },
+        ]
+        client = _make_mock_client(events=events)
+        config = _make_mock_config()
+        result = json.loads(handle_gm_events_get(client, config, event_id="evt-room"))
+
+        names = [p.get("name") for p in result["participants"]]
+        assert "Alice" in names
+        assert "Room A" not in names
+
+    def test_not_found_returns_error(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_get
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_events_get(client, config, event_id="nonexistent"))
+
+        assert "error" in result
+
+    def test_suppresses_none_values(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_get
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_events_get(client, config, event_id="evt-1"))
+
+        none_keys = [k for k, v in result.items() if v is None]
+        assert none_keys == [], f"Keys with None values: {none_keys}"
