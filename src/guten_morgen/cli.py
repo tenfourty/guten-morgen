@@ -929,7 +929,6 @@ def events_get(
 
         if target is None:
             output_error("not_found", f"Event '{event_id}' not found.", ["Check the event ID with gm events list"])
-            return
 
         # Enrich
         enriched = enrich_events([target])[0]
@@ -2111,11 +2110,10 @@ def _combined_view(
             result["scheduled_tasks"] = scheduled
             result["overdue_tasks"] = overdue
             result["unscheduled_tasks"] = unscheduled
-            if truncated:
-                meta = result.get("meta", {})
-                meta["unscheduled_truncated"] = True
-                meta["unscheduled_total"] = total_unscheduled
-                result["meta"] = meta
+            meta = result.get("meta", {})
+            meta["unscheduled_truncated"] = truncated
+            meta["unscheduled_total"] = total_unscheduled
+            result["meta"] = meta
 
         if fields:
             # Apply field selection to each list in result

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from typing import NoReturn
 
 
 class MorgenError(Exception):
@@ -68,7 +69,7 @@ class GroupNotFoundError(MorgenError):
     error_type = "group_not_found"
 
 
-def output_error(error_type: str, message: str, suggestions: list[str] | None = None, exit_code: int = 1) -> None:
+def output_error(error_type: str, message: str, suggestions: list[str] | None = None, exit_code: int = 1) -> NoReturn:
     """Write a structured error to stderr and exit."""
     err: dict[str, dict[str, str | list[str]]] = {"error": {"type": error_type, "message": message}}
     if suggestions:
