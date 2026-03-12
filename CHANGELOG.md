@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.2](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.1...guten-morgen-v0.23.2) (2026-03-12)
+
+
+### Bug Fixes
+
+* NoReturn on output_error, always emit truncation meta, HTML query test ([9208642](https://github.com/tenfourty/guten-morgen/commit/9208642f334b242abc4ef4aef99653026f7a6e9c))
+
 ## [0.23.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.0...guten-morgen-v0.23.1) (2026-03-12)
 
 
