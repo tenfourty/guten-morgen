@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from guten_morgen.config import load_settings
 from guten_morgen.groups import load_morgen_config, resolve_filter
@@ -27,6 +28,15 @@ if TYPE_CHECKING:
     from guten_morgen.groups import CalendarFilter, MorgenConfig
 
 mcp = FastMCP("guten-morgen", instructions="Calendar and task management via Morgen API.")
+
+# ---------------------------------------------------------------------------
+# Tool annotations (MCP spec metadata hints)
+# ---------------------------------------------------------------------------
+
+_READONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)
+_MUTATING = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
+_MUTATING_IDEMPOTENT = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True)
+_DESTRUCTIVE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True)
 
 # ---------------------------------------------------------------------------
 # Concise field projections
@@ -1395,7 +1405,7 @@ def handle_gm_lists_delete(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_today(  # pragma: no cover
     group: str | None = None,
     events_only: bool = False,
@@ -1424,7 +1434,7 @@ def gm_today(  # pragma: no cover
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_next(count: int = 3) -> str:  # pragma: no cover
     """Next upcoming events — lightweight alternative to gm_today.
 
@@ -1434,7 +1444,7 @@ def gm_next(count: int = 3) -> str:  # pragma: no cover
     return handle_gm_next(client, config, count=count)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_this_week(  # pragma: no cover
     group: str | None = None,
     events_only: bool = False,
@@ -1462,7 +1472,7 @@ def gm_this_week(  # pragma: no cover
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_this_month(  # pragma: no cover
     group: str | None = None,
     events_only: bool = False,
@@ -1490,7 +1500,7 @@ def gm_this_month(  # pragma: no cover
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_events_list(start: str, end: str, group: str | None = None) -> str:  # pragma: no cover
     """List events in a date range (ISO 8601 start/end).
 
@@ -1500,7 +1510,7 @@ def gm_events_list(start: str, end: str, group: str | None = None) -> str:  # pr
     return handle_gm_events_list(client, config, start=start, end=end, group=group)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_events_get(event_id: str) -> str:  # pragma: no cover
     """Get a single event by ID — full detail view.
 
@@ -1512,7 +1522,7 @@ def gm_events_get(event_id: str) -> str:  # pragma: no cover
     return handle_gm_events_get(client, config, event_id=event_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_availability(  # pragma: no cover
     date: str,
     min_duration_minutes: int = 30,
@@ -1539,7 +1549,7 @@ def gm_availability(  # pragma: no cover
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_tasks_list(  # pragma: no cover
     status: str = "open",
     overdue: bool = False,
@@ -1582,7 +1592,7 @@ def gm_tasks_list(  # pragma: no cover
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_tasks_count(  # pragma: no cover
     status: str = "open",
     overdue: bool = False,
@@ -1614,7 +1624,7 @@ def gm_tasks_count(  # pragma: no cover
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_tasks_get(task_id: str) -> str:  # pragma: no cover
     """Get a single task by ID — full detail view including description.
 
@@ -1624,28 +1634,28 @@ def gm_tasks_get(task_id: str) -> str:  # pragma: no cover
     return handle_gm_tasks_get(client, task_id=task_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_lists() -> str:  # pragma: no cover
     """List task lists (areas of focus) — id, name, colour for each."""
     client, _ = _get_client_and_config()
     return handle_gm_lists(client)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_tags() -> str:  # pragma: no cover
     """List tags (lifecycle status) — id, name, colour for each."""
     client, _ = _get_client_and_config()
     return handle_gm_tags(client)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_accounts() -> str:  # pragma: no cover
     """List connected calendar accounts — id, name, email, integration type."""
     client, _ = _get_client_and_config()
     return handle_gm_accounts(client)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def gm_groups() -> str:  # pragma: no cover
     """List configured calendar groups — shows valid group names for filtering."""
     _, config = _get_client_and_config()
@@ -1657,7 +1667,7 @@ def gm_groups() -> str:  # pragma: no cover
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 def gm_tasks_create(  # pragma: no cover
     title: str,
     due: str | None = None,
@@ -1687,7 +1697,7 @@ def gm_tasks_create(  # pragma: no cover
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING_IDEMPOTENT)
 def gm_tasks_update(  # pragma: no cover
     task_id: str,
     title: str | None = None,
@@ -1718,28 +1728,28 @@ def gm_tasks_update(  # pragma: no cover
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING_IDEMPOTENT)
 def gm_tasks_close(task_id: str) -> str:  # pragma: no cover
     """Mark a task as completed."""
     client, _ = _get_client_and_config()
     return handle_gm_tasks_close(client, task_id=task_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING_IDEMPOTENT)
 def gm_tasks_reopen(task_id: str) -> str:  # pragma: no cover
     """Reopen a completed task."""
     client, _ = _get_client_and_config()
     return handle_gm_tasks_reopen(client, task_id=task_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_DESTRUCTIVE)
 def gm_tasks_delete(task_id: str) -> str:  # pragma: no cover
     """Delete a task permanently."""
     client, _ = _get_client_and_config()
     return handle_gm_tasks_delete(client, task_id=task_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 def gm_tasks_move(task_id: str, after: str | None = None, parent: str | None = None) -> str:  # pragma: no cover
     """Reorder or nest a task.
 
@@ -1749,7 +1759,7 @@ def gm_tasks_move(task_id: str, after: str | None = None, parent: str | None = N
     return handle_gm_tasks_move(client, task_id=task_id, after=after, parent=parent)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 def gm_tasks_schedule(  # pragma: no cover
     task_id: str,
     start: str,
@@ -1766,7 +1776,7 @@ def gm_tasks_schedule(  # pragma: no cover
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 def gm_events_create(  # pragma: no cover
     title: str,
     start: str,
@@ -1784,7 +1794,7 @@ def gm_events_create(  # pragma: no cover
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING_IDEMPOTENT)
 def gm_events_update(  # pragma: no cover
     event_id: str,
     title: str | None = None,
@@ -1809,7 +1819,7 @@ def gm_events_update(  # pragma: no cover
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_DESTRUCTIVE)
 def gm_events_delete(event_id: str, series_mode: str | None = None) -> str:  # pragma: no cover
     """Delete a calendar event.
 
@@ -1819,7 +1829,7 @@ def gm_events_delete(event_id: str, series_mode: str | None = None) -> str:  # p
     return handle_gm_events_delete(client, event_id=event_id, series_mode=series_mode)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING_IDEMPOTENT)
 def gm_events_rsvp(  # pragma: no cover
     event_id: str,
     action: str,
@@ -1842,42 +1852,42 @@ def gm_events_rsvp(  # pragma: no cover
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 def gm_tags_create(name: str, color: str | None = None) -> str:  # pragma: no cover
     """Create a new tag (lifecycle status label)."""
     client, _ = _get_client_and_config()
     return handle_gm_tags_create(client, name=name, color=color)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING_IDEMPOTENT)
 def gm_tags_update(tag_id: str, name: str | None = None, color: str | None = None) -> str:  # pragma: no cover
     """Update an existing tag's name or colour."""
     client, _ = _get_client_and_config()
     return handle_gm_tags_update(client, tag_id=tag_id, name=name, color=color)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_DESTRUCTIVE)
 def gm_tags_delete(tag_id: str) -> str:  # pragma: no cover
     """Delete a tag permanently."""
     client, _ = _get_client_and_config()
     return handle_gm_tags_delete(client, tag_id=tag_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 def gm_lists_create(name: str, color: str | None = None) -> str:  # pragma: no cover
     """Create a new task list (area of focus)."""
     client, _ = _get_client_and_config()
     return handle_gm_lists_create(client, name=name, color=color)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING_IDEMPOTENT)
 def gm_lists_update(list_id: str, name: str | None = None, color: str | None = None) -> str:  # pragma: no cover
     """Update an existing task list's name or colour."""
     client, _ = _get_client_and_config()
     return handle_gm_lists_update(client, list_id=list_id, name=name, color=color)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_DESTRUCTIVE)
 def gm_lists_delete(list_id: str) -> str:  # pragma: no cover
     """Delete a task list permanently."""
     client, _ = _get_client_and_config()
