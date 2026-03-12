@@ -935,6 +935,21 @@ class TestTasksQuery:
         ids = [t["id"] for t in data]
         assert "task-2" in ids  # description: "Plain text note, no formatting"
 
+    def test_description_match_html(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """--query matches against HTML task descriptions (real-world Morgen API format)."""
+        from tests.conftest import FAKE_TASKS
+
+        original = FAKE_TASKS[1].get("description")
+        FAKE_TASKS[1]["description"] = "<p>Plain text note, no formatting</p>"
+        try:
+            result = runner.invoke(cli, ["tasks", "list", "--json", "--query", "formatting"])
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            ids = [t["id"] for t in data]
+            assert "task-2" in ids
+        finally:
+            FAKE_TASKS[1]["description"] = original
+
     def test_no_match(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """--query with no matches returns empty list."""
         result = runner.invoke(cli, ["tasks", "list", "--json", "--query", "zzz_nonexistent_zzz"])
