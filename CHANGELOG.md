@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.0...guten-morgen-v0.23.1) (2026-03-12)
+
+
+### Bug Fixes
+
+* **cli:** address 6 code review issues before release ([134b8be](https://github.com/tenfourty/guten-morgen/commit/134b8bee14848fb535bab53594a5a938951b629e))
+
 ## [0.23.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.22.0...guten-morgen-v0.23.0) (2026-03-12)
 
 
