@@ -1994,3 +1994,294 @@ class TestMultiDayAvailability:
         result = json.loads(handle_gm_availability(client, config, date="2026-02-01", end_date="2026-02-15"))
 
         assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Phase D item 1: is_frame enrichment + exclude_frames on snapshot handlers
+# ---------------------------------------------------------------------------
+
+
+class TestIsFrameEnrichment:
+    """Phase D item 1: is_frame boolean on enriched events."""
+
+    def test_solo_event_no_participants_is_frame(self) -> None:
+        """Event with no participants and my_status=None → is_frame=True."""
+        from guten_morgen.output import enrich_events
+
+        events = [{"id": "solo", "title": "Focus Time", "start": "2026-02-17T10:00:00"}]
+        enriched = enrich_events(events)
+        assert enriched[0]["is_frame"] is True
+
+    def test_only_account_owner_is_frame(self) -> None:
+        """Event with only accountOwner participant → is_frame=True."""
+        from guten_morgen.output import enrich_events
+
+        events = [
+            {
+                "id": "owner-only",
+                "title": "Personal Block",
+                "start": "2026-02-17T10:00:00",
+                "participants": {
+                    "owner": {
+                        "email": "me@example.com",
+                        "accountOwner": True,
+                        "participationStatus": "accepted",
+                    }
+                },
+            }
+        ]
+        enriched = enrich_events(events)
+        # my_status is "accepted" (not None), so is_frame should be False
+        # Wait — spec says my_status is None AND ... Let me re-check:
+        # accountOwner with participationStatus="accepted" → my_status="accepted" → NOT frame
+        assert enriched[0]["is_frame"] is False
+
+    def test_owner_only_no_status_is_frame(self) -> None:
+        """Event with only accountOwner participant but no participationStatus → is_frame=True."""
+        from guten_morgen.output import enrich_events
+
+        events = [
+            {
+                "id": "owner-no-status",
+                "title": "Block",
+                "start": "2026-02-17T10:00:00",
+                "participants": {"owner": {"email": "me@example.com", "accountOwner": True}},
+            }
+        ]
+        enriched = enrich_events(events)
+        assert enriched[0]["is_frame"] is True
+
+    def test_real_meeting_is_not_frame(self) -> None:
+        """Event with multiple participants → is_frame=False."""
+        from guten_morgen.output import enrich_events
+
+        events = [
+            {
+                "id": "meeting",
+                "title": "Standup",
+                "start": "2026-02-17T09:00:00",
+                "participants": {
+                    "owner": {
+                        "email": "me@example.com",
+                        "accountOwner": True,
+                        "participationStatus": "accepted",
+                    },
+                    "p1": {
+                        "email": "alice@example.com",
+                        "participationStatus": "accepted",
+                    },
+                },
+            }
+        ]
+        enriched = enrich_events(events)
+        assert enriched[0]["is_frame"] is False
+
+
+class TestExcludeFrames:
+    """Phase D item 1: exclude_frames filter on snapshot handlers."""
+
+    @patch("guten_morgen.time_utils.today_range", return_value=("2026-02-17T00:00:00", "2026-02-17T23:59:59"))
+    def test_exclude_frames_default_true(self, _mock_range: Any) -> None:
+        """By default, frame events are excluded from today snapshot."""
+        from guten_morgen.mcp_server import handle_gm_today
+
+        # evt-2 (Lunch) has no participants → is_frame=True
+        events = [
+            {
+                "id": "evt-meeting",
+                "title": "Standup",
+                "start": "2026-02-17T09:00:00",
+                "duration": "PT30M",
+                "calendarId": "cal-1",
+                "accountId": "acc-1",
+                "participants": {
+                    "owner": {"email": "me@example.com", "accountOwner": True, "participationStatus": "accepted"},
+                    "p1": {"email": "alice@example.com", "participationStatus": "accepted"},
+                },
+            },
+            {
+                "id": "evt-frame",
+                "title": "Focus Block",
+                "start": "2026-02-17T14:00:00",
+                "duration": "PT1H",
+                "calendarId": "cal-1",
+                "accountId": "acc-1",
+            },
+        ]
+        client = _make_mock_client(events=events)
+        config = _make_mock_config()
+        result = json.loads(handle_gm_today(client, config, events_only=True))
+
+        ids = [e["id"] for e in result["events"]]
+        assert "evt-meeting" in ids
+        assert "evt-frame" not in ids
+
+    @patch("guten_morgen.time_utils.today_range", return_value=("2026-02-17T00:00:00", "2026-02-17T23:59:59"))
+    def test_exclude_frames_false_includes_frames(self, _mock_range: Any) -> None:
+        """When exclude_frames=False, frame events are included."""
+        from guten_morgen.mcp_server import handle_gm_today
+
+        events = [
+            {
+                "id": "evt-frame",
+                "title": "Focus Block",
+                "start": "2026-02-17T14:00:00",
+                "duration": "PT1H",
+                "calendarId": "cal-1",
+                "accountId": "acc-1",
+            },
+        ]
+        client = _make_mock_client(events=events)
+        config = _make_mock_config()
+        result = json.loads(handle_gm_today(client, config, events_only=True, exclude_frames=False))
+
+        ids = [e["id"] for e in result["events"]]
+        assert "evt-frame" in ids
+
+
+# ---------------------------------------------------------------------------
+# Phase D item 2: Structured participants (additional tests for Phase B work)
+# ---------------------------------------------------------------------------
+
+
+class TestStructuredParticipantsHelper:
+    """Phase D item 2: _structured_participants helper correctness."""
+
+    def test_participants_parsed_correctly(self) -> None:
+        from guten_morgen.mcp_server import _structured_participants
+
+        participants = {
+            "p1": {"name": "Alice", "email": "alice@example.com", "participationStatus": "accepted"},
+            "owner": {"email": "me@example.com", "accountOwner": True, "participationStatus": "accepted"},
+        }
+        result = _structured_participants(participants)
+        assert len(result) == 2
+        names = {p["name"] for p in result}
+        assert "Alice" in names
+
+    def test_resource_filtered(self) -> None:
+        from guten_morgen.mcp_server import _structured_participants
+
+        participants = {
+            "p1": {
+                "name": "Alice",
+                "email": "alice@example.com",
+                "kind": "individual",
+                "participationStatus": "accepted",
+            },
+            "room": {
+                "name": "Room A",
+                "email": "room@example.com",
+                "kind": "resource",
+                "participationStatus": "accepted",
+            },
+        }
+        result = _structured_participants(participants)
+        names = [p["name"] for p in result]
+        assert "Alice" in names
+        assert "Room A" not in names
+
+    def test_is_organiser_flag(self) -> None:
+        from guten_morgen.mcp_server import _structured_participants
+
+        participants = {
+            "owner": {"email": "me@example.com", "accountOwner": True, "participationStatus": "accepted"},
+            "p1": {"email": "alice@example.com", "participationStatus": "accepted"},
+        }
+        result = _structured_participants(participants)
+        organiser = [p for p in result if p["is_organiser"]]
+        assert len(organiser) == 1
+        assert organiser[0]["email"] == "me@example.com"
+
+
+# ---------------------------------------------------------------------------
+# Phase D item 3: Compact mode on snapshot handlers
+# ---------------------------------------------------------------------------
+
+
+class TestCompactMode:
+    """Phase D item 3: compact mode on snapshot handlers."""
+
+    @patch("guten_morgen.time_utils.today_range", return_value=("2026-02-17T00:00:00", "2026-02-17T23:59:59"))
+    def test_compact_omits_event_id(self, _mock_range: Any) -> None:
+        from guten_morgen.mcp_server import handle_gm_today
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_today(client, config, events_only=True, compact=True))
+
+        for event in result["events"]:
+            assert "id" not in event
+
+    @patch("guten_morgen.time_utils.today_range", return_value=("2026-02-17T00:00:00", "2026-02-17T23:59:59"))
+    def test_compact_has_participant_count(self, _mock_range: Any) -> None:
+        from guten_morgen.mcp_server import handle_gm_today
+
+        events = [
+            {
+                "id": "evt-1",
+                "title": "Standup",
+                "start": "2026-02-17T09:00:00",
+                "duration": "PT30M",
+                "calendarId": "cal-1",
+                "accountId": "acc-1",
+                "participants": {
+                    "owner": {"email": "me@example.com", "accountOwner": True, "participationStatus": "accepted"},
+                    "p1": {"email": "alice@example.com", "participationStatus": "accepted"},
+                },
+            },
+        ]
+        client = _make_mock_client(events=events)
+        config = _make_mock_config()
+        result = json.loads(handle_gm_today(client, config, events_only=True, compact=True))
+
+        event = result["events"][0]
+        assert "participants_display" not in event
+        assert event["participant_count"] == 2
+
+    @patch("guten_morgen.time_utils.today_range", return_value=("2026-02-17T00:00:00", "2026-02-17T23:59:59"))
+    def test_compact_excludes_frames(self, _mock_range: Any) -> None:
+        """Compact mode also excludes frame events (via exclude_frames default)."""
+        from guten_morgen.mcp_server import handle_gm_today
+
+        events = [
+            {
+                "id": "evt-frame",
+                "title": "Focus Block",
+                "start": "2026-02-17T14:00:00",
+                "duration": "PT1H",
+                "calendarId": "cal-1",
+                "accountId": "acc-1",
+            },
+        ]
+        client = _make_mock_client(events=events)
+        config = _make_mock_config()
+        result = json.loads(handle_gm_today(client, config, events_only=True, compact=True))
+
+        assert len(result["events"]) == 0
+
+    @patch("guten_morgen.time_utils.today_range", return_value=("2026-02-17T00:00:00", "2026-02-17T23:59:59"))
+    def test_compact_abbreviates_duration(self, _mock_range: Any) -> None:
+        from guten_morgen.mcp_server import handle_gm_today
+
+        events = [
+            {
+                "id": "evt-1",
+                "title": "Meeting",
+                "start": "2026-02-17T09:00:00",
+                "duration": "PT30M",
+                "calendarId": "cal-1",
+                "accountId": "acc-1",
+                "participants": {
+                    "owner": {"email": "me@example.com", "accountOwner": True, "participationStatus": "accepted"},
+                    "p1": {"email": "alice@example.com", "participationStatus": "accepted"},
+                },
+            },
+        ]
+        client = _make_mock_client(events=events)
+        config = _make_mock_config()
+        result = json.loads(handle_gm_today(client, config, events_only=True, compact=True))
+
+        event = result["events"][0]
+        assert event["duration_minutes"] == 30
+        assert "duration" not in event
