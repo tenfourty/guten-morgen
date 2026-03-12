@@ -627,6 +627,24 @@ class TestExtractProject:
 
         assert _extract_project("project: AI Adoption   \nMore text") == "AI Adoption"
 
+    def test_unicode_line_separator(self) -> None:
+        from guten_morgen.output import _extract_project
+
+        # U+2028 LINE SEPARATOR — must not leak into the project name
+        assert _extract_project("project: AI Adoption\u2028Promised in Staffs meeting") == "AI Adoption"
+
+    def test_unicode_paragraph_separator(self) -> None:
+        from guten_morgen.output import _extract_project
+
+        # U+2029 PARAGRAPH SEPARATOR — must not leak into the project name
+        assert _extract_project("project: AI Adoption\u2029Promised in Staffs meeting") == "AI Adoption"
+
+    def test_vertical_tab_separator(self) -> None:
+        from guten_morgen.output import _extract_project
+
+        # Vertical tab \v — must not leak into the project name
+        assert _extract_project("project: AI Adoption\x0bPromised in Staffs meeting") == "AI Adoption"
+
 
 class TestOutputError:
     def test_structured_output(self) -> None:

@@ -39,7 +39,10 @@ def _extract_project(description: str | None) -> str | None:
     if not description:
         return None
     m = _PROJECT_LINE_RE.search(description)
-    return m.group(1).strip() if m else None
+    if not m:
+        return None
+    # splitlines() handles \n, \r\n, \r, \v, \f, \u2028, \u2029
+    return m.group(1).splitlines()[0].strip()
 
 
 def _extract_refs(description: str | None) -> list[dict[str, str]]:
