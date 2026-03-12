@@ -439,6 +439,34 @@ def handle_gm_events_get(
         return _error_json(str(e))
 
 
+def _compute_slots_for_day(
+    client: MorgenClient,
+    config: MorgenConfig,
+    *,
+    day: str,
+    min_duration_minutes: int,
+    start_hour: str | None,
+    end_hour: str | None,
+    group: str | None,
+) -> list[dict[str, Any]]:
+    """Compute free slots for a single day. Used by handle_gm_availability."""
+    from guten_morgen.time_utils import compute_free_slots
+
+    cf = _resolve_filter(config, group)
+    day_start = f"{day}T00:00:00"
+    day_end = f"{day}T23:59:59"
+    events_models = client.list_all_events(day_start, day_end, **_filter_kwargs(cf))
+    events_data = [e.model_dump(by_alias=True) for e in events_models]
+
+    return compute_free_slots(
+        events=events_data,
+        day=day,
+        window_start=_normalize_hour(start_hour) if start_hour else "08:00",
+        window_end=_normalize_hour(end_hour) if end_hour else "18:00",
+        min_duration_minutes=min_duration_minutes,
+    )
+
+
 def handle_gm_availability(
     client: MorgenClient,
     config: MorgenConfig,
@@ -448,29 +476,149 @@ def handle_gm_availability(
     start_hour: str | None = None,
     end_hour: str | None = None,
     group: str | None = None,
+    end_date: str | None = None,
 ) -> str:
-    """Find available time slots on a date. Returns JSON string."""
+    """Find available time slots on a date (or date range). Returns JSON string."""
     try:
-        from guten_morgen.time_utils import compute_free_slots
+        if end_date is None:
+            # Single-day mode — returns list of slots (unchanged behaviour)
+            slots = _compute_slots_for_day(
+                client,
+                config,
+                day=date,
+                min_duration_minutes=min_duration_minutes,
+                start_hour=start_hour,
+                end_hour=end_hour,
+                group=group,
+            )
+            return json.dumps(slots, default=str, ensure_ascii=False)
 
-        cf = _resolve_filter(config, group)
-        day_start = f"{date}T00:00:00"
-        day_end = f"{date}T23:59:59"
-        events_models = client.list_all_events(day_start, day_end, **_filter_kwargs(cf))
-        events_data = [e.model_dump(by_alias=True) for e in events_models]
+        # Multi-day mode
+        from datetime import timedelta
 
-        slots = compute_free_slots(
-            events=events_data,
-            day=date,
-            window_start=_normalize_hour(start_hour) if start_hour else "08:00",
-            window_end=_normalize_hour(end_hour) if end_hour else "18:00",
-            min_duration_minutes=min_duration_minutes,
-        )
-        return json.dumps(slots, default=str, ensure_ascii=False)
+        start_dt = datetime.strptime(date, "%Y-%m-%d")
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        num_days = (end_dt - start_dt).days + 1
+        if num_days > 14:
+            return _error_json(
+                f"Date range spans {num_days} days. Maximum is 14 days.",
+                "Use a shorter range or make multiple requests.",
+            )
+
+        result: dict[str, list[dict[str, Any]]] = {}
+        current = start_dt
+        while current <= end_dt:
+            day_str = current.strftime("%Y-%m-%d")
+            result[day_str] = _compute_slots_for_day(
+                client,
+                config,
+                day=day_str,
+                min_duration_minutes=min_duration_minutes,
+                start_hour=start_hour,
+                end_hour=end_hour,
+                group=group,
+            )
+            current += timedelta(days=1)
+
+        return json.dumps(result, default=str, ensure_ascii=False)
     except Exception as e:
         print(f"gm_availability error: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
         return _error_json(str(e))
+
+
+_VALID_ORDER_BY = ("due_date", "tag_priority", "list_name", "title")
+
+
+def _filter_tasks(
+    tasks: list[dict[str, Any]],
+    *,
+    status: str = "open",
+    overdue: bool = False,
+    tag_id_filter: set[str] | None = None,
+    list_id_filter: str | None = None,
+    project: str | None = None,
+    query: str | None = None,
+    due_before: str | None = None,
+    due_after: str | None = None,
+) -> list[dict[str, Any]]:
+    """Filter tasks by status, overdue, tag, list, project, query, due_before/after.
+
+    Shared by handle_gm_tasks_list and handle_gm_tasks_count.
+    """
+    now_iso = datetime.now(timezone.utc).isoformat()
+    query_lower = query.lower() if query else None
+
+    filtered: list[dict[str, Any]] = []
+    for t in tasks:
+        progress = t.get("progress", "")
+        if status == "open" and progress == "completed":
+            continue
+        if status == "completed" and progress != "completed":
+            continue
+
+        if overdue:
+            due = t.get("due", "")
+            if not due or due[:10] >= now_iso[:10]:
+                continue
+
+        if tag_id_filter:
+            task_tags = set(t.get("tags", []))
+            if not task_tags & tag_id_filter:
+                continue
+
+        if list_id_filter and t.get("taskListId") != list_id_filter:
+            continue
+
+        if project:
+            proj = t.get("project")
+            if not proj or project.lower() not in proj.lower():
+                continue
+
+        if query_lower:
+            title = (t.get("title") or "").lower()
+            desc = (t.get("description") or "").lower()
+            if query_lower not in title and query_lower not in desc:
+                continue
+
+        if due_before or due_after:
+            due = t.get("due", "")
+            if not due:
+                continue
+            due_date = due[:10]
+            if due_before and due_date >= due_before:
+                continue
+            if due_after and due_date <= due_after:
+                continue
+
+        filtered.append(t)
+
+    return filtered
+
+
+def _resolve_filters(
+    client: MorgenClient,
+    *,
+    tag: str | None = None,
+    list_name: str | None = None,
+) -> tuple[set[str], str | None]:
+    """Resolve tag name(s) and list name to IDs for filtering."""
+    tag_id_filter: set[str] = set()
+    if tag:
+        all_tags = [t.model_dump() for t in client.list_tags()]
+        name_to_id = {t["name"].lower(): t["id"] for t in all_tags}
+        for tn in tag.split(","):
+            tid = name_to_id.get(tn.strip().lower())
+            if tid:
+                tag_id_filter.add(tid)
+
+    list_id_filter: str | None = None
+    if list_name:
+        all_lists = client.list_task_lists()
+        name_map = {tl.name.lower(): tl.id for tl in all_lists}
+        list_id_filter = name_map.get(list_name.lower())
+
+    return tag_id_filter, list_id_filter
 
 
 def handle_gm_tasks_list(
@@ -483,71 +631,109 @@ def handle_gm_tasks_list(
     list_name: str | None = None,
     project: str | None = None,
     query: str | None = None,
+    due_before: str | None = None,
+    due_after: str | None = None,
+    order_by: str | None = None,
     limit: int = 25,
 ) -> str:
     """List tasks with filtering. Returns JSON string."""
     try:
+        if order_by and order_by not in _VALID_ORDER_BY:
+            return _error_json(f"Invalid order_by '{order_by}'. Valid values: {', '.join(_VALID_ORDER_BY)}")
+
         tasks_data = list_enriched_tasks(client, source=source)
+        tag_id_filter, list_id_filter = _resolve_filters(client, tag=tag, list_name=list_name)
 
-        # Resolve tag name to ID
-        tag_id_filter: set[str] = set()
-        if tag:
+        filtered = _filter_tasks(
+            tasks_data,
+            status=status,
+            overdue=overdue,
+            tag_id_filter=tag_id_filter or None,
+            list_id_filter=list_id_filter,
+            project=project,
+            query=query,
+            due_before=due_before,
+            due_after=due_after,
+        )
+
+        # Apply sorting
+        if order_by == "due_date":
+            filtered.sort(key=lambda t: t.get("due") or "\xff")
+        elif order_by == "tag_priority":
             all_tags = [t.model_dump() for t in client.list_tags()]
-            name_to_id = {t["name"].lower(): t["id"] for t in all_tags}
-            for tn in tag.split(","):
-                tid = name_to_id.get(tn.strip().lower())
-                if tid:
-                    tag_id_filter.add(tid)
-
-        # Resolve list name to ID
-        list_id_filter: str | None = None
-        if list_name:
-            all_lists = client.list_task_lists()
-            name_map = {tl.name.lower(): tl.id for tl in all_lists}
-            list_id_filter = name_map.get(list_name.lower())
-
-        now_iso = datetime.now(timezone.utc).isoformat()
-        query_lower = query.lower() if query else None
-
-        filtered: list[dict[str, Any]] = []
-        for t in tasks_data:
-            progress = t.get("progress", "")
-            if status == "open" and progress == "completed":
-                continue
-            if status == "completed" and progress != "completed":
-                continue
-
-            if overdue:
-                due = t.get("due", "")
-                if not due or due[:10] >= now_iso[:10]:
-                    continue
-
-            if tag_id_filter:
-                task_tags = set(t.get("tags", []))
-                if not task_tags & tag_id_filter:
-                    continue
-
-            if list_id_filter and t.get("taskListId") != list_id_filter:
-                continue
-
-            if project:
-                proj = t.get("project")
-                if not proj or project.lower() not in proj.lower():
-                    continue
-
-            if query_lower:
-                title = (t.get("title") or "").lower()
-                desc = (t.get("description") or "").lower()
-                if query_lower not in title and query_lower not in desc:
-                    continue
-
-            filtered.append(t)
+            tag_id_to_name: dict[str, str] = {t["id"]: t["name"] for t in all_tags if "id" in t and "name" in t}
+            filtered.sort(key=lambda t: _tag_sort_key(t.get("tags", []), tag_id_to_name))
+        elif order_by == "list_name":
+            filtered.sort(key=lambda t: (t.get("list_name") or "\xff").lower())
+        elif order_by == "title":
+            filtered.sort(key=lambda t: (t.get("title") or "").lower())
 
         clamped_limit = min(max(limit, 1), 100)
         concise = [_concise_task(t) for t in filtered[:clamped_limit]]
         return json.dumps(concise, default=str, ensure_ascii=False)
     except Exception as e:
         print(f"gm_tasks_list error: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return _error_json(str(e))
+
+
+def handle_gm_tasks_count(
+    client: MorgenClient,
+    *,
+    status: str = "open",
+    overdue: bool = False,
+    source: str | None = None,
+    tag: str | None = None,
+    list_name: str | None = None,
+    project: str | None = None,
+    query: str | None = None,
+    due_before: str | None = None,
+    due_after: str | None = None,
+) -> str:
+    """Count tasks matching filters. Returns JSON string with count and filters."""
+    try:
+        tasks_data = list_enriched_tasks(client, source=source)
+        tag_id_filter, list_id_filter = _resolve_filters(client, tag=tag, list_name=list_name)
+
+        filtered = _filter_tasks(
+            tasks_data,
+            status=status,
+            overdue=overdue,
+            tag_id_filter=tag_id_filter or None,
+            list_id_filter=list_id_filter,
+            project=project,
+            query=query,
+            due_before=due_before,
+            due_after=due_after,
+        )
+
+        active_filters: dict[str, Any] = {}
+        if status != "open":
+            active_filters["status"] = status
+        if overdue:
+            active_filters["overdue"] = True
+        if source:
+            active_filters["source"] = source
+        if tag:
+            active_filters["tag"] = tag
+        if list_name:
+            active_filters["list_name"] = list_name
+        if project:
+            active_filters["project"] = project
+        if query:
+            active_filters["query"] = query
+        if due_before:
+            active_filters["due_before"] = due_before
+        if due_after:
+            active_filters["due_after"] = due_after
+
+        return json.dumps(
+            {"count": len(filtered), "filters": active_filters},
+            default=str,
+            ensure_ascii=False,
+        )
+    except Exception as e:
+        print(f"gm_tasks_count error: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
         return _error_json(str(e))
 
@@ -1256,11 +1442,12 @@ def gm_availability(  # pragma: no cover
     start_hour: str | None = None,
     end_hour: str | None = None,
     group: str | None = None,
+    end_date: str | None = None,
 ) -> str:
-    """Find available time slots on a given date.
+    """Find available time slots on a given date or date range.
 
-    Returns list of free slots with start, end, and duration_minutes.
-    Default working hours: 08:00-18:00.
+    Returns list of free slots (single day) or {date: [slots]} dict (multi-day).
+    Default working hours: 08:00-18:00. Multi-day capped at 14 days.
     """
     client, config = _get_client_and_config()
     return handle_gm_availability(
@@ -1271,6 +1458,7 @@ def gm_availability(  # pragma: no cover
         start_hour=start_hour,
         end_hour=end_hour,
         group=group,
+        end_date=end_date,
     )
 
 
@@ -1283,12 +1471,17 @@ def gm_tasks_list(  # pragma: no cover
     list_name: str | None = None,
     project: str | None = None,
     query: str | None = None,
+    due_before: str | None = None,
+    due_after: str | None = None,
+    order_by: str | None = None,
     limit: int = 25,
 ) -> str:
     """List tasks with filtering.
 
     Status: open (default), completed, all. Tag/list_name filter by name.
     query: case-insensitive text search on title and description.
+    due_before/due_after: filter by due date (YYYY-MM-DD, exclusive).
+    order_by: due_date, tag_priority, list_name, or title.
     Limit defaults to 25, max 100. Returns concise task list.
 
     Note: status="completed" only returns tasks from local cache. The Morgen API
@@ -1305,7 +1498,42 @@ def gm_tasks_list(  # pragma: no cover
         list_name=list_name,
         project=project,
         query=query,
+        due_before=due_before,
+        due_after=due_after,
+        order_by=order_by,
         limit=limit,
+    )
+
+
+@mcp.tool()
+def gm_tasks_count(  # pragma: no cover
+    status: str = "open",
+    overdue: bool = False,
+    source: str | None = None,
+    tag: str | None = None,
+    list_name: str | None = None,
+    project: str | None = None,
+    query: str | None = None,
+    due_before: str | None = None,
+    due_after: str | None = None,
+) -> str:
+    """Count tasks matching filters.
+
+    Same filters as gm_tasks_list but returns {count, filters} instead of task list.
+    Useful for dashboards and quick summaries.
+    """
+    client, _ = _get_client_and_config()
+    return handle_gm_tasks_count(
+        client,
+        status=status,
+        overdue=overdue,
+        source=source,
+        tag=tag,
+        list_name=list_name,
+        project=project,
+        query=query,
+        due_before=due_before,
+        due_after=due_after,
     )
 
 
