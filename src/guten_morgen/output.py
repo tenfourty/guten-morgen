@@ -222,14 +222,31 @@ def extract_my_status(participants: dict[str, Any] | None) -> str | None:
     return None
 
 
+def _is_frame_like(participants: dict[str, Any] | None, my_status: str | None) -> bool:
+    """Detect frame-like events: my_status is None AND (no participants OR only accountOwner)."""
+    if my_status is not None:
+        return False
+    if not participants:
+        return True
+    # Check if only accountOwner participant(s) exist
+    for p in participants.values():
+        if not isinstance(p, dict):
+            continue
+        if not p.get("accountOwner"):
+            return False
+    return True
+
+
 def enrich_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Add participants_display, location_display, and my_status to events (shallow copy)."""
+    """Add participants_display, location_display, my_status, and is_frame to events (shallow copy)."""
     enriched: list[dict[str, Any]] = []
     for event in events:
         e = {**event}
         e["participants_display"] = format_participants(e.get("participants"))
         e["location_display"] = format_locations(e.get("locations"))
-        e["my_status"] = extract_my_status(e.get("participants"))
+        my_status = extract_my_status(e.get("participants"))
+        e["my_status"] = my_status
+        e["is_frame"] = _is_frame_like(e.get("participants"), my_status)
         enriched.append(e)
     return enriched
 

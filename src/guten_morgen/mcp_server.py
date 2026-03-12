@@ -35,12 +35,37 @@ mcp = FastMCP("guten-morgen", instructions="Calendar and task management via Mor
 _EVENT_CONCISE_FIELDS = frozenset(
     {"id", "title", "start", "duration", "my_status", "participants_display", "location_display"}
 )
+_COMPACT_EVENT_FIELDS = frozenset({"title", "start", "my_status", "location_display"})
 _TASK_CONCISE_FIELDS = frozenset({"id", "title", "due", "source", "tag_names", "list_name", "project"})
 
 
 def _concise_event(event: dict[str, Any]) -> dict[str, Any]:
     """Project an event dict down to the concise field set."""
     return {k: v for k, v in event.items() if k in _EVENT_CONCISE_FIELDS}
+
+
+def _compact_event(event: dict[str, Any]) -> dict[str, Any]:
+    """Project an event dict to compact form: no id, participant_count, duration_minutes."""
+    result = {k: v for k, v in event.items() if k in _COMPACT_EVENT_FIELDS}
+    # Replace participants_display with count
+    participants = event.get("participants")
+    if isinstance(participants, dict):
+        result["participant_count"] = len([p for p in participants.values() if isinstance(p, dict)])
+    else:
+        result["participant_count"] = 0
+    # Abbreviate ISO duration to minutes
+    duration = event.get("duration", "")
+    if isinstance(duration, str) and duration.startswith("PT"):
+        minutes = 0
+        dur = duration[2:]
+        if "H" in dur:
+            h_part, dur = dur.split("H", 1)
+            minutes += int(h_part) * 60
+        if "M" in dur:
+            m_part = dur.split("M", 1)[0]
+            minutes += int(m_part)
+        result["duration_minutes"] = minutes
+    return result
 
 
 def _concise_task(task: dict[str, Any]) -> dict[str, Any]:
@@ -130,17 +155,23 @@ def _fetch_enriched_events(
     start: str,
     end: str,
     group: str | None = None,
+    *,
+    exclude_frames: bool = True,
 ) -> list[dict[str, Any]]:
     """Fetch events for a date range, enrich, filter frames/declined, sort."""
     cf = _resolve_filter(config, group)
     events_models = client.list_all_events(start, end, **_filter_kwargs(cf))
     events_raw: list[dict[str, Any]] = [e.model_dump(by_alias=True) for e in events_models]
-    # Remove scheduling frames
+    # Remove Morgen scheduling frames (metadata-based)
     events_raw = [e for e in events_raw if not _is_frame_event(e)]
     events_raw.sort(key=lambda x: x.get("start", ""))
     enriched = enrich_events(events_raw)
     # Remove declined events
-    return [e for e in enriched if e.get("my_status") != "declined"]
+    result = [e for e in enriched if e.get("my_status") != "declined"]
+    # Remove frame-like events (solo/no-status) if requested
+    if exclude_frames:
+        result = [e for e in result if not e.get("is_frame")]
+    return result
 
 
 _TAG_PRIORITY: dict[str, int] = {
@@ -227,6 +258,13 @@ def _fetch_categorised_tasks(
 # ---------------------------------------------------------------------------
 
 
+def _project_events(events: list[dict[str, Any]], *, compact: bool = False) -> list[dict[str, Any]]:
+    """Apply concise or compact projection to events."""
+    if compact:
+        return [_compact_event(e) for e in events]
+    return [_concise_event(e) for e in events]
+
+
 def handle_gm_today(
     client: MorgenClient,
     config: MorgenConfig,
@@ -235,6 +273,8 @@ def handle_gm_today(
     events_only: bool = False,
     tasks_only: bool = False,
     max_unscheduled: int = 20,
+    exclude_frames: bool = True,
+    compact: bool = False,
 ) -> str:
     """Combined events + tasks for today. Returns JSON string."""
     try:
@@ -244,8 +284,8 @@ def handle_gm_today(
         result: dict[str, Any] = {}
 
         if not tasks_only:
-            events = _fetch_enriched_events(client, config, start, end, group)
-            result["events"] = [_concise_event(e) for e in events]
+            events = _fetch_enriched_events(client, config, start, end, group, exclude_frames=exclude_frames)
+            result["events"] = _project_events(events, compact=compact)
 
         if not events_only:
             result.update(_fetch_categorised_tasks(client, start, end, max_unscheduled))
@@ -289,6 +329,8 @@ def handle_gm_this_week(
     events_only: bool = False,
     tasks_only: bool = False,
     max_unscheduled: int = 20,
+    exclude_frames: bool = True,
+    compact: bool = False,
 ) -> str:
     """Combined events + tasks for the current week (Mon-Sun). Returns JSON string."""
     try:
@@ -298,8 +340,8 @@ def handle_gm_this_week(
         result: dict[str, Any] = {}
 
         if not tasks_only:
-            events = _fetch_enriched_events(client, config, start, end, group)
-            result["events"] = [_concise_event(e) for e in events]
+            events = _fetch_enriched_events(client, config, start, end, group, exclude_frames=exclude_frames)
+            result["events"] = _project_events(events, compact=compact)
 
         if not events_only:
             result.update(_fetch_categorised_tasks(client, start, end, max_unscheduled))
@@ -319,6 +361,8 @@ def handle_gm_this_month(
     events_only: bool = False,
     tasks_only: bool = False,
     max_unscheduled: int = 20,
+    exclude_frames: bool = True,
+    compact: bool = False,
 ) -> str:
     """Combined events + tasks for the current month. Returns JSON string."""
     try:
@@ -328,8 +372,8 @@ def handle_gm_this_month(
         result: dict[str, Any] = {}
 
         if not tasks_only:
-            events = _fetch_enriched_events(client, config, start, end, group)
-            result["events"] = [_concise_event(e) for e in events]
+            events = _fetch_enriched_events(client, config, start, end, group, exclude_frames=exclude_frames)
+            result["events"] = _project_events(events, compact=compact)
 
         if not events_only:
             result.update(_fetch_categorised_tasks(client, start, end, max_unscheduled))
@@ -1357,15 +1401,26 @@ def gm_today(  # pragma: no cover
     events_only: bool = False,
     tasks_only: bool = False,
     max_unscheduled: int = 20,
+    exclude_frames: bool = True,
+    compact: bool = False,
 ) -> str:
     """Today's events and tasks — the daily snapshot for agent sessions.
 
     Returns events, scheduled tasks, overdue tasks, and unscheduled tasks.
     Unscheduled tasks are capped at max_unscheduled (default 20).
+    exclude_frames: filter out solo/frame events (default True).
+    compact: minimal event projection — no id, participant_count, duration_minutes.
     """
     client, config = _get_client_and_config()
     return handle_gm_today(
-        client, config, group=group, events_only=events_only, tasks_only=tasks_only, max_unscheduled=max_unscheduled
+        client,
+        config,
+        group=group,
+        events_only=events_only,
+        tasks_only=tasks_only,
+        max_unscheduled=max_unscheduled,
+        exclude_frames=exclude_frames,
+        compact=compact,
     )
 
 
@@ -1385,14 +1440,25 @@ def gm_this_week(  # pragma: no cover
     events_only: bool = False,
     tasks_only: bool = False,
     max_unscheduled: int = 20,
+    exclude_frames: bool = True,
+    compact: bool = False,
 ) -> str:
     """This week's events and tasks (Mon-Sun) — for weekly planning.
 
     Same shape as gm_today: events, scheduled/overdue/unscheduled tasks.
+    exclude_frames: filter out solo/frame events (default True).
+    compact: minimal event projection — no id, participant_count, duration_minutes.
     """
     client, config = _get_client_and_config()
     return handle_gm_this_week(
-        client, config, group=group, events_only=events_only, tasks_only=tasks_only, max_unscheduled=max_unscheduled
+        client,
+        config,
+        group=group,
+        events_only=events_only,
+        tasks_only=tasks_only,
+        max_unscheduled=max_unscheduled,
+        exclude_frames=exclude_frames,
+        compact=compact,
     )
 
 
@@ -1402,14 +1468,25 @@ def gm_this_month(  # pragma: no cover
     events_only: bool = False,
     tasks_only: bool = False,
     max_unscheduled: int = 20,
+    exclude_frames: bool = True,
+    compact: bool = False,
 ) -> str:
     """This month's events and tasks — for monthly planning and review.
 
     Same shape as gm_today: events, scheduled/overdue/unscheduled tasks.
+    exclude_frames: filter out solo/frame events (default True).
+    compact: minimal event projection — no id, participant_count, duration_minutes.
     """
     client, config = _get_client_and_config()
     return handle_gm_this_month(
-        client, config, group=group, events_only=events_only, tasks_only=tasks_only, max_unscheduled=max_unscheduled
+        client,
+        config,
+        group=group,
+        events_only=events_only,
+        tasks_only=tasks_only,
+        max_unscheduled=max_unscheduled,
+        exclude_frames=exclude_frames,
+        compact=compact,
     )
 
 
