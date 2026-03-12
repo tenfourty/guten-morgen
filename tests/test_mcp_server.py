@@ -1652,31 +1652,50 @@ class TestTasksListQueryFilter:
 
 
 class TestSmartUnscheduledTruncation:
-    """Phase B item 2: sort unscheduled by tag priority before truncation."""
+    """Unscheduled tasks sorted by priority (lower=higher) then due date before truncation."""
 
     @patch("guten_morgen.time_utils.today_range", return_value=("2026-02-17T00:00:00", "2026-02-17T23:59:59"))
-    def test_right_now_tasks_appear_first(self, _mock_range: Any) -> None:
+    def test_priority_field_sorts_first(self, _mock_range: Any) -> None:
         from guten_morgen.mcp_server import handle_gm_today
 
-        tags = [
-            {"id": "tag-rn", "name": "Right-Now", "color": "#dc2626"},
-            {"id": "tag-sd", "name": "Someday", "color": "#6b7280"},
-            {"id": "tag-ac", "name": "Active", "color": "#22c55e"},
-        ]
         tasks = [
-            {"id": "someday-1", "title": "Someday task", "progress": "needs-action", "tags": ["tag-sd"]},
-            {"id": "right-now-1", "title": "Right now task", "progress": "needs-action", "tags": ["tag-rn"]},
-            {"id": "active-1", "title": "Active task", "progress": "needs-action", "tags": ["tag-ac"]},
-            {"id": "no-tag-1", "title": "No tag task", "progress": "needs-action", "tags": []},
+            {"id": "low-prio", "title": "Low priority", "progress": "needs-action", "priority": 5, "tags": []},
+            {"id": "high-prio", "title": "High priority", "progress": "needs-action", "priority": 1, "tags": []},
+            {"id": "mid-prio", "title": "Mid priority", "progress": "needs-action", "priority": 3, "tags": []},
+            {"id": "no-prio", "title": "No priority", "progress": "needs-action", "tags": []},
         ]
-        client = _make_mock_client(tasks=tasks, tags=tags, events=[])
+        client = _make_mock_client(tasks=tasks, tags=[], events=[])
         config = _make_mock_config()
-        result = json.loads(handle_gm_today(client, config, max_unscheduled=3))
+        result = json.loads(handle_gm_today(client, config, max_unscheduled=4))
 
         ids = [t["id"] for t in result["unscheduled_tasks"]]
-        # Right-Now should come first, then Active, then Someday
-        assert ids[0] == "right-now-1"
-        assert ids[1] == "active-1"
+        # priority 1 < 3 < 5 < null
+        assert ids[0] == "high-prio"
+        assert ids[1] == "mid-prio"
+        assert ids[2] == "low-prio"
+        assert ids[3] == "no-prio"
+
+    def test_sort_key_priority_then_due(self) -> None:
+        """Verify the sort key orders by priority first, then due date."""
+        _PRIORITY_NULL = 999
+        _DUE_NULL = "9999-99-99"
+
+        def sort_key(t: dict[str, Any]) -> tuple[int, str]:
+            return (
+                t.get("priority") if t.get("priority") is not None else _PRIORITY_NULL,
+                (t.get("due") or _DUE_NULL)[:10],
+            )
+
+        tasks = [
+            {"id": "low-prio-soon", "priority": 5, "due": "2026-02-20"},
+            {"id": "high-prio-late", "priority": 1, "due": "2026-03-01"},
+            {"id": "high-prio-soon", "priority": 1, "due": "2026-02-20"},
+            {"id": "no-prio-no-due", "priority": None},
+        ]
+        tasks.sort(key=sort_key)
+        ids = [t["id"] for t in tasks]
+        # priority 1 (due 02-20) < priority 1 (due 03-01) < priority 5 < null
+        assert ids == ["high-prio-soon", "high-prio-late", "low-prio-soon", "no-prio-no-due"]
 
     def test_tag_sort_key_priority_order(self) -> None:
         from guten_morgen.mcp_server import _tag_sort_key
@@ -1688,6 +1707,39 @@ class TestSmartUnscheduledTruncation:
         assert _tag_sort_key(["t2"], tag_id_to_name) < _tag_sort_key(["t3"], tag_id_to_name)
         assert _tag_sort_key(["t3"], tag_id_to_name) < _tag_sort_key(["t4"], tag_id_to_name)
         assert _tag_sort_key(["t4"], tag_id_to_name) < _tag_sort_key([], tag_id_to_name)
+
+
+class TestCompactTask:
+    """Compact task projection: concise fields minus id, strip nulls."""
+
+    def test_compact_task_no_id(self) -> None:
+        from guten_morgen.mcp_server import _compact_task
+
+        full = {"id": "1", "title": "Task", "due": "2026-02-17", "source": "morgen"}
+        result = _compact_task(full)
+        assert "id" not in result
+        assert result["title"] == "Task"
+
+    def test_compact_task_strips_nulls(self) -> None:
+        from guten_morgen.mcp_server import _compact_task
+
+        full = {"id": "1", "title": "Task", "due": None, "project": None, "source": "morgen"}
+        result = _compact_task(full)
+        assert "due" not in result
+        assert "project" not in result
+        assert result["title"] == "Task"
+
+    @patch("guten_morgen.time_utils.today_range", return_value=("2026-02-17T00:00:00", "2026-02-17T23:59:59"))
+    def test_compact_today_tasks_have_no_id(self, _mock_range: Any) -> None:
+        from guten_morgen.mcp_server import handle_gm_today
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+        result = json.loads(handle_gm_today(client, config, compact=True))
+
+        for key in ("scheduled_tasks", "overdue_tasks", "unscheduled_tasks"):
+            for t in result.get(key, []):
+                assert "id" not in t
 
 
 class TestConciseTaskDropsProgress:
