@@ -229,6 +229,10 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `gm events list --start ISO --end ISO [--group NAME] [--all-calendars] [--json]`
   List events in a date range. Auto-discovers account/calendar.
 
+- `gm events get EVENT_ID [--json]`
+  Get a single event by ID — full detail with structured participants
+  ([{name, email, status, is_organiser}]), description, location.
+
 - `gm events create --title TEXT --start ISO --duration MINUTES [--calendar-id ID]`
   `  [--description TEXT] [--meet] [--privacy public|private|secret]`
   Create a new event. --meet auto-attaches a Google Meet link.
@@ -251,7 +255,7 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `gm tasks list [--limit N] [--status open|completed|all] [--overdue] [--json]`
   `  [--due-before ISO] [--due-after ISO] [--priority N] [--updated-after ISO]`
   `  [--since DURATION] [--source morgen|linear|notion] [--tag NAME]`
-  `  [--group-by-source] [--list NAME] [--project NAME]`
+  `  [--group-by-source] [--list NAME] [--project NAME] [--query TEXT]`
   List tasks from all connected sources. Default: open tasks only.
   --status completed or --status all auto-fetch tasks updated in the last
   30 days (override with --since or --updated-after).
@@ -341,13 +345,14 @@ Use `--fields calendar_uid,my_status` to select specific fields.
   List available integration providers.
 
 ### Availability
-- `gm availability --date YYYY-MM-DD [--min-duration MINUTES] [--start HH:MM] [--end HH:MM] [--group NAME]`
-  Find available time slots on a given date. Scans events within working hours
+- `gm availability --date YYYY-MM-DD [--end-date YYYY-MM-DD]`
+  `[--min-duration MINUTES] [--start HH:MM] [--end HH:MM] [--group NAME]`
+  Find available time slots on a given date or date range. Scans events within working hours
   (default 09:00-18:00) and returns gaps >= min-duration (default 30min).
-  Output: [{start, end, duration_minutes}]
+  Single day: [{start, end, duration_minutes}]. Multi-day: {date: [slots]}. 14-day cap.
 
 ### Quick Views
-- `gm today [--json] [--response-format concise] [--events-only] [--tasks-only] [--group NAME]`
+- `gm today [--json] [--response-format concise] [--events-only] [--tasks-only] [--compact] [--group NAME]`
   Combined events + tasks for today. Returns categorised output:
   events, scheduled_tasks, overdue_tasks, unscheduled_tasks.
 
@@ -890,6 +895,62 @@ def events_list(
         output_error(e.error_type, str(e), e.suggestions)
 
 
+@events.command("get")
+@click.argument("event_id")
+@output_options
+def events_get(
+    event_id: str,
+    fmt: str,
+    fields: list[str] | None,
+    jq_expr: str | None,
+    response_format: str,
+) -> None:
+    """Get a single event by ID — full detail view with structured participants."""
+    try:
+        from datetime import datetime, timedelta, timezone
+
+        from guten_morgen.markup import html_to_markdown
+        from guten_morgen.output import enrich_events
+
+        client = _get_client(fmt)
+        cf = _resolve_calendar_filter(None, False)
+
+        start_dt = datetime.now(timezone.utc)
+        search_start = (start_dt - timedelta(days=30)).isoformat()
+        search_end = (start_dt + timedelta(days=30)).isoformat()
+
+        events_models = client.list_all_events(search_start, search_end, **_filter_kwargs(cf))
+
+        target: dict[str, Any] | None = None
+        for e in events_models:
+            if e.id == event_id:
+                target = e.model_dump(by_alias=True)
+                break
+
+        if target is None:
+            output_error("not_found", f"Event '{event_id}' not found.", ["Check the event ID with gm events list"])
+
+        # Enrich
+        enriched = enrich_events([target])[0]  # type: ignore[list-item]
+
+        # Replace participants dict with structured list
+        from guten_morgen.mcp_server import _structured_participants
+
+        enriched["participants"] = _structured_participants(target.get("participants"))  # type: ignore[union-attr]
+
+        # Convert description HTML to markdown
+        desc = enriched.get("description")
+        if desc is not None:
+            enriched["description"] = html_to_markdown(desc)
+
+        # Strip None values
+        enriched = {k: v for k, v in enriched.items() if v is not None}
+
+        morgen_output(enriched, fmt=fmt, fields=fields, jq_expr=jq_expr)
+    except MorgenError as e:
+        output_error(e.error_type, str(e), e.suggestions)
+
+
 @events.command("create")
 @click.option("--title", required=True, help="Event title.")
 @click.option("--start", required=True, help="Start datetime (ISO 8601).")
@@ -1095,6 +1156,7 @@ AVAILABILITY_COLUMNS = ["start", "end", "duration_minutes"]
 
 @cli.command()
 @click.option("--date", required=True, help="Date to check (YYYY-MM-DD).")
+@click.option("--end-date", default=None, help="End date for multi-day scan (YYYY-MM-DD). 14-day cap.")
 @click.option("--min-duration", default=30, type=int, help="Minimum slot duration in minutes (default: 30).")
 @click.option("--start", "window_start", default="09:00", help="Working hours start (HH:MM, default: 09:00).")
 @click.option("--end", "window_end", default="18:00", help="Working hours end (HH:MM, default: 18:00).")
@@ -1102,6 +1164,7 @@ AVAILABILITY_COLUMNS = ["start", "end", "duration_minutes"]
 @calendar_filter_options
 def availability(
     date: str,
+    end_date: str | None,
     min_duration: int,
     window_start: str,
     window_end: str,
@@ -1112,26 +1175,55 @@ def availability(
     group_name: str | None,
     all_calendars: bool,
 ) -> None:
-    """Find available time slots on a given date."""
+    """Find available time slots on a given date or date range."""
     try:
-        client = _get_client(fmt)
-        cf = _resolve_calendar_filter(group_name, all_calendars)
-
-        day_start = f"{date}T00:00:00"
-        day_end = f"{date}T23:59:59"
-        events_models = client.list_all_events(day_start, day_end, **_filter_kwargs(cf))
-        events_data = [e.model_dump(by_alias=True) for e in events_models]
+        from datetime import timedelta
 
         from guten_morgen.time_utils import compute_free_slots
 
-        slots = compute_free_slots(
-            events=events_data,
-            day=date,
-            window_start=window_start,
-            window_end=window_end,
-            min_duration_minutes=min_duration,
-        )
-        morgen_output(slots, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=AVAILABILITY_COLUMNS)
+        client = _get_client(fmt)
+        cf = _resolve_calendar_filter(group_name, all_calendars)
+
+        if end_date is None:
+            # Single-day mode
+            day_start = f"{date}T00:00:00"
+            day_end = f"{date}T23:59:59"
+            events_models = client.list_all_events(day_start, day_end, **_filter_kwargs(cf))
+            events_data = [e.model_dump(by_alias=True) for e in events_models]
+
+            slots = compute_free_slots(
+                events=events_data,
+                day=date,
+                window_start=window_start,
+                window_end=window_end,
+                min_duration_minutes=min_duration,
+            )
+            morgen_output(slots, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=AVAILABILITY_COLUMNS)
+        else:
+            # Multi-day mode
+            from datetime import datetime as dt
+
+            start_dt = dt.strptime(date, "%Y-%m-%d")
+            end_dt = dt.strptime(end_date, "%Y-%m-%d")
+            if (end_dt - start_dt).days > 14:
+                output_error("validation_error", "Date range exceeds 14 days.", ["Use a shorter range."])
+            result: dict[str, list[dict[str, Any]]] = {}
+            current = start_dt
+            while current <= end_dt:
+                day = current.strftime("%Y-%m-%d")
+                day_start = f"{day}T00:00:00"
+                day_end = f"{day}T23:59:59"
+                events_models = client.list_all_events(day_start, day_end, **_filter_kwargs(cf))
+                events_data = [e.model_dump(by_alias=True) for e in events_models]
+                result[day] = compute_free_slots(
+                    events=events_data,
+                    day=day,
+                    window_start=window_start,
+                    window_end=window_end,
+                    min_duration_minutes=min_duration,
+                )
+                current += timedelta(days=1)
+            morgen_output(result, fmt=fmt, fields=fields, jq_expr=jq_expr)
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
 
@@ -1194,6 +1286,7 @@ def tasks() -> None:
     default=None,
     help="Filter by project name (from 'project:' lines in description). Case-insensitive substring.",
 )
+@click.option("--query", default=None, help="Text search on title and description (case-insensitive substring).")
 @click.option("--group-by-source", is_flag=True, default=False, help="Group output by task source.")
 @click.option("--updated-after", default=None, help="Only tasks updated after this datetime (ISO 8601).")
 @click.option(
@@ -1211,6 +1304,7 @@ def tasks_list(
     tag_names: tuple[str, ...],
     list_name: str | None,
     project_filter: str | None,
+    query: str | None,
     group_by_source: bool,
     updated_after: str | None,
     since: str | None,
@@ -1308,6 +1402,14 @@ def tasks_list(
             if project_filter:
                 proj = t.get("project")
                 if not proj or project_filter.lower() not in proj.lower():
+                    continue
+
+            # Query filter (case-insensitive substring on title + description)
+            if query:
+                q = query.lower()
+                title = (t.get("title") or "").lower()
+                desc = (t.get("description") or "").lower()
+                if q not in title and q not in desc:
                     continue
 
             filtered.append(t)
@@ -1908,6 +2010,7 @@ def _combined_view(
     tasks_only: bool = False,
     group_name: str | None = None,
     all_calendars: bool = False,
+    compact: bool = False,
 ) -> None:
     """Fetch events + tasks and output a categorised view."""
 
@@ -1931,7 +2034,11 @@ def _combined_view(
             if ctx and ctx.params.get("counts") and fmt == "json":
                 counts = _compute_status_counts(events_list_enriched)
                 result["meta"] = {"total": len(events_list_enriched), "status_counts": counts}
-            if response_format == "concise" and not fields:
+            if compact:
+                from guten_morgen.mcp_server import _compact_event
+
+                events_list_enriched = [_compact_event(e) for e in events_list_enriched]
+            elif response_format == "concise" and not fields:
                 from guten_morgen.output import select_fields
 
                 events_list_enriched = select_fields(events_list_enriched, VIEW_EVENT_CONCISE_FIELDS)
@@ -1967,13 +2074,20 @@ def _combined_view(
                 else:
                     unscheduled.append(t)
 
-            task_fields = VIEW_TASK_CONCISE_FIELDS if (response_format == "concise" and not fields) else None
-            if task_fields:
-                from guten_morgen.output import select_fields
+            if compact:
+                from guten_morgen.mcp_server import _compact_task
 
-                scheduled = select_fields(scheduled, task_fields)
-                overdue = select_fields(overdue, task_fields)
-                unscheduled = select_fields(unscheduled, task_fields)
+                scheduled = [_compact_task(t) for t in scheduled]
+                overdue = [_compact_task(t) for t in overdue]
+                unscheduled = [_compact_task(t) for t in unscheduled]
+            else:
+                task_fields = VIEW_TASK_CONCISE_FIELDS if (response_format == "concise" and not fields) else None
+                if task_fields:
+                    from guten_morgen.output import select_fields
+
+                    scheduled = select_fields(scheduled, task_fields)
+                    overdue = select_fields(overdue, task_fields)
+                    unscheduled = select_fields(unscheduled, task_fields)
 
             result["scheduled_tasks"] = scheduled
             result["overdue_tasks"] = overdue
@@ -2006,7 +2120,7 @@ def _combined_view(
 
 
 def _view_options(f: Callable[..., Any]) -> Callable[..., Any]:
-    """Add --events-only / --tasks-only flags to view commands."""
+    """Add --events-only / --tasks-only / --compact flags to view commands."""
 
     @click.option(
         "--events-only",
@@ -2024,10 +2138,17 @@ def _view_options(f: Callable[..., Any]) -> Callable[..., Any]:
         mutually_exclusive=["events_only"],
         help="Show only tasks.",
     )
+    @click.option(
+        "--compact",
+        is_flag=True,
+        default=False,
+        help="Compact mode: omit event IDs, reduce participants to count, strip null task fields.",
+    )
     @functools.wraps(f)
-    def wrapper(*args: Any, events_only: bool, tasks_only: bool, **kwargs: Any) -> Any:
+    def wrapper(*args: Any, events_only: bool, tasks_only: bool, compact: bool, **kwargs: Any) -> Any:
         kwargs["events_only"] = events_only
         kwargs["tasks_only"] = tasks_only
+        kwargs["compact"] = compact
         return f(*args, **kwargs)
 
     return wrapper
@@ -2044,6 +2165,7 @@ def today(
     response_format: str,
     events_only: bool,
     tasks_only: bool,
+    compact: bool,
     group_name: str | None,
     all_calendars: bool,
 ) -> None:
@@ -2062,6 +2184,7 @@ def today(
         tasks_only=tasks_only,
         group_name=group_name,
         all_calendars=all_calendars,
+        compact=compact,
     )
 
 
@@ -2076,6 +2199,7 @@ def this_week(
     response_format: str,
     events_only: bool,
     tasks_only: bool,
+    compact: bool,
     group_name: str | None,
     all_calendars: bool,
 ) -> None:
@@ -2094,6 +2218,7 @@ def this_week(
         tasks_only=tasks_only,
         group_name=group_name,
         all_calendars=all_calendars,
+        compact=compact,
     )
 
 
@@ -2108,6 +2233,7 @@ def this_month(
     response_format: str,
     events_only: bool,
     tasks_only: bool,
+    compact: bool,
     group_name: str | None,
     all_calendars: bool,
 ) -> None:
@@ -2126,6 +2252,7 @@ def this_month(
         tasks_only=tasks_only,
         group_name=group_name,
         all_calendars=all_calendars,
+        compact=compact,
     )
 
 

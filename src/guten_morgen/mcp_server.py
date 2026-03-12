@@ -83,6 +83,11 @@ def _concise_task(task: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in task.items() if k in _TASK_CONCISE_FIELDS}
 
 
+def _compact_task(task: dict[str, Any]) -> dict[str, Any]:
+    """Project a task dict to compact form: concise fields, no id, strip nulls."""
+    return {k: v for k, v in task.items() if k in _TASK_CONCISE_FIELDS and k != "id" and v is not None}
+
+
 # ---------------------------------------------------------------------------
 # Client lifecycle (lazy singleton)
 # ---------------------------------------------------------------------------
@@ -217,6 +222,7 @@ def _fetch_categorised_tasks(
     start: str,
     end: str,
     max_unscheduled: int = 20,
+    compact: bool = False,
 ) -> dict[str, Any]:
     """Fetch all tasks, categorise into scheduled/overdue/unscheduled, return dict with meta."""
     result = client.list_all_tasks()
@@ -228,9 +234,6 @@ def _fetch_categorised_tasks(
         tags=all_tags,
         task_lists=all_task_lists,
     )
-
-    # Build tag ID→name map for sort key
-    tag_id_to_name: dict[str, str] = {t["id"]: t["name"] for t in all_tags if "id" in t and "name" in t}
 
     scheduled: list[dict[str, Any]] = []
     overdue: list[dict[str, Any]] = []
@@ -251,16 +254,25 @@ def _fetch_categorised_tasks(
         else:
             unscheduled.append(t)
 
-    # Sort unscheduled by tag priority (Right-Now first) before truncation
-    unscheduled.sort(key=lambda t: _tag_sort_key(t.get("tags", []), tag_id_to_name))
+    # Sort unscheduled before truncation: priority (lower = higher, nulls last),
+    # then due date (soonest first, nulls last)
+    _PRIORITY_NULL = 999
+    _DUE_NULL = "9999-99-99"
+    unscheduled.sort(
+        key=lambda t: (
+            t.get("priority") if t.get("priority") is not None else _PRIORITY_NULL,
+            (t.get("due") or _DUE_NULL)[:10],
+        )
+    )
 
     total_unscheduled = len(unscheduled)
     truncated = total_unscheduled > max_unscheduled
 
+    _project = _compact_task if compact else _concise_task
     return {
-        "scheduled_tasks": [_concise_task(t) for t in scheduled],
-        "overdue_tasks": [_concise_task(t) for t in overdue],
-        "unscheduled_tasks": [_concise_task(t) for t in unscheduled[:max_unscheduled]],
+        "scheduled_tasks": [_project(t) for t in scheduled],
+        "overdue_tasks": [_project(t) for t in overdue],
+        "unscheduled_tasks": [_project(t) for t in unscheduled[:max_unscheduled]],
         "meta": {
             "unscheduled_truncated": truncated,
             "unscheduled_total": total_unscheduled,
@@ -303,7 +315,7 @@ def handle_gm_today(
             result["events"] = _project_events(events, compact=compact)
 
         if not events_only:
-            result.update(_fetch_categorised_tasks(client, start, end, max_unscheduled))
+            result.update(_fetch_categorised_tasks(client, start, end, max_unscheduled, compact=compact))
 
         return json.dumps(result, default=str, ensure_ascii=False)
     except Exception as e:
@@ -359,7 +371,7 @@ def handle_gm_this_week(
             result["events"] = _project_events(events, compact=compact)
 
         if not events_only:
-            result.update(_fetch_categorised_tasks(client, start, end, max_unscheduled))
+            result.update(_fetch_categorised_tasks(client, start, end, max_unscheduled, compact=compact))
 
         return json.dumps(result, default=str, ensure_ascii=False)
     except Exception as e:
@@ -391,7 +403,7 @@ def handle_gm_this_month(
             result["events"] = _project_events(events, compact=compact)
 
         if not events_only:
-            result.update(_fetch_categorised_tasks(client, start, end, max_unscheduled))
+            result.update(_fetch_categorised_tasks(client, start, end, max_unscheduled, compact=compact))
 
         return json.dumps(result, default=str, ensure_ascii=False)
     except Exception as e:
