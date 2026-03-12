@@ -135,7 +135,7 @@ def _is_frame_event(event: dict[str, Any]) -> bool:
     return isinstance(meta, dict) and "frameFilterMql" in meta
 
 
-_BARE_DATE_RE = re.compile(r"^\d{4}-\d{1,2}-\d{1,2}$")
+_BARE_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _normalize_datetime_start(s: str) -> str:
@@ -156,7 +156,7 @@ def _normalize_hour(h: str | int) -> str:
     if ":" not in h:
         return f"{int(h):02d}:00"
     parts = h.split(":", 1)
-    return f"{int(parts[0]):02d}:{parts[1]}"
+    return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
 
 
 def _resolve_filter(config: MorgenConfig, group: str | None) -> CalendarFilter:

@@ -602,6 +602,12 @@ class TestNormalizeHour:
 
         assert _normalize_hour("9:30") == "09:30"
 
+    def test_single_digit_minutes(self) -> None:
+        from guten_morgen.mcp_server import _normalize_hour
+
+        # "9:5" must produce "09:05", not "09:5"
+        assert _normalize_hour("9:5") == "09:05"
+
     def test_integer_input(self) -> None:
         from guten_morgen.mcp_server import _normalize_hour
 
@@ -1506,14 +1512,15 @@ class TestNormalizeDatetime:
         # Trailing whitespace from MCP JSON — must still normalise
         assert _normalize_datetime_start("2026-03-12 ") == "2026-03-12T00:00:00"
 
-    def test_bare_date_no_zero_padding(self) -> None:
+    def test_bare_date_no_zero_padding_falls_through(self) -> None:
         from guten_morgen.mcp_server import _normalize_datetime_start
 
-        # Non-padded month/day (e.g. LLM sends "2026-3-12") — normalise
-        assert _normalize_datetime_start("2026-3-12") == "2026-3-12T00:00:00"
+        # Non-padded month/day passes through unchanged — only zero-padded
+        # YYYY-MM-DD is recognised as a bare date (matches CLI behaviour)
+        assert _normalize_datetime_start("2026-3-12") == "2026-3-12"
 
     def test_events_list_bare_date_normalised(self) -> None:
-        """Integration: handle_gm_events_list accepts bare date strings."""
+        """Integration: handle_gm_events_list accepts bare YYYY-MM-DD strings."""
         from guten_morgen.mcp_server import handle_gm_events_list
 
         client = _make_mock_client()
@@ -1522,6 +1529,17 @@ class TestNormalizeDatetime:
         result = json.loads(handle_gm_events_list(client, config, start="2026-03-12", end="2026-03-12"))
         # Must not return an error — bare dates are normalised before API call
         assert isinstance(result, list)
+
+    def test_events_list_non_padded_date_errors(self) -> None:
+        """Integration: non-padded date through full pipeline returns error."""
+        from guten_morgen.mcp_server import handle_gm_events_list
+
+        client = _make_mock_client()
+        config = _make_mock_config()
+
+        result = json.loads(handle_gm_events_list(client, config, start="2026-3-12", end="2026-3-12"))
+        # Non-padded dates are not normalised — downstream fromisoformat fails
+        assert "error" in result
 
 
 class TestProxyVars:
