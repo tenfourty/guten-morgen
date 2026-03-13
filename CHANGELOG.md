@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.3](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.2...guten-morgen-v0.23.3) (2026-03-13)
+
+
+### Documentation
+
+* update CLAUDE.md with v0.23.2 CLI/MCP changes ([bc06453](https://github.com/tenfourty/guten-morgen/commit/bc06453b783ee28d60e9669b8e2a2cf36602979c))
+
 ## [0.23.2](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.1...guten-morgen-v0.23.2) (2026-03-12)
 
 
