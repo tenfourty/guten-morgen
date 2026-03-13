@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.4](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.3...guten-morgen-v0.23.4) (2026-03-13)
+
+
+### Bug Fixes
+
+* correct init verify command from `gm events today` to `gm today` ([#43](https://github.com/tenfourty/guten-morgen/issues/43)) ([3775264](https://github.com/tenfourty/guten-morgen/commit/3775264cf4b157eb37f192ede3ee463dfcc4d0ae)), closes [#42](https://github.com/tenfourty/guten-morgen/issues/42)
+
 ## [0.23.3](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.2...guten-morgen-v0.23.3) (2026-03-13)
 
 
