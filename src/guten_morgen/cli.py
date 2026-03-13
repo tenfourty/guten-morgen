@@ -552,7 +552,7 @@ def init(force: bool) -> None:
     target.write_text(_CONFIG_TEMPLATE.format(api_key=api_key))
 
     click.echo(f"Config written to {target}")
-    click.echo("Run `gm events today` to verify.")
+    click.echo("Run `gm today` to verify.")
 
 
 @cli.command("mcp")
