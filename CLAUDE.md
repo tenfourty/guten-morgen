@@ -82,7 +82,35 @@ Then: `uv run mypy src/` — clean before committing.
 - `refs` — merged from Morgen API `source_url` + `ref: <url>` lines in description (list of {source, url})
 - Source inference via `_infer_source()` — hostname pattern matching for 10 integrations
 
+**Event enrichment pipeline** (`output.py`): `enrich_events()` adds computed fields to raw event dicts:
+- `participants_display`, `location_display` — formatted strings
+- `my_status` — account owner's participation status
+- `is_frame` — True when `my_status is None AND (no participants OR only accountOwner)`. Used by `exclude_frames` filtering.
+
 **`list_enriched_tasks(client)`** — convenience function combining `list_all_tasks()` + `enrich_tasks()` for Python consumers (e.g. brief-deck). Import from `guten_morgen.output`.
+
+**MCP server** (`mcp_server.py`): 31 tools with `ToolAnnotations` (read-only, mutating, destructive hints). Key patterns:
+- Handler functions (testable without MCP transport) + thin MCP wrappers (`# pragma: no cover`)
+- `_filter_tasks()` — shared filtering logic used by both `handle_gm_tasks_list` and `handle_gm_tasks_count`
+- `_resolve_filters()` — resolves tag/list names to IDs for filtering
+- `_project_events()` — applies concise or compact projection to events
+- `_compact_event()` / `_compact_task()` — minimal projection: no id, strips nulls; `_compact_task` also removes id and null fields
+- `compact` param on all 3 snapshot handlers (`gm_today`, `gm_this_week`, `gm_this_month`)
+- `exclude_frames` (default True) on snapshot handlers filters `is_frame` events
+- `due_before`/`due_after` — date-based task filtering (exclusive, YYYY-MM-DD)
+- `order_by` — sort tasks by `due_date`, `tag_priority`, `list_name`, or `title`
+- Multi-day availability via `end_date` param (14-day cap)
+- Smart unscheduled sort: priority (lower=higher, nulls last) then due date, with truncation to `max_unscheduled` (default 20)
+- Four annotation constants: `_READONLY`, `_MUTATING`, `_MUTATING_IDEMPOTENT`, `_DESTRUCTIVE`
+
+**CLI parity with MCP** (v0.23.2):
+- `--compact` on `today`, `this-week`, `this-month` — mirrors MCP `compact` param
+- `--query TEXT` on `tasks list` — client-side case-insensitive substring search on title + description
+- `--end-date` on `availability` — multi-day mode with 14-day cap (matches MCP `end_date`)
+- `events get EVENT_ID` — structured single-event detail with participants list and markdown description
+- `_combined_view` now sorts unscheduled tasks (priority+due), truncates to 20, emits `meta.unscheduled_truncated`/`unscheduled_total`, and skips completed tasks
+
+**Error handling** (`errors.py`): `output_error()` is typed `-> NoReturn` — mypy proves callers never fall through after an error exit.
 
 Deep dive: [`docs/models.md`](docs/models.md) | [`docs/testing.md`](docs/testing.md)
 
@@ -93,7 +121,8 @@ src/guten_morgen/
   cli.py        Click commands — boundary layer (model → dict)
   client.py     MorgenClient — typed API wrapper
   models.py     Pydantic v2 models (MorgenModel base)
-  output.py     Render pipeline + task enrichment (project, refs, source inference)
+  output.py     Render pipeline + task/event enrichment (project, refs, source, is_frame)
+  mcp_server.py MCP server — 31 tools with annotations, handler functions + wrappers
   markup.py     HTML↔Markdown conversion for task descriptions
   errors.py     Exception hierarchy → structured JSON on stderr
   config.py     XDG config discovery + API settings
@@ -118,7 +147,8 @@ src/guten_morgen/
 - **Calendar groups** — configured in `guten-morgen.toml` under `[groups.*]`. Use `--group all` to bypass filtering.
 - **`morgen.so:metadata`** — Event model aliases this. Use `model_dump(by_alias=True)` for events
 - **Completed tasks** — Morgen API only returns completed tasks when `updatedAfter` is passed. `--status completed` and `--status all` auto-inject `updatedAfter=30d`. Use `--since` for custom ranges. Cache is bypassed for `updatedAfter` queries (different results shape).
-- **Description metadata convention** — Task descriptions support `project: <Name>` (links task to a project) and `ref: <url>` (adds cross-references). Parsed at enrichment time by `_extract_project()` and `_extract_refs()`. CLI supports `--project` and `--ref` on `tasks create` and `tasks update`. `tasks list` supports `--project` for filtering.
+- **Description metadata convention** — Task descriptions support `project: <Name>` (links task to a project) and `ref: <url>` (adds cross-references). Parsed at enrichment time by `_extract_project()` and `_extract_refs()`. CLI supports `--project` and `--ref` on `tasks create` and `tasks update`. `tasks list` supports `--project` for filtering. Note: `_extract_project()` uses `splitlines()[0]` after regex match to handle Unicode line separators (U+2028, U+2029) that `[^\r\n]+` misses.
+- **MCP integer inputs** — MCP JSON transport may send integers where strings are expected (e.g. `start_hour: 9` instead of `"9"`). `_normalize_hour()` coerces via `str(h)` before parsing. Always zero-pad both hours and minutes.
 - **Mutation output** — use `model_dump(exclude_none=True)` to avoid null flood
 - **`uv.lock`** — must be generated with `UV_INDEX="" uv lock --refresh` to avoid baking in private registries
 - **Do NOT reinstall after commits** — `uv tool install --editable .` is a one-time setup. Editable installs pick up code changes automatically. Never re-run it after commits, version bumps, or releases.
