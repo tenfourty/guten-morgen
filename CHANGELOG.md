@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.5](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.4...guten-morgen-v0.23.5) (2026-05-11)
+
+
+### Documentation
+
+* add task project enrichment design ([7dc86dd](https://github.com/tenfourty/guten-morgen/commit/7dc86dd73d9dd7e6e2402a3ddcbefdc581deede9))
+
 ## [0.23.4](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.3...guten-morgen-v0.23.4) (2026-03-13)
 
 
