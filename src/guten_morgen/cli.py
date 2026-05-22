@@ -934,7 +934,7 @@ def events_get(
         enriched = enrich_events([target])[0]
 
         # Replace participants dict with structured list
-        from guten_morgen.mcp_server import _structured_participants
+        from guten_morgen.projection import _structured_participants
 
         enriched["participants"] = _structured_participants(target.get("participants"))
 
@@ -2035,7 +2035,7 @@ def _combined_view(
                 counts = _compute_status_counts(events_list_enriched)
                 result["meta"] = {"total": len(events_list_enriched), "status_counts": counts}
             if compact:
-                from guten_morgen.mcp_server import _compact_event
+                from guten_morgen.projection import _compact_event
 
                 events_list_enriched = [_compact_event(e) for e in events_list_enriched]
             elif response_format == "concise" and not fields:
@@ -2093,7 +2093,7 @@ def _combined_view(
             unscheduled = unscheduled[:max_unscheduled]
 
             if compact:
-                from guten_morgen.mcp_server import _compact_task
+                from guten_morgen.projection import _compact_task
 
                 scheduled = [_compact_task(t) for t in scheduled]
                 overdue = [_compact_task(t) for t in overdue]
