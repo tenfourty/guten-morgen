@@ -1018,6 +1018,20 @@ def events_create(
 @click.option("--calendar-id", default=None, help="Calendar ID.")
 @click.option("--account-id", default=None, help="Account ID.")
 @click.option(
+    "--timezone",
+    default=None,
+    help="Time zone (e.g. Europe/Paris). Required by the Morgen API alongside --start/--duration. "
+    "Pass an empty string to make the event floating. If omitted, the existing event's timezone "
+    "is backfilled.",
+)
+@click.option(
+    "--show-without-time/--show-with-time",
+    "show_without_time",
+    default=None,
+    help="Whether the event displays without a specific time (all-day-like). Backfilled from the "
+    "existing event when --start/--duration is changed and this flag is omitted.",
+)
+@click.option(
     "--privacy",
     type=click.Choice(["public", "private", "secret"]),
     default=None,
@@ -1036,6 +1050,8 @@ def events_update(
     start: str | None,
     duration: int | None,
     description: str | None,
+    timezone: str | None,
+    show_without_time: bool | None,
     privacy: str | None,
     calendar_id: str | None,
     account_id: str | None,
@@ -1054,14 +1070,38 @@ def events_update(
         }
         if title is not None:
             event_data["title"] = title
-        if start is not None:
-            event_data["start"] = start
-        if duration is not None:
-            event_data["duration"] = f"PT{duration}M"
         if description is not None:
             event_data["description"] = description
         if privacy is not None:
             event_data["privacy"] = privacy
+
+        # The Morgen API requires `start`, `duration`, `timeZone`, and `showWithoutTime` to be
+        # provided together whenever any of the time fields are touched. Backfill from the
+        # existing event when --timezone / --show-without-time aren't supplied.
+        time_fields_touched = start is not None or duration is not None
+        if time_fields_touched:
+            if timezone is None or show_without_time is None:
+                from datetime import datetime, timedelta
+                from datetime import timezone as _tz
+
+                now = datetime.now(_tz.utc)
+                window_start = (now - timedelta(days=30)).isoformat()
+                window_end = (now + timedelta(days=30)).isoformat()
+                existing = None
+                for e in client.list_all_events(window_start, window_end):
+                    if e.id == event_id:
+                        existing = e
+                        break
+                if timezone is None:
+                    timezone = existing.timeZone if existing else None
+                if show_without_time is None:
+                    show_without_time = existing.showWithoutTime if existing else False
+            if start is not None:
+                event_data["start"] = start
+            if duration is not None:
+                event_data["duration"] = f"PT{duration}M"
+            event_data["timeZone"] = timezone if timezone != "" else None
+            event_data["showWithoutTime"] = bool(show_without_time)
         result = client.update_event(event_data, series_update_mode=series_mode)
         if result:
             output = result.model_dump(by_alias=True, exclude_none=True)
