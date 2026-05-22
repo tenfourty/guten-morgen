@@ -244,6 +244,113 @@ class TestEventsUpdate:
         assert data["privacy"] == "public"
 
 
+class TestEventsUpdateTimeFields:
+    """Regression for #48: `gm events update` must send `timeZone` and `showWithoutTime`
+    alongside `start`/`duration` — the Morgen API rejects partial time updates with a 400.
+    """
+
+    def test_update_start_with_explicit_timezone_sends_required_fields(
+        self, runner: CliRunner, mock_client: MorgenClient
+    ) -> None:
+        result = runner.invoke(
+            cli,
+            [
+                "events",
+                "update",
+                "evt-1",
+                "--start",
+                "2026-05-22T11:00:00",
+                "--duration",
+                "60",
+                "--timezone",
+                "Europe/Paris",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["start"] == "2026-05-22T11:00:00"
+        assert data["duration"] == "PT60M"
+        assert data["timeZone"] == "Europe/Paris"
+        assert data["showWithoutTime"] is False
+
+    def test_update_duration_only_still_sends_timezone_and_show_without_time(
+        self, runner: CliRunner, mock_client: MorgenClient
+    ) -> None:
+        """Even when only --duration is touched, timeZone + showWithoutTime must accompany it."""
+        result = runner.invoke(
+            cli,
+            ["events", "update", "evt-1", "--duration", "90", "--timezone", "UTC"],
+        )
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["duration"] == "PT90M"
+        assert data["timeZone"] == "UTC"
+        assert data["showWithoutTime"] is False
+
+    def test_update_with_empty_timezone_makes_event_floating(
+        self, runner: CliRunner, mock_client: MorgenClient
+    ) -> None:
+        """`--timezone ""` should serialise as null (floating event) per Morgen API."""
+        result = runner.invoke(
+            cli,
+            [
+                "events",
+                "update",
+                "evt-1",
+                "--start",
+                "2026-05-22T11:00:00",
+                "--duration",
+                "60",
+                "--timezone",
+                "",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        # exclude_none=True strips null timeZone from the dump — verify the key is absent
+        # (i.e. the value sent to the API was None, not the literal empty string).
+        assert data.get("timeZone") is None
+        assert "timeZone" not in data
+
+    def test_update_title_only_does_not_add_timezone(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Existing behaviour: a title-only update must NOT inject timeZone/showWithoutTime."""
+        result = runner.invoke(cli, ["events", "update", "evt-1", "--title", "Updated"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["title"] == "Updated"
+        assert "timeZone" not in data
+        assert "showWithoutTime" not in data
+
+    def test_update_start_without_timezone_backfills_from_existing_event(
+        self, runner: CliRunner, mock_client: MorgenClient, monkeypatch
+    ) -> None:
+        """When --timezone is omitted on a time-shifting update, backfill from the existing event."""
+        from guten_morgen.models import Event
+
+        existing = Event.model_validate(
+            {
+                "id": "evt-1",
+                "title": "Standup",
+                "start": "2026-05-20T09:00:00",
+                "duration": "PT30M",
+                "timeZone": "Europe/Paris",
+                "showWithoutTime": False,
+                "calendarId": "cal-1",
+                "accountId": "acc-1",
+            }
+        )
+        monkeypatch.setattr(mock_client, "list_all_events", lambda *a, **kw: [existing])
+
+        result = runner.invoke(
+            cli,
+            ["events", "update", "evt-1", "--start", "2026-05-22T11:00:00", "--duration", "60"],
+        )
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["timeZone"] == "Europe/Paris"
+        assert data["showWithoutTime"] is False
+
+
 class TestEventsDelete:
     def test_delete(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(cli, ["events", "delete", "evt-1"])
