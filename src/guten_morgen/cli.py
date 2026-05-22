@@ -1953,11 +1953,11 @@ def _now_utc() -> Any:
     return datetime.now(timezone.utc)
 
 
-@cli.command()
+@cli.command("next")
 @click.option("--count", default=None, type=int, help="Limit number of events returned.")
 @output_options
 @calendar_filter_options
-def next(
+def gm_next(
     count: int | None,
     fmt: str,
     fields: list[str] | None,
