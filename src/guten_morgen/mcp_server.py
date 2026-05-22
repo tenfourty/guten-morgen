@@ -22,6 +22,13 @@ from guten_morgen.config import load_settings
 from guten_morgen.groups import load_morgen_config, resolve_filter
 from guten_morgen.markup import html_to_markdown
 from guten_morgen.output import enrich_events, enrich_tasks, list_enriched_tasks
+from guten_morgen.projection import (
+    _compact_event,
+    _compact_task,
+    _concise_event,
+    _concise_task,
+    _structured_participants,
+)
 
 if TYPE_CHECKING:
     from guten_morgen.client import MorgenClient
@@ -37,56 +44,6 @@ _READONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotent
 _MUTATING = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
 _MUTATING_IDEMPOTENT = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True)
 _DESTRUCTIVE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True)
-
-# ---------------------------------------------------------------------------
-# Concise field projections
-# ---------------------------------------------------------------------------
-
-_EVENT_CONCISE_FIELDS = frozenset(
-    {"id", "title", "start", "duration", "my_status", "participants_display", "location_display"}
-)
-_COMPACT_EVENT_FIELDS = frozenset({"title", "start", "my_status", "location_display"})
-_TASK_CONCISE_FIELDS = frozenset({"id", "title", "due", "source", "tag_names", "list_name", "project"})
-
-
-def _concise_event(event: dict[str, Any]) -> dict[str, Any]:
-    """Project an event dict down to the concise field set."""
-    return {k: v for k, v in event.items() if k in _EVENT_CONCISE_FIELDS}
-
-
-def _compact_event(event: dict[str, Any]) -> dict[str, Any]:
-    """Project an event dict to compact form: no id, participant_count, duration_minutes."""
-    result = {k: v for k, v in event.items() if k in _COMPACT_EVENT_FIELDS}
-    # Replace participants_display with count
-    participants = event.get("participants")
-    if isinstance(participants, dict):
-        result["participant_count"] = len([p for p in participants.values() if isinstance(p, dict)])
-    else:
-        result["participant_count"] = 0
-    # Abbreviate ISO duration to minutes
-    duration = event.get("duration", "")
-    if isinstance(duration, str) and duration.startswith("PT"):
-        minutes = 0
-        dur = duration[2:]
-        if "H" in dur:
-            h_part, dur = dur.split("H", 1)
-            minutes += int(h_part) * 60
-        if "M" in dur:
-            m_part = dur.split("M", 1)[0]
-            minutes += int(m_part)
-        result["duration_minutes"] = minutes
-    return result
-
-
-def _concise_task(task: dict[str, Any]) -> dict[str, Any]:
-    """Project a task dict down to the concise field set."""
-    return {k: v for k, v in task.items() if k in _TASK_CONCISE_FIELDS}
-
-
-def _compact_task(task: dict[str, Any]) -> dict[str, Any]:
-    """Project a task dict to compact form: concise fields, no id, strip nulls."""
-    return {k: v for k, v in task.items() if k in _TASK_CONCISE_FIELDS and k != "id" and v is not None}
-
 
 # ---------------------------------------------------------------------------
 # Client lifecycle (lazy singleton)
@@ -434,31 +391,6 @@ def handle_gm_events_list(
         print(f"gm_events_list error: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
         return _error_json(str(e))
-
-
-def _structured_participants(participants: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """Convert JSCalendar participants dict to a structured list.
-
-    Filters out resource-type participants (rooms, equipment).
-    Returns [{name, email, status, is_organiser}].
-    """
-    if not participants:
-        return []
-    result: list[dict[str, Any]] = []
-    for p in participants.values():
-        if not isinstance(p, dict):
-            continue
-        if p.get("kind") == "resource":
-            continue
-        result.append(
-            {
-                "name": p.get("name") or p.get("email", ""),
-                "email": p.get("email", ""),
-                "status": p.get("participationStatus", ""),
-                "is_organiser": bool(p.get("accountOwner")),
-            }
-        )
-    return result
 
 
 def handle_gm_events_get(
