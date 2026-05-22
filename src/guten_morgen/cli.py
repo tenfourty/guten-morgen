@@ -1457,9 +1457,13 @@ def tasks_get(
     try:
         client = _get_client(fmt)
         data = client.get_task(task_id).model_dump()
-        desc = data.get("description")
-        if desc is not None:
-            data["description"] = html_to_markdown(desc)
+
+        from guten_morgen.output import enrich_tasks
+
+        all_tags = [t.model_dump() for t in client.list_tags()]
+        all_task_lists = [tl.model_dump() for tl in client.list_task_lists()]
+        data = enrich_tasks([data], tags=all_tags, task_lists=all_task_lists)[0]
+
         if response_format == "concise" and not fields:
             fields = TASK_CONCISE_FIELDS
         morgen_output(data, fmt=fmt, fields=fields, jq_expr=jq_expr)
