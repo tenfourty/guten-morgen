@@ -135,6 +135,21 @@ class TestTasksGet:
         assert "<ul>" not in desc
         assert "check tests" in desc
 
+    def test_get_includes_enrichment_fields(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """Regression for #47: tasks get must include the same enrichment fields as tasks list.
+
+        Before the fix, tasks get returned the raw API payload and consumers had to fall back
+        to `tasks list --jq 'map(select(.id==...))'` to get list_name/tag_names/source.
+        """
+        result = runner.invoke(cli, ["tasks", "get", "task-1", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["list_name"] == "Inbox"
+        assert data["tag_names"] == ["urgent"]
+        assert data["source"] == "morgen"
+        assert "refs" in data
+        assert "project" in data
+
 
 class TestTasksCreate:
     def test_create(self, runner: CliRunner, mock_client: MorgenClient) -> None:
