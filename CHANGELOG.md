@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.23.6](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.5...guten-morgen-v0.23.6) (2026-05-22)
+
+
+### Bug Fixes
+
+* enrich `tasks get` with the same fields as `tasks list` ([54a93cc](https://github.com/tenfourty/guten-morgen/commit/54a93cc0397d3f0e3547120a1ff3c692eaa41245)), closes [#47](https://github.com/tenfourty/guten-morgen/issues/47)
+* send `timeZone` and `showWithoutTime` with `gm events update` time changes ([27a5f43](https://github.com/tenfourty/guten-morgen/commit/27a5f43edaca586186854c7fdd4c14df25a06215)), closes [#48](https://github.com/tenfourty/guten-morgen/issues/48)
+* stop pulling in optional mcp dependency for `gm events get` and `--compact` ([882022a](https://github.com/tenfourty/guten-morgen/commit/882022a34cf6b7d341a8d7ce5d1bfc0710133096)), closes [#46](https://github.com/tenfourty/guten-morgen/issues/46)
+
 ## [0.23.5](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.4...guten-morgen-v0.23.5) (2026-05-11)
 
 
