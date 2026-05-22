@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.7](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.6...guten-morgen-v0.23.7) (2026-05-22)
+
+
+### Bug Fixes
+
+* rename `gm next` callback to `gm_next` to stop shadowing builtin `next` ([985733b](https://github.com/tenfourty/guten-morgen/commit/985733b2ec30e8d2fa1762eeb9f2efc8887c777c))
+
 ## [0.23.6](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.5...guten-morgen-v0.23.6) (2026-05-22)
 
 
