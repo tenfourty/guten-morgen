@@ -160,6 +160,14 @@ src/guten_morgen/
 
 This project includes a `CLAUDE.md` with conventions and a `.claude/` directory with hooks and skills for use with [Claude Code](https://docs.anthropic.com/en/docs/claude-code). These are optional — the CLI works without them.
 
+The `.claude/skills/gm/` skill is portable. To use `gm` from any Claude Code session — not just this repo — symlink it into your user skills directory so it stays in sync on `git pull`:
+
+```bash
+mkdir -p ~/.claude/skills && ln -s "$(pwd)/.claude/skills/gm" ~/.claude/skills/gm
+```
+
+It documents the confirmation rule, timezone gotchas, and invocation recipes — deferring to `gm --help` for the command surface.
+
 ## License
 
 [Apache 2.0](LICENSE)
