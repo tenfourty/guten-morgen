@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.9](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.8...guten-morgen-v0.23.9) (2026-05-24)
+
+
+### Documentation
+
+* clarify --group is events-only and tighten gm Claude Code skill ([aa7c910](https://github.com/tenfourty/guten-morgen/commit/aa7c910290d5eb4ece065a43a9276a91b60089ae))
+
 ## [0.23.8](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.7...guten-morgen-v0.23.8) (2026-05-24)
 
 
