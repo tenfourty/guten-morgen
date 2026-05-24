@@ -117,7 +117,15 @@ def morgen_output(
 def calendar_filter_options(f: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator adding --group and --all-calendars options."""
 
-    @click.option("--group", "group_name", default=None, help="Calendar group name (from .config.toml), or 'all'.")
+    @click.option(
+        "--group",
+        "group_name",
+        default=None,
+        help=(
+            "Calendar group for events (from .config.toml), or 'all'. "
+            "Has no effect on tasks — scope tasks via --list/--tag."
+        ),
+    )
     @click.option("--all-calendars", is_flag=True, default=False, help="Include inactive calendars.")
     @functools.wraps(f)
     def wrapper(*args: Any, group_name: str | None, all_calendars: bool, **kwargs: Any) -> Any:
@@ -382,8 +390,14 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `--hide-declined` (convenience alias: exclude events you declined)
 - `--counts` (wrap JSON in {"events":[..], "meta":{..}}; changes output shape)
 - `--no-cache` (bypass cache, fetch fresh from API)
-- `--group NAME` (filter events by calendar group; use 'all' for no filtering)
+- `--group NAME` (filter events by calendar group; use 'all' for no filtering — events only, has no effect on tasks)
 - `--all-calendars` (include inactive calendars, overrides active_only config)
+
+## Scoping axes (orthogonal — events and tasks scope independently)
+- **Events** scope via `--group NAME` (or `--group all`) plus `--start`/`--end` date ranges.
+- **Tasks** scope via `--list NAME`, `--tag NAME` (repeatable, OR logic),
+  `--status open|completed|all`, `--priority N`, `--project NAME`, `--query TEXT`,
+  and `--due-before`/`--due-after`. `--group` does NOT affect tasks.
 
 ### Cache Management
 - `gm cache clear`
