@@ -27,8 +27,10 @@ command and getting confirmation before executing it.**
 ## `gm today` output
 
 `gm today` returns four categories: `events`, `scheduled_tasks`, `overdue_tasks`,
-`unscheduled_tasks`. Add `--group all` when `scheduled_tasks` are needed (e.g. an
-end-of-day close-out).
+`unscheduled_tasks` (plus a `meta` wrapper). The `--group` flag only narrows the
+`events` section — tasks always populate based on their due date. Scope tasks via
+`--list NAME`, `--tag NAME`, `--project NAME`, `--query TEXT`, or pass
+`--tasks-only` / `--events-only` to drop one side entirely.
 
 ## Timezone convention
 
@@ -45,6 +47,8 @@ computing any time.
   the current local offset to get the real time. Often these are imported appointment
   events whose description carries the true local time as a provider-localized field
   (e.g. `Időpont:` from a Hungarian provider) — cross-check against that when present.
+  (Observed against Morgen API as of gm 0.23.7 / 2026-05; if Morgen ever starts
+  returning UTC-converted starts, drop this gotcha.)
 - **UID `…T<HHMMSS>Z` token beats `start`.** A calendar UID embedding a `…T<HHMMSS>Z`
   token *whose date matches the viewed day* is the authoritative UTC start — convert
   to local and ignore `start` (which can render hours off from a foreign-TZ leak).
@@ -59,10 +63,11 @@ guess subcommand names or flags.** This skill records *recommendations and quirk
 top of* `--help` — it is not a substitute for it. Everything else below is non-obvious
 recipe knowledge that `--help` won't surface.
 
-- **Daily pull:** `gm today --json --response-format concise --no-frames [--group all]`.
-  `--response-format concise` cuts roughly two-thirds of the tokens vs. the default;
-  `--no-frames` excludes Morgen scheduling frames from the output; `--group all` is
-  required to surface `scheduled_tasks` (otherwise only events come back).
+- **Daily pull:** `gm today --json --response-format concise --no-frames`. Add
+  `--group all` when you also need events from calendars outside the default group
+  — `--group` only affects events, not tasks. `--response-format concise` cuts
+  roughly two-thirds of the tokens vs. the default; `--no-frames` excludes Morgen
+  scheduling frames from the output.
 - **What do I owe:** `gm tasks list --status open --overdue --json`.
 - **Time-block a task:** `gm tasks schedule <id> --start <ISO>` — the *only* way to
   give a task a specific time, because `--due` stores date only (see Stable quirks).
@@ -96,9 +101,11 @@ issue link and a workaround.
 
 - **`gm events delete <id> --series single`** removes only one occurrence of a recurring
   event — use this to drop just today's instance without killing the series.
-- **`gm tasks create --due` / `gm tasks update --due` store date only.** Any time
-  component is silently dropped. If a specific time matters, schedule the task
-  separately with `gm tasks schedule <id> --start <ISO>`.
+- **`gm tasks create --due` / `gm tasks update --due` do not preserve the time
+  component round-trip.** The CLI passes any `HH:MM:SS` through to Morgen, but
+  Morgen's storage discards it (observed against Morgen API as of gm 0.23.7), so
+  `tasks get` always returns a date-only or end-of-day value. If a specific time
+  matters, schedule the task separately with `gm tasks schedule <id> --start <ISO>`.
 - **`--list "<Name>"` resolves by name correctly** even though the returned `taskListId`
   comes back integration-namespaced (`<uuid>@morgen.so`) and won't match the short hex
   IDs shown by `gm lists list`. Same list, two views.
