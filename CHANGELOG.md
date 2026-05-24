@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.8](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.7...guten-morgen-v0.23.8) (2026-05-24)
+
+
+### Documentation
+
+* add gm Claude Code skill ([#51](https://github.com/tenfourty/guten-morgen/issues/51)) ([201dd7d](https://github.com/tenfourty/guten-morgen/commit/201dd7dbd0bef280450039acec3c7cd5a2b56e26))
+
 ## [0.23.7](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.6...guten-morgen-v0.23.7) (2026-05-22)
 
 
