@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.10](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.9...guten-morgen-v0.23.10) (2026-05-25)
+
+
+### Documentation
+
+* codify events/tasks scoping-axes invariant in CLAUDE.md ([5d2f2c7](https://github.com/tenfourty/guten-morgen/commit/5d2f2c7b98c5971dd0e5b3f7e6c210814cde7138))
+
 ## [0.23.9](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.8...guten-morgen-v0.23.9) (2026-05-24)
 
 
