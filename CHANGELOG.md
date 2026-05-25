@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.11](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.10...guten-morgen-v0.23.11) (2026-05-25)
+
+
+### Documentation
+
+* capture Etc/UTC render passthrough + --due round-trip gotchas ([045b79a](https://github.com/tenfourty/guten-morgen/commit/045b79a8e6036b3bd69fb632601025fe979362f2))
+
 ## [0.23.10](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.9...guten-morgen-v0.23.10) (2026-05-25)
 
 
