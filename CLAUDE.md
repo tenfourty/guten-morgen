@@ -139,6 +139,7 @@ src/guten_morgen/
 - mypy strict, Pydantic v2, Python 3.10+
 - Coverage minimum 90% — enforced by pre-commit
 - **`gm --help` is the LLM API contract** — any command/option change MUST update `_build_llm_contract()` in `cli.py`. If it's not in `--help`, LLMs can't discover it.
+- **Scoping axes invariant** — events and tasks scope on independent axes. Events scope via `--group NAME` (or `--group all`) plus `--start`/`--end`. Tasks scope via `--list NAME`, `--tag NAME` (repeatable, OR logic), `--status open|completed|all`, `--priority N`, `--project NAME`, `--query TEXT`, `--due-before`/`--due-after`. **`--group` does NOT affect tasks.** Any new event-scoping or task-scoping flag MUST update the `## Scoping axes` section of `_build_llm_contract()` AND the corresponding section of `.claude/skills/gm/SKILL.md`. This invariant is what PR #51 / commit aa7c910 codified after an AI-generated skill misread `--group`'s scope.
 - **Skill drift nudge** — `.claude/hooks/check-skill-drift.sh` fires on every `Edit`/`Write` to `src/guten_morgen/cli.py` and reminds Claude to re-check `.claude/skills/gm/SKILL.md` for drift (commands, flags, output shapes, defaults, the `## Scoping axes` orthogonality contract). Nudge, not enforce.
 
 ## Gotchas
