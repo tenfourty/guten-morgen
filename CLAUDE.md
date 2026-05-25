@@ -139,6 +139,7 @@ src/guten_morgen/
 - mypy strict, Pydantic v2, Python 3.10+
 - Coverage minimum 90% — enforced by pre-commit
 - **`gm --help` is the LLM API contract** — any command/option change MUST update `_build_llm_contract()` in `cli.py`. If it's not in `--help`, LLMs can't discover it.
+- **Skill drift nudge** — `.claude/hooks/check-skill-drift.sh` fires on every `Edit`/`Write` to `src/guten_morgen/cli.py` and reminds Claude to re-check `.claude/skills/gm/SKILL.md` for drift (commands, flags, output shapes, defaults, the `## Scoping axes` orthogonality contract). Nudge, not enforce.
 
 ## Gotchas
 
