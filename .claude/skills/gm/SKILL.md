@@ -24,6 +24,15 @@ Read-only `gm` calls (`today`, `next`, `this-week`, `tasks list`, `availability`
 `schedule`, `close`, `reopen`, `move`, `rsvp` — requires showing the user the exact
 command and getting confirmation before executing it.**
 
+## Referring to events/tasks in user-facing text
+
+**Never paste raw `gm` IDs** (the long base64-like strings) into anything the
+user reads. They're meaningless to humans. Refer to events/tasks by their
+**title and time** ("the Wed 12:00 lunch with Tomi") or, when ambiguous, by
+descriptive context ("the travel block before your Wednesday lunch"). IDs
+belong in command lines only — once a command runs, the user judges the
+result by the title in the response, not the ID.
+
 ## `gm today` output
 
 `gm today` returns four categories: `events`, `scheduled_tasks`, `overdue_tasks`,
