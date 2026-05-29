@@ -431,6 +431,28 @@ def mock_transport_handler(request: httpx.Request) -> httpx.Response:
     if path in ROUTES:
         return httpx.Response(200, json=ROUTES[path])
 
+    # Enforce Morgen's "time quartet must be sent together" invariant on event updates.
+    # The real API 400s a partial time edit; mirroring that here is a regression guard for
+    # #48/#57 so a payload missing any of start/duration/timeZone/showWithoutTime can't pass.
+    if request.method == "POST" and path.endswith("/events/update"):
+        try:
+            body = json.loads(request.content)
+        except (json.JSONDecodeError, ValueError):
+            body = {}
+        quartet = ("start", "duration", "timeZone", "showWithoutTime")
+        present = [k for k in quartet if k in body]
+        if present and len(present) != len(quartet):
+            missing = [k for k in quartet if k not in body]
+            return httpx.Response(
+                400,
+                json={
+                    "error": (
+                        "Properties `start`, `duration`, `timeZone` and `showWithoutTime` "
+                        f"must be provided together. Missing: {missing}"
+                    )
+                },
+            )
+
     # POST endpoints for create/update/delete — echo back wrapped in envelope
     if request.method == "POST":
         try:
