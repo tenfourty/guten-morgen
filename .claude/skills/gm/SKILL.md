@@ -109,6 +109,9 @@ issue link and a workaround.
 - **`--list "<Name>"` resolves by name correctly** even though the returned `taskListId`
   comes back integration-namespaced (`<uuid>@morgen.so`) and won't match the short hex
   IDs shown by `gm lists list`. Same list, two views.
+- **Clear a due date with `gm tasks update <id> --clear-due`** (or `--due ""`). This sends
+  `due: null` so a task re-triaged to "someday" stops resurfacing as overdue. `--due` and
+  `--clear-due` together is an error.
 
 ## Error handling
 

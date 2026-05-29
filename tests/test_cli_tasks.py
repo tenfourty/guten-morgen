@@ -971,3 +971,46 @@ class TestTasksQuery:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data == []
+
+
+class TestTasksUpdateClearDue:
+    """#58: clearing a task's due date — `--clear-due` (and `--due ""`) must send due: null."""
+
+    @staticmethod
+    def _capture_update(monkeypatch, mock_client: MorgenClient) -> dict:
+        """Patch update_task to capture the payload the CLI builds; return the capture dict."""
+        from guten_morgen.models import Task
+
+        captured: dict = {}
+
+        def fake_update_task(task_data: dict) -> Task:
+            captured.clear()
+            captured.update(task_data)
+            return Task(id=task_data.get("id", "task-1"), title="Review PR")
+
+        monkeypatch.setattr(mock_client, "update_task", fake_update_task)
+        return captured
+
+    def test_clear_due_sends_null(self, runner: CliRunner, mock_client: MorgenClient, monkeypatch) -> None:
+        captured = self._capture_update(monkeypatch, mock_client)
+        result = runner.invoke(cli, ["tasks", "update", "task-1", "--clear-due"])
+        assert result.exit_code == 0, result.output
+        assert "due" in captured, "due key must be present in the payload"
+        assert captured["due"] is None, "due must be null to clear it"
+
+    def test_due_empty_string_clears(self, runner: CliRunner, mock_client: MorgenClient, monkeypatch) -> None:
+        captured = self._capture_update(monkeypatch, mock_client)
+        result = runner.invoke(cli, ["tasks", "update", "task-1", "--due", ""])
+        assert result.exit_code == 0, result.output
+        assert captured["due"] is None
+
+    def test_due_and_clear_due_conflict_errors(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        result = runner.invoke(cli, ["tasks", "update", "task-1", "--due", "2026-03-01", "--clear-due"])
+        assert result.exit_code != 0
+
+    def test_due_still_sets_value(self, runner: CliRunner, mock_client: MorgenClient, monkeypatch) -> None:
+        """Regression: a normal --due still sets the normalised value (not cleared)."""
+        captured = self._capture_update(monkeypatch, mock_client)
+        result = runner.invoke(cli, ["tasks", "update", "task-1", "--due", "2026-03-01"])
+        assert result.exit_code == 0, result.output
+        assert captured["due"] == "2026-03-01T23:59:59"

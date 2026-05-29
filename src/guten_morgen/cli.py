@@ -293,14 +293,15 @@ Use `--fields calendar_uid,my_status` to select specific fields.
   --earliest-start sets the "not before" date. Descriptions accept markdown
   (converted to HTML for the API).
 
-- `gm tasks update ID [--title TEXT] [--due ISO] [--priority 0-9] [--description MARKDOWN]`
+- `gm tasks update ID [--title TEXT] [--due ISO] [--clear-due] [--priority 0-9] [--description MARKDOWN]`
   `  [--duration MINUTES] [--tag NAME] [--list NAME] [--project NAME]`
   `  [--ref URL] [--earliest-start ISO]`
   Update a task. --duration sets estimatedDuration. --tag replaces tags by name
   (repeatable). --list moves task to a list by name. --project replaces existing
   'project:' line (pass empty string to clear). --ref replaces existing 'ref:'
   lines (repeatable). --earliest-start sets the "not before" date.
-  Descriptions accept markdown (converted to HTML for the API).
+  --clear-due (or --due "") removes the due date (sends due: null) so a re-triaged
+  task stops resurfacing as overdue. Descriptions accept markdown (converted to HTML).
 
 - `gm tasks schedule ID --start ISO [--duration MINUTES] [--calendar-id ID] [--account-id ID]`
   Schedule a task as a linked calendar event. Fetches the task to derive
@@ -1585,7 +1586,13 @@ def tasks_create(
 @tasks.command("update")
 @click.argument("task_id")
 @click.option("--title", default=None, help="New title.")
-@click.option("--due", default=None, help="New due datetime (ISO 8601).")
+@click.option("--due", default=None, help="New due datetime (ISO 8601). Pass an empty string to clear it.")
+@click.option(
+    "--clear-due",
+    is_flag=True,
+    default=False,
+    help="Clear the task's due date (sends due: null). Cannot be combined with --due.",
+)
 @click.option("--priority", default=None, type=int, help="New priority (0-9).")
 @click.option("--description", default=None, help="New description.")
 @click.option("--duration", default=None, type=int, help="Estimated duration in minutes.")
@@ -1603,6 +1610,7 @@ def tasks_update(
     task_id: str,
     title: str | None,
     due: str | None,
+    clear_due: bool,
     priority: int | None,
     description: str | None,
     duration: int | None,
@@ -1618,7 +1626,17 @@ def tasks_update(
         task_data: dict[str, Any] = {"id": task_id}
         if title is not None:
             task_data["title"] = title
-        if due is not None:
+        # Due date: --clear-due (or --due "") sends null to unschedule the task; otherwise
+        # a non-empty --due is normalised. Morgen treats due: null as "no due date".
+        if clear_due and due:
+            output_error(
+                "invalid_input",
+                "Pass either --due or --clear-due, not both.",
+                ["Use --clear-due on its own to remove a task's due date."],
+            )
+        if clear_due or due == "":
+            task_data["due"] = None
+        elif due is not None:
             task_data["due"] = _normalize_due(due)
         if priority is not None:
             task_data["priority"] = priority
