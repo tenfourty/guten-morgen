@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.12](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.11...guten-morgen-v0.23.12) (2026-05-31)
+
+
+### Bug Fixes
+
+* backfill full time quartet on partial `gm events update` ([#59](https://github.com/tenfourty/guten-morgen/issues/59)) ([7f639f0](https://github.com/tenfourty/guten-morgen/commit/7f639f029622f05639b5a028f807934da3829a14)), closes [#57](https://github.com/tenfourty/guten-morgen/issues/57)
+
 ## [0.23.11](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.10...guten-morgen-v0.23.11) (2026-05-25)
 
 
