@@ -1022,6 +1022,41 @@ class TestHandleGmEventsUpdate:
         assert result["status"] == "ok"
         assert result["event_id"] == "evt-1"
 
+    def test_start_only_backfills_full_quartet(self) -> None:
+        """MCP sibling of #57: a start-only time change must still send the full
+        start/duration/timeZone/showWithoutTime quartet — backfilled from the existing event,
+        or Morgen 400s the partial edit."""
+        from guten_morgen.mcp_server import handle_gm_events_update
+
+        client = _make_mock_client()
+        client.list_accounts.return_value = [Account(**_ACCOUNTS[0])]
+        client.list_calendars.return_value = [
+            MagicMock(id="cal-1", accountId="acc-1", integrationGroups=["calendars"], model_dump=lambda: {}),
+        ]
+        client.get_event.return_value = Event(
+            id="evt-1",
+            start="2026-05-20T09:00:00",
+            duration="PT30M",
+            timeZone="Europe/Paris",
+            showWithoutTime=False,
+            calendarId="cal-1",
+            accountId="acc-1",
+        )
+        captured: dict = {}
+
+        def _capture(event_data, **kwargs):  # type: ignore[no-untyped-def]
+            captured.update(event_data)
+            return Event(id="evt-1", title="Standup")
+
+        client.update_event.side_effect = _capture
+
+        result = json.loads(handle_gm_events_update(client, event_id="evt-1", start="2026-05-26T09:01:00"))
+        assert result["status"] == "ok"
+        assert captured["start"] == "2026-05-26T09:01:00"  # new value
+        assert captured["duration"] == "PT30M"  # backfilled
+        assert captured["timeZone"] == "Europe/Paris"  # backfilled
+        assert captured["showWithoutTime"] is False  # backfilled
+
 
 class TestHandleGmEventsDelete:
     def test_deletes_event(self) -> None:

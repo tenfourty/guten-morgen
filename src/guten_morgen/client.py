@@ -99,6 +99,25 @@ def _timeout_error(exc: httpx.TimeoutException) -> MorgenAPIError:
     return MorgenAPIError(msg, suggestions=suggestions)
 
 
+def backfill_event_time_quartet(event_data: dict[str, Any], existing: Event | None) -> None:
+    """Ensure the Morgen time quartet is fully present on an event update.
+
+    Morgen requires ``start``, ``duration``, ``timeZone`` and ``showWithoutTime`` to be sent
+    together whenever any time field changes — a partial edit 400s. Fill any member the caller
+    did not set (key absent) from ``existing``; ``timeZone`` defaults to ``None`` (floating) and
+    ``showWithoutTime`` to ``False`` when the event can't be found. Mutates ``event_data`` in place.
+    """
+    if "start" not in event_data and existing is not None and existing.start is not None:
+        event_data["start"] = existing.start
+    if "duration" not in event_data and existing is not None and existing.duration is not None:
+        # existing.duration is already an ISO 8601 duration (e.g. "PT30M") — don't re-wrap.
+        event_data["duration"] = existing.duration
+    if "timeZone" not in event_data:
+        event_data["timeZone"] = existing.timeZone if existing is not None else None
+    if "showWithoutTime" not in event_data:
+        event_data["showWithoutTime"] = bool(existing.showWithoutTime) if existing is not None else False
+
+
 class MorgenClient:
     """Sync HTTP client for the Morgen v3 API."""
 
@@ -324,6 +343,24 @@ class MorgenClient:
 
         # Deduplicate: remove "(via Morgen)" synced copies
         return [e for e in all_events if "(via Morgen)" not in (e.title or "")]
+
+    def get_event(self, event_id: str) -> Event | None:
+        """Fetch a single event by id.
+
+        Morgen has no get-event-by-id endpoint, so scan a ±30 day window around now and match
+        on id. Used to backfill the time quartet on partial updates (see
+        ``backfill_event_time_quartet``).
+        """
+        from datetime import datetime, timedelta
+        from datetime import timezone as _tz
+
+        now = datetime.now(_tz.utc)
+        window_start = (now - timedelta(days=30)).isoformat()
+        window_end = (now + timedelta(days=30)).isoformat()
+        for e in self.list_all_events(window_start, window_end):
+            if e.id == event_id:
+                return e
+        return None
 
     def create_event(self, event_data: dict[str, Any]) -> Event | None:
         """Create a new event."""

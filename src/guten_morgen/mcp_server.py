@@ -1168,6 +1168,12 @@ def handle_gm_events_update(
             event_data["duration"] = f"PT{duration_minutes}M"
         if description is not None:
             event_data["description"] = description
+        # Morgen requires start/duration/timeZone/showWithoutTime together on any time change —
+        # backfill the rest of the quartet from the existing event (MCP sibling of #57).
+        if start is not None or duration_minutes is not None:
+            from guten_morgen.client import backfill_event_time_quartet
+
+            backfill_event_time_quartet(event_data, client.get_event(event_id))
         client.update_event(event_data, series_update_mode=series_mode)
         return _mutation_ok("updated", event_id=event_id)
     except Exception as e:
