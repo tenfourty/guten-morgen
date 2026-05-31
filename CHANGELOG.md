@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.14](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.13...guten-morgen-v0.23.14) (2026-05-31)
+
+
+### Bug Fixes
+
+* backfill event time quartet on MCP gm_events_update too ([#63](https://github.com/tenfourty/guten-morgen/issues/63)) ([7218186](https://github.com/tenfourty/guten-morgen/commit/7218186ec52e8f49d4f74439a94b570ed2c4eeff)), closes [#57](https://github.com/tenfourty/guten-morgen/issues/57)
+
 ## [0.23.13](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.12...guten-morgen-v0.23.13) (2026-05-31)
 
 
