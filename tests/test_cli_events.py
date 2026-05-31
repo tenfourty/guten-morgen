@@ -273,19 +273,63 @@ class TestEventsUpdateTimeFields:
         assert data["timeZone"] == "Europe/Paris"
         assert data["showWithoutTime"] is False
 
-    def test_update_duration_only_still_sends_timezone_and_show_without_time(
-        self, runner: CliRunner, mock_client: MorgenClient
+    def test_update_start_only_backfills_duration_and_sends_full_quartet(
+        self, runner: CliRunner, mock_client: MorgenClient, monkeypatch
     ) -> None:
-        """Even when only --duration is touched, timeZone + showWithoutTime must accompany it."""
-        result = runner.invoke(
-            cli,
-            ["events", "update", "evt-1", "--duration", "90", "--timezone", "UTC"],
+        """#57: changing only --start must still send the full quartet — `duration` (and
+        timeZone/showWithoutTime) backfilled from the existing event, or Morgen 400s."""
+        from guten_morgen.models import Event
+
+        existing = Event.model_validate(
+            {
+                "id": "evt-1",
+                "title": "Standup",
+                "start": "2026-05-20T09:00:00",
+                "duration": "PT30M",
+                "timeZone": "Europe/Paris",
+                "showWithoutTime": False,
+                "calendarId": "cal-1",
+                "accountId": "acc-1",
+            }
         )
+        monkeypatch.setattr(mock_client, "list_all_events", lambda *a, **kw: [existing])
+
+        result = runner.invoke(cli, ["events", "update", "evt-1", "--start", "2026-05-26T09:01:00"])
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
-        assert data["duration"] == "PT90M"
-        assert data["timeZone"] == "UTC"
-        assert data["showWithoutTime"] is False
+        assert data["start"] == "2026-05-26T09:01:00"  # new value
+        assert data["duration"] == "PT30M"  # backfilled from existing
+        assert data["timeZone"] == "Europe/Paris"  # backfilled
+        assert data["showWithoutTime"] is False  # backfilled
+
+    def test_update_duration_only_backfills_start_and_sends_full_quartet(
+        self, runner: CliRunner, mock_client: MorgenClient, monkeypatch
+    ) -> None:
+        """#57 mirror: changing only --duration must still send `start` (backfilled) plus
+        timeZone + showWithoutTime."""
+        from guten_morgen.models import Event
+
+        existing = Event.model_validate(
+            {
+                "id": "evt-1",
+                "title": "Standup",
+                "start": "2026-05-20T09:00:00",
+                "duration": "PT30M",
+                "timeZone": "Europe/Paris",
+                "showWithoutTime": False,
+                "calendarId": "cal-1",
+                "accountId": "acc-1",
+            }
+        )
+        monkeypatch.setattr(mock_client, "list_all_events", lambda *a, **kw: [existing])
+
+        result = runner.invoke(cli, ["events", "update", "evt-1", "--duration", "90", "--timezone", "UTC"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["start"] == "2026-05-20T09:00:00"  # backfilled from existing
+        assert data["duration"] == "PT90M"  # new value
+        assert data["timeZone"] == "UTC"  # explicit
+        assert data["showWithoutTime"] is False  # backfilled
 
     def test_update_with_empty_timezone_makes_event_floating(
         self, runner: CliRunner, mock_client: MorgenClient
