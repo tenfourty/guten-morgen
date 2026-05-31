@@ -497,3 +497,62 @@ class TestSocksProxySupport:
         """httpx.Client should accept a socks5:// proxy URL without error."""
         client = httpx.Client(proxy="socks5://127.0.0.1:1080")
         client.close()
+
+
+class TestBackfillEventTimeQuartet:
+    """Pure backfill helper shared by the CLI and MCP events-update paths (#57 + sibling)."""
+
+    def _existing(self):  # type: ignore[no-untyped-def]
+        from guten_morgen.models import Event
+
+        return Event(
+            id="evt-1",
+            start="2026-05-20T09:00:00",
+            duration="PT30M",
+            timeZone="Europe/Paris",
+            showWithoutTime=False,
+        )
+
+    def test_fills_missing_members_from_existing(self) -> None:
+        from guten_morgen.client import backfill_event_time_quartet
+
+        data: dict = {"id": "evt-1", "start": "2026-05-26T10:00:00"}  # only start changed
+        backfill_event_time_quartet(data, self._existing())
+        assert data["start"] == "2026-05-26T10:00:00"  # caller value preserved
+        assert data["duration"] == "PT30M"  # backfilled
+        assert data["timeZone"] == "Europe/Paris"  # backfilled
+        assert data["showWithoutTime"] is False  # backfilled
+
+    def test_preserves_explicitly_set_members(self) -> None:
+        from guten_morgen.client import backfill_event_time_quartet
+
+        data: dict = {
+            "id": "evt-1",
+            "start": "2026-05-26T10:00:00",
+            "duration": "PT99M",
+            "timeZone": None,  # explicit floating
+            "showWithoutTime": True,
+        }
+        backfill_event_time_quartet(data, self._existing())
+        assert data["duration"] == "PT99M"
+        assert data["timeZone"] is None
+        assert data["showWithoutTime"] is True
+
+    def test_none_existing_uses_safe_defaults(self) -> None:
+        from guten_morgen.client import backfill_event_time_quartet
+
+        data: dict = {"id": "evt-1", "duration": "PT30M"}
+        backfill_event_time_quartet(data, None)
+        assert "start" not in data  # cannot backfill without an existing event
+        assert data["timeZone"] is None
+        assert data["showWithoutTime"] is False
+
+
+class TestGetEvent:
+    def test_finds_event_by_id(self, client: MorgenClient) -> None:
+        evt = client.get_event("evt-1")
+        assert evt is not None
+        assert evt.id == "evt-1"
+
+    def test_returns_none_when_absent(self, client: MorgenClient) -> None:
+        assert client.get_event("does-not-exist") is None

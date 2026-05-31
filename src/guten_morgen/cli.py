@@ -1091,41 +1091,23 @@ def events_update(
 
         # The Morgen API requires `start`, `duration`, `timeZone`, and `showWithoutTime` to be
         # provided together whenever any of the time fields are touched — a partial edit 400s.
-        # Backfill whichever members of the quartet the user didn't supply from the existing
-        # event, matching "only change what I asked you to change".
+        # Set what the user explicitly supplied, then backfill the rest of the quartet from the
+        # existing event, matching "only change what I asked you to change".
         time_fields_touched = start is not None or duration is not None
         if time_fields_touched:
-            need_backfill = start is None or duration is None or timezone is None or show_without_time is None
-            existing = None
-            if need_backfill:
-                from datetime import datetime, timedelta
-                from datetime import timezone as _tz
-
-                now = datetime.now(_tz.utc)
-                window_start = (now - timedelta(days=30)).isoformat()
-                window_end = (now + timedelta(days=30)).isoformat()
-                for e in client.list_all_events(window_start, window_end):
-                    if e.id == event_id:
-                        existing = e
-                        break
-
-            # start / duration — backfill the one the user didn't change so the quartet is complete.
             if start is not None:
                 event_data["start"] = start
-            elif existing is not None and existing.start is not None:
-                event_data["start"] = existing.start
             if duration is not None:
                 event_data["duration"] = f"PT{duration}M"
-            elif existing is not None and existing.duration is not None:
-                # existing.duration is already an ISO 8601 duration (e.g. "PT30M") — don't re-wrap.
-                event_data["duration"] = existing.duration
+            if timezone is not None:
+                event_data["timeZone"] = timezone if timezone != "" else None
+            if show_without_time is not None:
+                event_data["showWithoutTime"] = bool(show_without_time)
+            quartet = ("start", "duration", "timeZone", "showWithoutTime")
+            if any(k not in event_data for k in quartet):
+                from guten_morgen.client import backfill_event_time_quartet
 
-            if timezone is None:
-                timezone = existing.timeZone if existing else None
-            if show_without_time is None:
-                show_without_time = existing.showWithoutTime if existing else False
-            event_data["timeZone"] = timezone if timezone != "" else None
-            event_data["showWithoutTime"] = bool(show_without_time)
+                backfill_event_time_quartet(event_data, client.get_event(event_id))
         result = client.update_event(event_data, series_update_mode=series_mode)
         if result:
             output = result.model_dump(by_alias=True, exclude_none=True)
