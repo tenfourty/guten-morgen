@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.13](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.12...guten-morgen-v0.23.13) (2026-05-31)
+
+
+### Bug Fixes
+
+* add `--clear-due` to clear a task's due date ([#60](https://github.com/tenfourty/guten-morgen/issues/60)) ([067f9de](https://github.com/tenfourty/guten-morgen/commit/067f9deef9e9e7c78195d55609100f4f845d0709)), closes [#58](https://github.com/tenfourty/guten-morgen/issues/58)
+
 ## [0.23.12](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.11...guten-morgen-v0.23.12) (2026-05-31)
 
 
