@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.23.15](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.14...guten-morgen-v0.23.15) (2026-06-01)
+
+
+### Bug Fixes
+
+* resolve events by id for time-quartet backfill (unbounded reschedule) ([#66](https://github.com/tenfourty/guten-morgen/issues/66)) ([0c6e98e](https://github.com/tenfourty/guten-morgen/commit/0c6e98eca1e3776b241cd5429298085c6e90a7b7)), closes [#57](https://github.com/tenfourty/guten-morgen/issues/57)
+
+
+### Documentation
+
+* warn that an empty --due clears, and harden the conflict test ([#67](https://github.com/tenfourty/guten-morgen/issues/67)) ([13fa491](https://github.com/tenfourty/guten-morgen/commit/13fa491c596f266accdf60fb9fa388586c3206e6)), closes [#58](https://github.com/tenfourty/guten-morgen/issues/58)
+
 ## [0.23.14](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.13...guten-morgen-v0.23.14) (2026-05-31)
 
 
