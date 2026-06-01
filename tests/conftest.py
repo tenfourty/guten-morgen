@@ -475,6 +475,12 @@ def mock_transport_handler(request: httpx.Request) -> httpx.Response:
             item: dict[str, Any] = next(
                 (t for t in FAKE_TASKS if t["id"] == req_id), {"id": req_id, "title": "Found item"}
             )
+        elif item_key == "event":
+            # Events support real get-by-id: return the matching fixture, or 404 when absent.
+            match = next((e for e in FAKE_EVENTS + FAKE_EVENTS_ACC2 if e["id"] == req_id), None)
+            if match is None:
+                return httpx.Response(404, json={"error": "event not found"})
+            return httpx.Response(200, json={"data": {"event": match}})
         elif item_key == "tag":
             item = {"id": req_id, "name": "Found tag", "color": "#000000"}
         else:
