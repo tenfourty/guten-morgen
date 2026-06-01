@@ -43,26 +43,47 @@ result by the title in the response, not the ID.
 
 ## Timezone convention
 
-All ISO times passed to and read from `gm` are **the user's local timezone** — for
-example Europe/Budapest (CEST = UTC+2 in summer, CET = UTC+1 in winter). Run
-`date "+%Y-%m-%dT%H:%M:%S %Z"` once per session to confirm the current offset before
-computing any time.
+All ISO times you *pass to* `gm` should be in **your local timezone** (e.g.
+Europe/Budapest: CEST = UTC+2 in summer, CET = UTC+1 in winter). Run
+`date "+%Y-%m-%dT%H:%M:%S %Z"` once per session to confirm the current offset.
 
-**Two gotchas where the rendered `start` lies — always cross-check:**
+**Times you *read back* from `gm` are NOT necessarily local — you must convert them.**
+`gm` renders each event's `start` as the **wall-clock in that event's own stored
+`timeZone` field**, *without* converting to your local zone (verified gm 0.23.16).
+So the same `start` string means different real times depending on `timeZone`:
 
-- **`timeZone: "Etc/UTC"` events render un-converted.** When an event's `timeZone`
-  field is `Etc/UTC`, `gm` shows its `start` as the raw UTC wall-clock, *not* converted
-  to local — so for a Budapest user it reads 2h early in summer (1h in winter). Add
-  the current local offset to get the real time. Often these are imported appointment
-  events whose description carries the true local time as a provider-localized field
-  (e.g. `Időpont:` from a Hungarian provider) — cross-check against that when present.
-  (Observed against Morgen API as of gm 0.23.7 / 2026-05; if Morgen ever starts
-  returning UTC-converted starts, drop this gotcha.)
-- **UID `…T<HHMMSS>Z` token beats `start`.** A calendar UID embedding a `…T<HHMMSS>Z`
-  token *whose date matches the viewed day* is the authoritative UTC start — convert
-  to local and ignore `start` (which can render hours off from a foreign-TZ leak).
-  Duplicate copies agreeing on a wrong `start` is not validation. If the UID's date ≠
-  the viewed day, it's a recurring-series anchor — trust `start` instead.
+- `timeZone` == your local zone → already correct, no conversion.
+- a zone west of you (e.g. `America/New_York` for a European user) → `start` reads
+  **early** (5–6h for NY↔Central Europe, depending on DST).
+- `timeZone: "Etc/UTC"` (common on imported appointment bookings) → `start` reads in
+  UTC, i.e. 1–2h early for a Central-European user.
+
+Two events on the *same* calendar, with the *same* participants, can differ — the
+discriminator is the per-event `timeZone` and nothing else. **Always convert
+deterministically; never eyeball it, and never present a raw `start` for an event whose
+`timeZone` ≠ your local zone.** Reinterpret `start` as a wall-clock in its `timeZone`
+and re-render in your machine's local zone (omit `TZ` on the second `date` so it uses
+the machine default):
+
+```
+epoch=$(TZ="$timeZone" date -j -f "%Y-%m-%dT%H:%M:%S" "${start%%.*}" "+%s")  # BSD/macOS
+local=$(date -r "$epoch" "+%H:%M")     # machine-local zone
+# GNU/Linux: epoch=$(TZ="$timeZone" date -d "$start" +%s); local=$(date -d "@$epoch" +%H:%M)
+```
+
+This one mechanical pass is correct for every zone and needs no judgment. (For
+`Etc/UTC` appointment imports the event description sometimes carries the true local
+time in a provider-localized field — a handy sanity check, not a substitute for the
+conversion.)
+
+**Critical — concise breaks this:** `--response-format concise` **strips the `timeZone`
+field** (and `morgen.so:metadata.taskId`), removing the only reliable signal for the
+conversion. **Never use `concise` on any path where times matter** — see the Daily pull
+recipe. *Fallback only* if you are ever stuck without `timeZone`: a calendar UID
+embedding a `…T<HHMMSS>Z` token whose date matches the viewed day gives an authoritative
+UTC start — but this is lossy (it's a recurring-series *anchor* that can drift from the
+instance time, and one-off meetings / appointment bookings have no such token). The
+`timeZone` conversion above is the real fix; the token is a last resort.
 
 ## Discovery & recipes
 
@@ -72,11 +93,34 @@ guess subcommand names or flags.** This skill records *recommendations and quirk
 top of* `--help` — it is not a substitute for it. Everything else below is non-obvious
 recipe knowledge that `--help` won't surface.
 
-- **Daily pull:** `gm today --json --response-format concise --no-frames`. Add
-  `--group all` when you also need events from calendars outside the default group
-  — `--group` only affects events, not tasks. `--response-format concise` cuts
-  roughly two-thirds of the tokens vs. the default; `--no-frames` excludes Morgen
-  scheduling frames from the output.
+- **Daily pull (keep `timeZone`, then convert times):** the time-critical pull must
+  retain the `timeZone` field, so **do not** use `--response-format concise` here — it
+  strips `timeZone` (breaking the timezone conversion above) and `morgen.so:metadata`
+  (the `taskId` needed for task-block detection). Pull detailed **once**, reuse it, and
+  shrink with `jq`:
+
+  ```
+  gm today --json --no-frames --group all > /tmp/gm-today.json
+
+  # compact view for reading (≈concise size, but keeps timeZone + taskId):
+  jq '{ scheduled_tasks, overdue_tasks, unscheduled_tasks, meta,
+        events: [ .events[] | { title, start, timeZone, duration,
+          participants_display, location_display, calendar_uid, my_status,
+          taskId: ."morgen.so:metadata".taskId } ] }' /tmp/gm-today.json
+
+  # authoritative local start times (machine-local zone; see Timezone convention):
+  jq -r '.events[] | [.timeZone, .start, .title] | @tsv' /tmp/gm-today.json \
+  | while IFS=$'\t' read -r tz s title; do
+      [ -z "$tz" ] && { printf '%s\t%s\n' "${s:11:5}" "$title"; continue; }  # all-day: no tz
+      e=$(TZ="$tz" date -j -f "%Y-%m-%dT%H:%M:%S" "${s%%.*}" "+%s" 2>/dev/null)
+      printf '%s\t%s\n' "$(date -r "$e" '+%H:%M')" "$title"
+    done
+  ```
+
+  `--group all` adds events from calendars outside the default group (`--group` affects
+  only events, not tasks); `--no-frames` excludes Morgen's scheduling frames. **Never
+  present a raw `start` for an event whose `timeZone` ≠ your local zone** — convert it
+  first.
 - **What do I owe:** `gm tasks list --status open --overdue --json`.
 - **Time-block a task:** `gm tasks schedule <id> --start <ISO>` — the *only* way to
   give a task a specific time, because `--due` stores date only (see Stable quirks).
