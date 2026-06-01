@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.16](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.15...guten-morgen-v0.23.16) (2026-06-01)
+
+
+### Documentation
+
+* **skill:** never paste raw event/task IDs in user-facing text ([#56](https://github.com/tenfourty/guten-morgen/issues/56)) ([f151c12](https://github.com/tenfourty/guten-morgen/commit/f151c12a8adb5806a58d4d9438f73205e3e365af))
+
 ## [0.23.15](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.14...guten-morgen-v0.23.15) (2026-06-01)
 
 
