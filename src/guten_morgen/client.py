@@ -344,23 +344,18 @@ class MorgenClient:
         # Deduplicate: remove "(via Morgen)" synced copies
         return [e for e in all_events if "(via Morgen)" not in (e.title or "")]
 
-    def get_event(self, event_id: str) -> Event | None:
-        """Fetch a single event by id.
+    def get_event(self, event_id: str) -> Event:
+        """Fetch a single event by id via Morgen's get-by-id endpoint.
 
-        Morgen has no get-event-by-id endpoint, so scan a ±30 day window around now and match
-        on id. Used to backfill the time quartet on partial updates (see
-        ``backfill_event_time_quartet``).
+        Unlike a date-window scan, this resolves an event at any distance in the future/past —
+        so a far-future reschedule can still backfill the time quartet (see
+        ``backfill_event_time_quartet``). Raises NotFoundError if the event doesn't exist.
         """
-        from datetime import datetime, timedelta
-        from datetime import timezone as _tz
-
-        now = datetime.now(_tz.utc)
-        window_start = (now - timedelta(days=30)).isoformat()
-        window_end = (now + timedelta(days=30)).isoformat()
-        for e in self.list_all_events(window_start, window_end):
-            if e.id == event_id:
-                return e
-        return None
+        data = self._request("GET", "/events/", params={"id": event_id})
+        result = _extract_single(data, "event", Event)
+        if result is None:
+            raise NotFoundError(f"Event {event_id} not found")
+        return result
 
     def create_event(self, event_data: dict[str, Any]) -> Event | None:
         """Create a new event."""

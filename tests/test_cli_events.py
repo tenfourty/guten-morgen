@@ -292,7 +292,7 @@ class TestEventsUpdateTimeFields:
                 "accountId": "acc-1",
             }
         )
-        monkeypatch.setattr(mock_client, "list_all_events", lambda *a, **kw: [existing])
+        monkeypatch.setattr(mock_client, "get_event", lambda *a, **kw: existing)
 
         result = runner.invoke(cli, ["events", "update", "evt-1", "--start", "2026-05-26T09:01:00"])
         assert result.exit_code == 0, result.output
@@ -321,7 +321,7 @@ class TestEventsUpdateTimeFields:
                 "accountId": "acc-1",
             }
         )
-        monkeypatch.setattr(mock_client, "list_all_events", lambda *a, **kw: [existing])
+        monkeypatch.setattr(mock_client, "get_event", lambda *a, **kw: existing)
 
         result = runner.invoke(cli, ["events", "update", "evt-1", "--duration", "90", "--timezone", "UTC"])
         assert result.exit_code == 0, result.output
@@ -383,7 +383,7 @@ class TestEventsUpdateTimeFields:
                 "accountId": "acc-1",
             }
         )
-        monkeypatch.setattr(mock_client, "list_all_events", lambda *a, **kw: [existing])
+        monkeypatch.setattr(mock_client, "get_event", lambda *a, **kw: existing)
 
         result = runner.invoke(
             cli,

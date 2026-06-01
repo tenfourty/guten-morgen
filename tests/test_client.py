@@ -554,5 +554,18 @@ class TestGetEvent:
         assert evt is not None
         assert evt.id == "evt-1"
 
-    def test_returns_none_when_absent(self, client: MorgenClient) -> None:
-        assert client.get_event("does-not-exist") is None
+    def test_uses_get_by_id_not_a_date_window(self, client: MorgenClient, monkeypatch) -> None:
+        """get_event must resolve via the get-by-id endpoint, independent of any list window —
+        so a reschedule of an event any distance in the future/past still finds it."""
+
+        def _boom(*a, **kw):  # list_all_events must NOT be involved
+            raise AssertionError("get_event must not fall back to list_all_events")
+
+        monkeypatch.setattr(client, "list_all_events", _boom)
+        evt = client.get_event("evt-1")
+        assert evt is not None
+        assert evt.id == "evt-1"
+
+    def test_raises_not_found_when_absent(self, client: MorgenClient) -> None:
+        with pytest.raises(NotFoundError):
+            client.get_event("does-not-exist")
