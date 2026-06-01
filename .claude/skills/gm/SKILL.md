@@ -41,6 +41,26 @@ result by the title in the response, not the ID.
 `--list NAME`, `--tag NAME`, `--project NAME`, `--query TEXT`, or pass
 `--tasks-only` / `--events-only` to drop one side entirely.
 
+**A task scheduled via `gm tasks schedule` appears twice in `gm today`:** once in
+`scheduled_tasks` (because its due is today) *and* as its linked calendar block in
+`events`. When partitioning both sections, that single task is double-represented —
+count it from `scheduled_tasks` and exclude its block from the `events` (meeting) side.
+
+**Identifying a task-linked block, and the `is_frame` trap (verified gm 0.23.15):**
+- The **only reliable** signal that an `events` entry is a block created by
+  `gm tasks schedule` is **`."morgen.so:metadata".taskId` being non-null**. Match a
+  block back to its task by that `taskId`, not by title.
+- **`is_frame: true` does *not* mean "task scheduling block."** It is set on many
+  ordinary meetings, so it cannot be used to pick out task blocks. Don't filter on it
+  for that purpose.
+- **`--response-format concise` nulls `is_frame` and drops `morgen.so:metadata`
+  entirely.** So in a concise pull you cannot detect task-linked blocks at all — neither
+  `is_frame` nor `taskId` is present. Use the default (detailed) format when you need to
+  tell task blocks apart from meetings.
+- `--no-frames` excludes Morgen's own scheduling *frames* (the auto-scheduler's proposed
+  slots), a distinct object type — it does **not** strip `is_frame: true` events or
+  task-linked blocks from the output.
+
 ## Timezone convention
 
 All ISO times passed to and read from `gm` are **the user's local timezone** — for
@@ -75,8 +95,10 @@ recipe knowledge that `--help` won't surface.
 - **Daily pull:** `gm today --json --response-format concise --no-frames`. Add
   `--group all` when you also need events from calendars outside the default group
   — `--group` only affects events, not tasks. `--response-format concise` cuts
-  roughly two-thirds of the tokens vs. the default; `--no-frames` excludes Morgen
-  scheduling frames from the output.
+  roughly two-thirds of the tokens vs. the default; `--no-frames` excludes Morgen's
+  auto-scheduler proposed slots. Note `--no-frames` does **not** strip `is_frame: true`
+  events or task-linked calendar blocks, and concise drops the fields needed to identify
+  the latter — see the `is_frame` trap under "`gm today` output" above.
 - **What do I owe:** `gm tasks list --status open --overdue --json`.
 - **Time-block a task:** `gm tasks schedule <id> --start <ISO>` — the *only* way to
   give a task a specific time, because `--due` stores date only (see Stable quirks).
@@ -84,6 +106,18 @@ recipe knowledge that `--help` won't surface.
   [--start HH:MM --end HH:MM --min-duration N]`. Implicit defaults: working hours
   09:00–18:00, minimum slot 30 minutes — `--help` doesn't call them out, but they
   matter for fit.
+  - **Quirk: an all-day "busy"/"not available" marker makes `availability` return `[]`.**
+    When a day is covered by an all-day event that reads as busy (time-off, an all-day
+    block), `gm availability` treats the whole day as booked and returns no slots — even
+    though real timed gaps exist between the day's actual events. Don't take `[]` as
+    "no room." Fall back to reading the open gaps directly from
+    `gm events list --start <day>T00:00:00 --end <day>T23:59:59` (drop the all-day
+    markers, then eyeball the gaps between timed events).
+- **Target a non-default calendar on `events create`:** `--calendar-id` expects the
+  base64-encoded composite identifier (e.g. `WyI2OWFlZWM…`), NOT the raw Google calendar
+  slug like `<id>@group.calendar.google.com`. Passing the raw slug fails with
+  `body/calendarId must match pattern "^[A-Za-z0-9\-_=+/]+$"`. Discover the correct form
+  via `gm events get <any-event-in-target-calendar> --json | jq .calendarId`.
 
 ## Installed version & re-assessment
 
