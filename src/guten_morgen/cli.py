@@ -301,7 +301,8 @@ Use `--fields calendar_uid,my_status` to select specific fields.
   'project:' line (pass empty string to clear). --ref replaces existing 'ref:'
   lines (repeatable). --earliest-start sets the "not before" date.
   --clear-due (or --due "") removes the due date (sends due: null) so a re-triaged
-  task stops resurfacing as overdue. Descriptions accept markdown (converted to HTML).
+  task stops resurfacing as overdue; in scripts prefer --clear-due, since an
+  accidentally-empty --due "$VAR" silently clears. Descriptions accept markdown.
 
 - `gm tasks schedule ID --start ISO [--duration MINUTES] [--calendar-id ID] [--account-id ID]`
   Schedule a task as a linked calendar event. Fetches the task to derive
@@ -1578,7 +1579,12 @@ def tasks_create(
 @tasks.command("update")
 @click.argument("task_id")
 @click.option("--title", default=None, help="New title.")
-@click.option("--due", default=None, help="New due datetime (ISO 8601). Pass an empty string to clear it.")
+@click.option(
+    "--due",
+    default=None,
+    help="New due datetime (ISO 8601). An empty value clears the due date; prefer --clear-due, "
+    'and guard a scripted --due "$VAR" against an accidentally-empty $VAR (it would silently clear).',
+)
 @click.option(
     "--clear-due",
     is_flag=True,
