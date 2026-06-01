@@ -111,7 +111,8 @@ issue link and a workaround.
   IDs shown by `gm lists list`. Same list, two views.
 - **Clear a due date with `gm tasks update <id> --clear-due`** (or `--due ""`). This sends
   `due: null` so a task re-triaged to "someday" stops resurfacing as overdue. `--due` and
-  `--clear-due` together is an error.
+  `--clear-due` together is an error. ⚠️ In scripts prefer `--clear-due` — an
+  accidentally-empty `--due "$VAR"` silently clears the due date rather than erroring.
 
 ## Error handling
 

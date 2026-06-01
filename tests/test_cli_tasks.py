@@ -1004,9 +1004,14 @@ class TestTasksUpdateClearDue:
         assert result.exit_code == 0, result.output
         assert captured["due"] is None
 
-    def test_due_and_clear_due_conflict_errors(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+    def test_due_and_clear_due_conflict_errors(self, runner: CliRunner, mock_client: MorgenClient, monkeypatch) -> None:
+        captured = self._capture_update(monkeypatch, mock_client)
         result = runner.invoke(cli, ["tasks", "update", "task-1", "--due", "2026-03-01", "--clear-due"])
         assert result.exit_code != 0
+        # Structured invalid_input error, and the update must NOT be sent.
+        err = json.loads(result.output)
+        assert err["error"]["type"] == "invalid_input"
+        assert captured == {}, "update_task must not be called when --due and --clear-due conflict"
 
     def test_due_still_sets_value(self, runner: CliRunner, mock_client: MorgenClient, monkeypatch) -> None:
         """Regression: a normal --due still sets the normalised value (not cleared)."""
