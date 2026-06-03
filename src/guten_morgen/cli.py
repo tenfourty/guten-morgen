@@ -59,6 +59,13 @@ def output_options(f: Callable[..., Any]) -> Callable[..., Any]:
         help="Comma-separated list of my_status values to include (accepted,tentative,needs-action,declined,null).",
     )
     @click.option("--counts", is_flag=True, default=False, help="Wrap JSON output with meta including status_counts.")
+    @click.option(
+        "--raw-times",
+        "raw_times",
+        is_flag=True,
+        default=False,
+        help="Keep Morgen's raw per-event timezone wall-clock times instead of converting to your local zone.",
+    )
     @functools.wraps(f)
     def wrapper(
         *args: Any,
@@ -72,14 +79,16 @@ def output_options(f: Callable[..., Any]) -> Callable[..., Any]:
         hide_declined: bool,
         event_status_filter: str | None,
         counts: bool,
+        raw_times: bool,
         **kwargs: Any,
     ) -> Any:
-        # short_ids, no_frames, hide_declined, event_status_filter, counts read from click context
+        # short_ids, no_frames, hide_declined, event_status_filter, counts, raw_times read from click context
         _ = short_ids
         _ = no_frames
         _ = hide_declined
         _ = event_status_filter
         _ = counts
+        _ = raw_times
         if json_flag:
             fmt = "json"
         fields = [s.strip() for s in fields_str.split(",")] if fields_str else None
@@ -107,6 +116,12 @@ def morgen_output(
         data = truncate_ids(data)
     text = render(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=columns)
     click.echo(text)
+
+
+def _raw_times_active() -> bool:
+    """True when --raw-times is set: skip local-timezone conversion of event start/end."""
+    ctx = click.get_current_context(silent=True)
+    return bool(ctx and ctx.params.get("raw_times"))
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +406,7 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `--event-status <csv>` (filter by my_status: accepted, tentative, needs-action, declined, null)
 - `--hide-declined` (convenience alias: exclude events you declined)
 - `--counts` (wrap JSON in {"events":[..], "meta":{..}}; changes output shape)
+- `--raw-times` (keep Morgen's raw per-event wall-clock instead of converting event start/end to your local zone)
 - `--no-cache` (bypass cache, fetch fresh from API)
 - `--group NAME` (filter events by calendar group; use 'all' for no filtering — events only, has no effect on tasks)
 - `--all-calendars` (include inactive calendars, overrides active_only config)
@@ -894,7 +910,7 @@ def events_list(
             data = [e for e in data if not _is_frame_event(e)]
         from guten_morgen.output import enrich_events
 
-        data = enrich_events(data)
+        data = enrich_events(data, raw_times=_raw_times_active())
         data = _apply_status_filter(data, ctx)
         if response_format == "concise" and not fields:
             fields = EVENT_CONCISE_FIELDS
@@ -947,7 +963,7 @@ def events_get(
             output_error("not_found", f"Event '{event_id}' not found.", ["Check the event ID with gm events list"])
 
         # Enrich
-        enriched = enrich_events([target])[0]
+        enriched = enrich_events([target], raw_times=_raw_times_active())[0]
 
         # Replace participants dict with structured list
         from guten_morgen.projection import _structured_participants
@@ -2019,7 +2035,7 @@ def gm_next(
 
         from guten_morgen.output import enrich_events
 
-        upcoming_dicts = enrich_events(upcoming_dicts)
+        upcoming_dicts = enrich_events(upcoming_dicts, raw_times=_raw_times_active())
         upcoming_dicts = _apply_status_filter(upcoming_dicts, ctx)
         if count is not None:
             upcoming_dicts = upcoming_dicts[:count]
@@ -2103,7 +2119,7 @@ def _combined_view(
             events_list_raw.sort(key=lambda x: x.get("start", ""))
             from guten_morgen.output import enrich_events
 
-            events_list_enriched = enrich_events(events_list_raw)
+            events_list_enriched = enrich_events(events_list_raw, raw_times=_raw_times_active())
             events_list_enriched = _apply_status_filter(events_list_enriched, ctx)
             if ctx and ctx.params.get("counts") and fmt == "json":
                 counts = _compute_status_counts(events_list_enriched)

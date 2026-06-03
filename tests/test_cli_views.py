@@ -182,3 +182,36 @@ class TestCombinedViewMultiSource:
         # All tasks should have source field from enrichment
         for t in all_tasks:
             assert "source" in t
+
+
+class TestTodayLocalTimes:
+    def _ny_event(self) -> object:
+        from guten_morgen.models import Event
+
+        # 10:00 New York == 16:00 Budapest (summer).
+        return Event(
+            id="cfr1", title="CFR sync", start="2026-06-03T10:00:00", duration="PT30M", timeZone="America/New_York"
+        )
+
+    def test_today_json_converts_start_to_offset_qualified_local(
+        self, runner: CliRunner, mock_client: MorgenClient
+    ) -> None:
+        with (
+            patch.object(mock_client, "list_all_events", return_value=[self._ny_event()]),
+            patch("guten_morgen.output.get_local_timezone", return_value="Europe/Budapest"),
+        ):
+            result = runner.invoke(cli, ["today", "--json", "--events-only"])
+        assert result.exit_code == 0
+        starts = [e["start"] for e in json.loads(result.output)["events"]]
+        assert "2026-06-03T16:00:00+02:00" in starts
+
+    def test_today_raw_times_flag_keeps_stored_wall_clock(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        with (
+            patch.object(mock_client, "list_all_events", return_value=[self._ny_event()]),
+            patch("guten_morgen.output.get_local_timezone", return_value="Europe/Budapest"),
+        ):
+            result = runner.invoke(cli, ["today", "--json", "--events-only", "--raw-times"])
+        assert result.exit_code == 0
+        events = json.loads(result.output)["events"]
+        assert events[0]["start"] == "2026-06-03T10:00:00"
+        assert events[0]["timeZone"] == "America/New_York"

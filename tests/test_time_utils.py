@@ -289,3 +289,130 @@ class TestComputeFreeSlots:
         )
         assert len(slots) == 1
         assert slots[0]["duration_minutes"] == 540
+
+
+class TestToLocalIso:
+    def test_floating_time_zone_passes_through_unchanged(self) -> None:
+        # No stored zone (all-day / floating) → nothing to convert, return as-is.
+        from guten_morgen.time_utils import to_local_iso
+
+        assert to_local_iso("2026-06-03T10:00:00", None, "Europe/Budapest") == "2026-06-03T10:00:00"
+
+    def test_same_zone_keeps_wall_clock_and_adds_offset(self) -> None:
+        # Event already in the local zone: wall-clock unchanged, but now offset-qualified.
+        from guten_morgen.time_utils import to_local_iso
+
+        assert to_local_iso("2026-06-03T10:00:00", "Europe/Budapest", "Europe/Budapest") == "2026-06-03T10:00:00+02:00"
+
+    def test_cross_zone_summer_new_york_to_budapest(self) -> None:
+        # 10:00 EDT (UTC-4) == 16:00 CEST (UTC+2).
+        from guten_morgen.time_utils import to_local_iso
+
+        assert to_local_iso("2026-06-03T10:00:00", "America/New_York", "Europe/Budapest") == "2026-06-03T16:00:00+02:00"
+
+    def test_cross_zone_winter_keeps_dst_offset(self) -> None:
+        # 10:00 EST (UTC-5) == 16:00 CET (UTC+1): same wall-clock as summer, different offset.
+        from guten_morgen.time_utils import to_local_iso
+
+        assert to_local_iso("2026-01-15T10:00:00", "America/New_York", "Europe/Budapest") == "2026-01-15T16:00:00+01:00"
+
+    def test_utc_event_converts_to_local(self) -> None:
+        # Imported bookings carry Etc/UTC: 14:00 UTC == 16:00 CEST.
+        from guten_morgen.time_utils import to_local_iso
+
+        assert to_local_iso("2026-06-03T14:00:00", "Etc/UTC", "Europe/Budapest") == "2026-06-03T16:00:00+02:00"
+
+    def test_accepts_start_with_trailing_fractional_noise(self) -> None:
+        # Morgen sometimes appends sub-second precision; only the first 19 chars are the wall-clock.
+        from guten_morgen.time_utils import to_local_iso
+
+        assert (
+            to_local_iso("2026-06-03T10:00:00.000", "America/New_York", "Europe/Budapest")
+            == "2026-06-03T16:00:00+02:00"
+        )
+
+    # --- conversion to targets other than Budapest (helper is not zone-specific) ---
+
+    def test_converts_to_new_york_target(self) -> None:
+        # 16:00 CEST (UTC+2) == 10:00 EDT (UTC-4).
+        from guten_morgen.time_utils import to_local_iso
+
+        assert to_local_iso("2026-06-03T16:00:00", "Europe/Budapest", "America/New_York") == "2026-06-03T10:00:00-04:00"
+
+    def test_converts_to_tokyo_target(self) -> None:
+        # 10:00 EDT (UTC-4) == 23:00 JST (UTC+9, no DST).
+        from guten_morgen.time_utils import to_local_iso
+
+        assert to_local_iso("2026-06-03T10:00:00", "America/New_York", "Asia/Tokyo") == "2026-06-03T23:00:00+09:00"
+
+    def test_converts_to_utc_target(self) -> None:
+        # 10:00 EDT (UTC-4) == 14:00 UTC, rendered with a +00:00 offset.
+        from guten_morgen.time_utils import to_local_iso
+
+        assert to_local_iso("2026-06-03T10:00:00", "America/New_York", "Etc/UTC") == "2026-06-03T14:00:00+00:00"
+
+    # --- wrong / empty parameters: degrade to the raw start, never raise ---
+
+    def test_empty_time_zone_passes_through(self) -> None:
+        from guten_morgen.time_utils import to_local_iso
+
+        assert to_local_iso("2026-06-03T10:00:00", "", "Europe/Budapest") == "2026-06-03T10:00:00"
+
+    def test_unknown_event_time_zone_degrades_to_raw(self) -> None:
+        from guten_morgen.time_utils import to_local_iso
+
+        assert to_local_iso("2026-06-03T10:00:00", "Mars/Phobos", "Europe/Budapest") == "2026-06-03T10:00:00"
+
+    def test_unknown_local_time_zone_degrades_to_raw(self) -> None:
+        from guten_morgen.time_utils import to_local_iso
+
+        assert to_local_iso("2026-06-03T10:00:00", "America/New_York", "Bogus/Zone") == "2026-06-03T10:00:00"
+
+    def test_empty_start_passes_through(self) -> None:
+        from guten_morgen.time_utils import to_local_iso
+
+        assert to_local_iso("", "America/New_York", "Europe/Budapest") == ""
+
+    def test_unparseable_start_degrades_to_raw(self) -> None:
+        from guten_morgen.time_utils import to_local_iso
+
+        assert to_local_iso("not-a-date", "America/New_York", "Europe/Budapest") == "not-a-date"
+
+
+class TestComputeFreeSlotsTimezone:
+    def test_cross_zone_event_blocks_local_hours_not_raw_wall_clock(self) -> None:
+        # A New York event at 10:00 is 16:00 in Budapest. Availability must block 16:00-17:00
+        # local, NOT the raw 10:00-11:00 wall-clock.
+        from guten_morgen.time_utils import compute_free_slots
+
+        events = [{"start": "2026-06-03T10:00:00", "duration": "PT1H", "timeZone": "America/New_York"}]
+        slots = compute_free_slots(
+            events=events,
+            day="2026-06-03",
+            window_start="09:00",
+            window_end="18:00",
+            min_duration_minutes=30,
+            local_tz="Europe/Budapest",
+        )
+        intervals = {(s["start"], s["end"]) for s in slots}
+        assert ("2026-06-03T09:00:00", "2026-06-03T16:00:00") in intervals
+        assert ("2026-06-03T17:00:00", "2026-06-03T18:00:00") in intervals
+        # The buggy behavior would have blocked 10:00-11:00, leaving a 11:00 slot start.
+        assert all(s["start"] != "2026-06-03T11:00:00" for s in slots)
+
+    def test_floating_event_still_treated_as_local(self) -> None:
+        # No timeZone (floating): unchanged behavior — 14:00 blocks 14:00-16:00 local.
+        from guten_morgen.time_utils import compute_free_slots
+
+        events = [{"start": "2026-06-03T14:00:00", "duration": "PT2H"}]
+        slots = compute_free_slots(
+            events=events,
+            day="2026-06-03",
+            window_start="09:00",
+            window_end="18:00",
+            min_duration_minutes=30,
+            local_tz="Europe/Budapest",
+        )
+        intervals = {(s["start"], s["end"]) for s in slots}
+        assert ("2026-06-03T09:00:00", "2026-06-03T14:00:00") in intervals
+        assert ("2026-06-03T16:00:00", "2026-06-03T18:00:00") in intervals

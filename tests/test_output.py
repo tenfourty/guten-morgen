@@ -310,6 +310,56 @@ class TestEnrichEvents:
         assert result[0]["location_display"] == ""
 
 
+class TestEnrichEventsLocalTimes:
+    def _evt(self, **over: object) -> dict[str, object]:
+        base: dict[str, object] = {
+            "id": "e1",
+            "title": "CFR sync",
+            "start": "2026-06-03T10:00:00",
+            "end": "2026-06-03T10:30:00",
+            "timeZone": "America/New_York",
+        }
+        base.update(over)
+        return base
+
+    def test_default_converts_start_to_offset_qualified_local(self) -> None:
+        result = enrich_events([self._evt()], local_tz="Europe/Budapest")
+        assert result[0]["start"] == "2026-06-03T16:00:00+02:00"
+
+    def test_default_converts_end_too(self) -> None:
+        result = enrich_events([self._evt()], local_tz="Europe/Budapest")
+        assert result[0]["end"] == "2026-06-03T16:30:00+02:00"
+
+    def test_default_rewrites_time_zone_to_local_for_consistency(self) -> None:
+        result = enrich_events([self._evt()], local_tz="Europe/Budapest")
+        assert result[0]["timeZone"] == "Europe/Budapest"
+
+    def test_floating_event_is_left_untouched(self) -> None:
+        evt = self._evt(start="2026-06-03T00:00:00", end="2026-06-04T00:00:00", timeZone=None)
+        result = enrich_events([evt], local_tz="Europe/Budapest")
+        assert result[0]["start"] == "2026-06-03T00:00:00"
+        assert result[0]["timeZone"] is None
+
+    def test_raw_times_opt_out_leaves_everything_raw(self) -> None:
+        result = enrich_events([self._evt()], raw_times=True, local_tz="Europe/Budapest")
+        assert result[0]["start"] == "2026-06-03T10:00:00"
+        assert result[0]["end"] == "2026-06-03T10:30:00"
+        assert result[0]["timeZone"] == "America/New_York"
+
+    def test_local_zone_defaults_to_system_timezone(self) -> None:
+        from unittest.mock import patch
+
+        with patch("guten_morgen.output.get_local_timezone", return_value="Europe/Budapest"):
+            result = enrich_events([self._evt()])
+        assert result[0]["start"] == "2026-06-03T16:00:00+02:00"
+
+    def test_conversion_does_not_mutate_input(self) -> None:
+        events = [self._evt()]
+        enrich_events(events, local_tz="Europe/Budapest")
+        assert events[0]["start"] == "2026-06-03T10:00:00"
+        assert events[0]["timeZone"] == "America/New_York"
+
+
 class TestTableDeclinedIndicator:
     def test_declined_events_get_prefix_in_table(self) -> None:
         rows = [

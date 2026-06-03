@@ -9,6 +9,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from guten_morgen.markup import html_to_markdown
+from guten_morgen.time_utils import get_local_timezone, to_local_iso
 
 if TYPE_CHECKING:
     from guten_morgen.client import MorgenClient
@@ -240,8 +241,21 @@ def _is_frame_like(participants: dict[str, Any] | None, my_status: str | None) -
     return True
 
 
-def enrich_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Add participants_display, location_display, my_status, and is_frame to events (shallow copy)."""
+def enrich_events(
+    events: list[dict[str, Any]],
+    *,
+    raw_times: bool = False,
+    local_tz: str | None = None,
+) -> list[dict[str, Any]]:
+    """Add participants_display, location_display, my_status, and is_frame to events (shallow copy).
+
+    By default, ``start``/``end`` are also re-expressed as offset-qualified ISO strings in the
+    caller's local timezone (and ``timeZone`` is rewritten to match), so consumers get an
+    unambiguous local instant instead of Morgen's raw wall-clock-in-the-event's-own-zone. Pass
+    ``raw_times=True`` to leave the stored times untouched. Floating/all-day events (no
+    ``timeZone``) are never converted.
+    """
+    tz = local_tz if local_tz is not None else get_local_timezone()
     enriched: list[dict[str, Any]] = []
     for event in events:
         e = {**event}
@@ -250,8 +264,24 @@ def enrich_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         my_status = extract_my_status(e.get("participants"))
         e["my_status"] = my_status
         e["is_frame"] = _is_frame_like(e.get("participants"), my_status)
+        if not raw_times:
+            _localise_event_times(e, tz)
         enriched.append(e)
     return enriched
+
+
+def _localise_event_times(e: dict[str, Any], local_tz: str) -> None:
+    """In-place: convert an event's start/end to offset-qualified local ISO; rewrite timeZone.
+
+    No-op for floating/all-day events (no stored timeZone)."""
+    event_tz = e.get("timeZone")
+    if not event_tz:
+        return
+    if e.get("start"):
+        e["start"] = to_local_iso(e["start"], event_tz, local_tz)
+    if e.get("end"):
+        e["end"] = to_local_iso(e["end"], event_tz, local_tz)
+    e["timeZone"] = local_tz
 
 
 def _resolve_label(labels: list[dict[str, Any]], label_id: str) -> str | None:

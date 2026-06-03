@@ -43,26 +43,21 @@ result by the title in the response, not the ID.
 
 ## Timezone convention
 
-All ISO times passed to and read from `gm` are **the user's local timezone** — for
-example Europe/Budapest (CEST = UTC+2 in summer, CET = UTC+1 in winter). Run
-`date "+%Y-%m-%dT%H:%M:%S %Z"` once per session to confirm the current offset before
-computing any time.
+`gm` works in **your system's local timezone** by default, in both directions:
 
-**Two gotchas where the rendered `start` lies — always cross-check:**
+- **Times you pass in** (`--start`, `--end`, `--due`, …) are interpreted as local
+  ISO 8601 — e.g. Europe/Budapest (CEST = UTC+2 in summer, CET = UTC+1 in winter).
+- **Times you read back are converted to your local zone and offset-qualified.**
+  Morgen stores each event's `start`/`end` as a wall-clock in the event's *own* stored
+  `timeZone`; `gm` re-expresses it in your local zone and keeps the offset (e.g. an
+  `America/New_York` event at `10:00` is returned as `2026-06-03T16:00:00+02:00`, with
+  `timeZone` normalized to your local zone). All-day / floating events (no `timeZone`)
+  pass through unchanged.
 
-- **`timeZone: "Etc/UTC"` events render un-converted.** When an event's `timeZone`
-  field is `Etc/UTC`, `gm` shows its `start` as the raw UTC wall-clock, *not* converted
-  to local — so for a Budapest user it reads 2h early in summer (1h in winter). Add
-  the current local offset to get the real time. Often these are imported appointment
-  events whose description carries the true local time as a provider-localized field
-  (e.g. `Időpont:` from a Hungarian provider) — cross-check against that when present.
-  (Observed against Morgen API as of gm 0.23.7 / 2026-05; if Morgen ever starts
-  returning UTC-converted starts, drop this gotcha.)
-- **UID `…T<HHMMSS>Z` token beats `start`.** A calendar UID embedding a `…T<HHMMSS>Z`
-  token *whose date matches the viewed day* is the authoritative UTC start — convert
-  to local and ignore `start` (which can render hours off from a foreign-TZ leak).
-  Duplicate copies agreeing on a wrong `start` is not validation. If the UID's date ≠
-  the viewed day, it's a recurring-series anchor — trust `start` instead.
+Because the output is offset-qualified you can read the wall-clock straight off the
+first 19 characters, or parse the offset — **no manual conversion needed**, and no
+cross-checking the description or the UID token. DST is handled by the zoneinfo
+database, so summer and winter offsets are both correct.
 
 ## Discovery & recipes
 

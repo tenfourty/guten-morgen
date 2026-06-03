@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 if TYPE_CHECKING:
     from typing import Any
@@ -82,6 +83,39 @@ def get_local_timezone() -> str:
         return tz
 
     return "UTC"
+
+
+def _to_local_aware(start: str, time_zone: str | None, local_tz: str) -> datetime | None:
+    """Re-express *start* (wall-clock in *time_zone*) as a tz-aware datetime in *local_tz*.
+
+    Returns ``None`` for a floating event (no *time_zone*), an unknown zone, or an
+    unparseable *start* — callers decide how to degrade. This is the single conversion
+    primitive shared by output rendering (:func:`to_local_iso`) and availability
+    (:func:`compute_free_slots`).
+    """
+    if not time_zone:
+        return None
+    try:
+        naive = datetime.fromisoformat(start[:19])
+        return naive.replace(tzinfo=ZoneInfo(time_zone)).astimezone(ZoneInfo(local_tz))
+    except (ValueError, ZoneInfoNotFoundError):
+        return None
+
+
+def to_local_iso(start: str, time_zone: str | None, local_tz: str) -> str:
+    """Convert an event ``start`` to an offset-qualified ISO string in *local_tz*.
+
+    Morgen renders ``start`` as the wall-clock in the event's own stored ``time_zone``
+    with no offset (e.g. ``2026-06-03T10:00:00`` for an ``America/New_York`` event).
+    This re-expresses that instant in *local_tz* and keeps the offset, so the result is
+    both human-local and self-describing (e.g. ``2026-06-03T16:00:00+02:00``).
+
+    Best-effort and total: a floating/all-day event (no ``time_zone``), an unknown zone,
+    or an unparseable ``start`` all return ``start`` unchanged rather than raising — one
+    anomalous event must never break a whole listing.
+    """
+    local = _to_local_aware(start, time_zone, local_tz)
+    return local.isoformat() if local is not None else start
 
 
 def format_duration_human(minutes: int) -> str:
@@ -165,6 +199,7 @@ def compute_free_slots(
     window_start: str = "09:00",
     window_end: str = "18:00",
     min_duration_minutes: int = 30,
+    local_tz: str | None = None,
 ) -> list[dict[str, Any]]:
     """Compute free time slots on a given day.
 
@@ -174,11 +209,14 @@ def compute_free_slots(
         window_start: Working hours start (HH:MM)
         window_end: Working hours end (HH:MM)
         min_duration_minutes: Minimum slot duration to include
+        local_tz: IANA zone the window is expressed in; events stored in a different zone
+            are converted to it before being blocked (defaults to the system zone)
 
     Returns:
         List of dicts: [{start, end, duration_minutes}]
     """
 
+    tz = local_tz if local_tz is not None else get_local_timezone()
     ws = datetime.fromisoformat(f"{day}T{window_start}:00")
     we = datetime.fromisoformat(f"{day}T{window_end}:00")
 
@@ -190,7 +228,12 @@ def compute_free_slots(
         dur_str = evt.get("duration", "PT0M")
         if not start_str or len(start_str) < 16:
             continue
-        evt_start = datetime.fromisoformat(start_str[:19])
+        # Convert cross-zone events to the window's local wall-clock before blocking;
+        # floating events (no timeZone) keep their naive local interpretation.
+        aware_local = _to_local_aware(start_str, evt.get("timeZone"), tz)
+        evt_start = (
+            aware_local.replace(tzinfo=None) if aware_local is not None else datetime.fromisoformat(start_str[:19])
+        )
         evt_end = evt_start + timedelta(minutes=_parse_duration_minutes(dur_str))
         clipped_start = max(evt_start, ws)
         clipped_end = min(evt_end, we)
