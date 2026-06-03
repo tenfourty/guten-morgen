@@ -108,6 +108,15 @@ issue link and a workaround.
 
 ## Stable quirks (intended behavior — not bugs)
 
+- **`gm events list` can return the same underlying event more than once** when a
+  calendar is shared across multiple connected accounts (the calendar surfaces under
+  every account that can see it). The copies are the *same* event — identical
+  `calendar_uid`; only the account-namespaced segment of the `id` differs. **Dedup by
+  `calendar_uid` before counting, presenting, or acting on events — and *never* delete
+  one as a "duplicate."** Repeated entries sharing one `calendar_uid` are mirroring, not
+  a real double-booking; a genuine double-schedule (e.g. the #70 re-schedule bug)
+  instead shows *distinct* `calendar_uid`s. Collapse to unique `calendar_uid` whenever
+  multiplicity would otherwise mislead.
 - **`gm events delete <id> --series single`** removes only one occurrence of a recurring
   event — use this to drop just today's instance without killing the series.
 - **`gm tasks create --due` / `gm tasks update --due` do not preserve the time
