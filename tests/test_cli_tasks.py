@@ -1019,3 +1019,53 @@ class TestTasksUpdateClearDue:
         result = runner.invoke(cli, ["tasks", "update", "task-1", "--due", "2026-03-01"])
         assert result.exit_code == 0, result.output
         assert captured["due"] == "2026-03-01T23:59:59"
+
+
+class TestTasksUpdateDueResponse:
+    """#71: the `tasks update` response must reflect the due just written, not Morgen's
+    unreliable update echo (which omits/staleness `due`)."""
+
+    def test_response_reflects_stored_due_when_morgen_omits_it(
+        self, runner: CliRunner, mock_client: MorgenClient, monkeypatch
+    ) -> None:
+        from guten_morgen.models import Task
+
+        # Morgen's /tasks/update response omits `due` (the bug); the stored task has it (re-read).
+        monkeypatch.setattr(mock_client, "update_task", lambda td: Task(id=td["id"], title="Review PR", due=None))
+        monkeypatch.setattr(
+            mock_client, "get_task", lambda tid: Task(id=tid, title="Review PR", due="2026-06-05T23:59:59")
+        )
+        result = runner.invoke(cli, ["tasks", "update", "task-1", "--due", "2026-06-05"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["due"] == "2026-06-05T23:59:59"  # stored value, not null/missing
+
+    def test_response_reflects_stored_end_of_day_for_timed_due(
+        self, runner: CliRunner, mock_client: MorgenClient, monkeypatch
+    ) -> None:
+        """#71 explicit-time case: Morgen discards the time and stores end-of-day, so the
+        response must report the stored end-of-day value — not the wire time we sent."""
+        from guten_morgen.models import Task
+
+        monkeypatch.setattr(mock_client, "update_task", lambda td: Task(id=td["id"], title="Review PR", due=None))
+        monkeypatch.setattr(
+            mock_client, "get_task", lambda tid: Task(id=tid, title="Review PR", due="2026-06-05T23:59:59")
+        )
+        result = runner.invoke(cli, ["tasks", "update", "task-1", "--due", "2026-06-05T14:00:00"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["due"] == "2026-06-05T23:59:59"  # stored end-of-day, NOT the 14:00 we sent
+
+    def test_response_after_clear_due_reports_no_due_even_if_echo_is_stale(
+        self, runner: CliRunner, mock_client: MorgenClient, monkeypatch
+    ) -> None:
+        from guten_morgen.models import Task
+
+        # Simulate Morgen echoing a stale due on a clear.
+        monkeypatch.setattr(
+            mock_client, "update_task", lambda td: Task(id=td["id"], title="Review PR", due="2026-02-17T23:59:59")
+        )
+        result = runner.invoke(cli, ["tasks", "update", "task-1", "--clear-due"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data.get("due") is None  # cleared — must not report a stale due
