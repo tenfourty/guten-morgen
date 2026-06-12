@@ -159,6 +159,25 @@ def parse_since(value: str) -> str:
     raise click.BadParameter(f"Unrecognised --since value: {value!r}. Use e.g. 7d, 2h, 1w, yesterday, or ISO date.")
 
 
+def to_local_aware(start_str: str, time_zone: str | None) -> datetime | None:
+    """Convert an event's wall-clock ``start`` (in its own IANA ``time_zone``) to an aware
+    datetime in the local system zone.
+
+    Returns ``None`` for floating events (no ``time_zone``) or an unresolvable zone — callers
+    then treat the start as naive-local. DST-safe via stdlib ``zoneinfo``. Shared by availability
+    (#74) and CLI time display.
+    """
+    if not time_zone:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+
+        naive = datetime.fromisoformat(start_str[:19])
+        return naive.replace(tzinfo=ZoneInfo(time_zone)).astimezone(ZoneInfo(get_local_timezone()))
+    except Exception:
+        return None
+
+
 def compute_free_slots(
     events: list[dict[str, Any]],
     day: str,
@@ -190,7 +209,10 @@ def compute_free_slots(
         dur_str = evt.get("duration", "PT0M")
         if not start_str or len(start_str) < 16:
             continue
-        evt_start = datetime.fromisoformat(start_str[:19])
+        # Honour the event's own timeZone: convert to local before computing busy intervals,
+        # so a foreign-zone event blocks the right local hours. Floating events stay naive-local. (#74)
+        aware = to_local_aware(start_str, evt.get("timeZone"))
+        evt_start = aware.replace(tzinfo=None) if aware is not None else datetime.fromisoformat(start_str[:19])
         evt_end = evt_start + timedelta(minutes=_parse_duration_minutes(dur_str))
         clipped_start = max(evt_start, ws)
         clipped_end = min(evt_end, we)

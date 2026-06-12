@@ -289,3 +289,49 @@ class TestComputeFreeSlots:
         )
         assert len(slots) == 1
         assert slots[0]["duration_minutes"] == 540
+
+
+class TestComputeFreeSlotsTimezone:
+    """#74: availability must honour each event's timeZone, converting to local before
+    computing busy intervals — not parse the stored wall-clock as naive-local."""
+
+    @staticmethod
+    def _free_ranges(slots):  # type: ignore[no-untyped-def]
+        return [(s["start"][11:16], s["end"][11:16]) for s in slots]
+
+    def test_non_local_timezone_event_blocks_local_converted_hours(self, monkeypatch) -> None:
+        from guten_morgen import time_utils
+
+        # Local zone = Budapest (UTC+2 summer). A New York (UTC-4 summer) 10:00 event is 16:00 local.
+        monkeypatch.setattr(time_utils, "get_local_timezone", lambda: "Europe/Budapest")
+        events = [{"start": "2026-06-03T10:00:00", "duration": "PT1H", "timeZone": "America/New_York"}]
+        slots = time_utils.compute_free_slots(
+            events=events, day="2026-06-03", window_start="09:00", window_end="18:00", min_duration_minutes=30
+        )
+        ranges = self._free_ranges(slots)
+        assert any(s <= "10:00" < e for s, e in ranges), f"10:00 local should be free: {ranges}"
+        assert not any(s <= "16:00" < e for s, e in ranges), f"16:00-17:00 local should be blocked: {ranges}"
+
+    def test_floating_event_keeps_naive_local(self, monkeypatch) -> None:
+        from guten_morgen import time_utils
+
+        monkeypatch.setattr(time_utils, "get_local_timezone", lambda: "Europe/Budapest")
+        events = [{"start": "2026-06-03T10:00:00", "duration": "PT1H"}]  # no timeZone → floating
+        slots = time_utils.compute_free_slots(
+            events=events, day="2026-06-03", window_start="09:00", window_end="18:00", min_duration_minutes=30
+        )
+        ranges = self._free_ranges(slots)
+        assert not any(s <= "10:00" < e for s, e in ranges), f"floating 10:00 stays blocked: {ranges}"
+
+    def test_utc_event_converted_to_local(self, monkeypatch) -> None:
+        from guten_morgen import time_utils
+
+        monkeypatch.setattr(time_utils, "get_local_timezone", lambda: "Europe/Budapest")
+        # Etc/UTC 12:00 → 14:00 Budapest (summer, UTC+2).
+        events = [{"start": "2026-06-03T12:00:00", "duration": "PT1H", "timeZone": "Etc/UTC"}]
+        slots = time_utils.compute_free_slots(
+            events=events, day="2026-06-03", window_start="09:00", window_end="18:00", min_duration_minutes=30
+        )
+        ranges = self._free_ranges(slots)
+        assert any(s <= "12:00" < e for s, e in ranges), f"12:00 local should be free: {ranges}"
+        assert not any(s <= "14:00" < e for s, e in ranges), f"14:00-15:00 local should be blocked: {ranges}"
