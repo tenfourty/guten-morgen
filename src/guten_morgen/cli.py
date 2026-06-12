@@ -1684,6 +1684,23 @@ def tasks_update(
             task_data["earliestStart"] = _normalize_earliest_start(earliest_start)
         result = client.update_task(task_data)
         output = result.model_dump(exclude_none=True) if result else {"status": "updated", "id": task_id}
+        # Morgen's /tasks/update response is unreliable for `due` — it omits the field or echoes
+        # a stale value, and it normalises a stored due to end-of-day (discarding any time
+        # component). So re-read the authoritative stored value to match `tasks get`, rather than
+        # echoing the wire value (which would keep a time Morgen actually drops). (#71)
+        if result and "due" in task_data:
+            if task_data["due"] is None:
+                output.pop("due", None)  # cleared
+            else:
+                try:
+                    stored_due = client.get_task(task_id).due
+                except MorgenError:
+                    # Fall back to Morgen's documented normalisation (date at end-of-day).
+                    stored_due = f"{task_data['due'][:10]}T23:59:59"
+                if stored_due:
+                    output["due"] = stored_due
+                else:
+                    output.pop("due", None)
         click.echo(json.dumps(output, indent=2, default=str, ensure_ascii=False))
     except MorgenError as e:
         output_error(e.error_type, str(e), e.suggestions)
