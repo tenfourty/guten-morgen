@@ -307,7 +307,9 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `gm tasks schedule ID --start ISO [--duration MINUTES] [--calendar-id ID] [--account-id ID]`
   Schedule a task as a linked calendar event. Fetches the task to derive
   title and duration, creates an event with morgen.so:metadata.taskId.
-  Auto-discovers calendar if not specified.
+  Auto-discovers calendar if not specified. Idempotent: re-scheduling moves the
+  task's existing linked block instead of double-booking (best-effort — a block
+  scheduled far outside a ~6-month window may not be found and could duplicate).
 
 - `gm tasks close ID [--occurrence ISO]`
   Mark a task as completed. --occurrence targets a specific recurring task occurrence.
@@ -1764,7 +1766,13 @@ def tasks_schedule(
     account_id: str | None,
     timezone: str | None,
 ) -> None:
-    """Schedule a task as a linked calendar event."""
+    """Schedule a task as a linked calendar event.
+
+    Idempotent: if the task already has a linked block, it is moved to the new time rather than
+    duplicated. The existing block is found by a generous windowed search (Morgen has no
+    get-by-taskId), so a block scheduled far outside a ~6-month window may not be found and could
+    still produce a second block.
+    """
     try:
         client = _get_client()
         if not account_id or not calendar_id:

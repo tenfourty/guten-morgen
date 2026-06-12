@@ -21,6 +21,7 @@ from guten_morgen.cache import (
 from guten_morgen.errors import (
     AuthenticationError,
     MorgenAPIError,
+    MorgenError,
     NotFoundError,
     RateLimitError,
 )
@@ -645,7 +646,50 @@ class MorgenClient:
             "morgen.so:metadata": {"taskId": task_id},
         }
 
+        # Idempotent: if a calendar block already links to this task, move it to the new time
+        # instead of creating a second one (which would double-book). (#70)
+        existing = self._find_task_block(task_id, start, task.due)
+        if existing is not None:
+            event_data["id"] = existing.id
+            event_data["calendarId"] = existing.calendarId or calendar_id
+            event_data["accountId"] = existing.accountId or account_id
+            return self.update_event(event_data)
+
         return self.create_event(event_data)
+
+    def _find_task_block(self, task_id: str, *anchors: str | None) -> Event | None:
+        """Find an existing calendar block linked to ``task_id`` via ``morgen.so:metadata.taskId``.
+
+        Morgen has no get-events-by-taskId, so this scans a generous window — recent past to a
+        future horizon — around ``now`` plus the supplied anchor times (the new start and the
+        task's due date). **Bounded-window caveat:** a linked block scheduled outside that window
+        won't be found, so a re-schedule could still duplicate it in that rare case. Degrades to
+        ``None`` (i.e. create a fresh block) on any search failure — never blocks scheduling.
+
+        Returns the *first* matching block. If a task somehow has multiple linked blocks (e.g.
+        duplicates created before this fix landed), only the first is moved; the rest are left
+        in place — this fix stops *new* duplicates but does not reconcile pre-existing ones.
+        """
+        from datetime import datetime, timedelta
+        from datetime import timezone as _tz
+
+        points = [datetime.now(_tz.utc).replace(tzinfo=None)]
+        for anchor in anchors:
+            if anchor:
+                try:
+                    points.append(datetime.fromisoformat(anchor[:19]))
+                except ValueError:
+                    pass
+        window_start = (min(points) - timedelta(days=30)).isoformat()
+        window_end = (max(points) + timedelta(days=180)).isoformat()
+        try:
+            for evt in self.list_all_events(window_start, window_end):
+                meta = evt.morgen_metadata
+                if meta and meta.get("taskId") == task_id:
+                    return evt
+        except MorgenError:
+            return None
+        return None
 
     # ----- Task Lists -----
 
