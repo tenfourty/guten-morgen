@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.20](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.19...guten-morgen-v0.23.20) (2026-06-12)
+
+
+### Documentation
+
+* **skill:** capture is_frame trap, availability [] quirk, non-default calendar-id ([#72](https://github.com/tenfourty/guten-morgen/issues/72)) ([45c977d](https://github.com/tenfourty/guten-morgen/commit/45c977d8c788c31c6208767502620ee673cca05a))
+
 ## [0.23.19](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.18...guten-morgen-v0.23.19) (2026-06-12)
 
 
