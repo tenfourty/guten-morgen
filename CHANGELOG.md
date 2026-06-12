@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.17](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.16...guten-morgen-v0.23.17) (2026-06-12)
+
+
+### Bug Fixes
+
+* reflect stored due in tasks update response ([#71](https://github.com/tenfourty/guten-morgen/issues/71)) ([#78](https://github.com/tenfourty/guten-morgen/issues/78)) ([267ec45](https://github.com/tenfourty/guten-morgen/commit/267ec45bbd985cfb4083ff4a6c1867168801194e))
+
 ## [0.23.16](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.15...guten-morgen-v0.23.16) (2026-06-01)
 
 
