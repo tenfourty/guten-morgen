@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.19](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.18...guten-morgen-v0.23.19) (2026-06-12)
+
+
+### Documentation
+
+* **gm skill:** warn that shared calendars mirror events across accounts ([#77](https://github.com/tenfourty/guten-morgen/issues/77)) ([04cfa45](https://github.com/tenfourty/guten-morgen/commit/04cfa451b397df015fa2bf48c90f6572d6e34928))
+
 ## [0.23.18](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.17...guten-morgen-v0.23.18) (2026-06-12)
 
 
