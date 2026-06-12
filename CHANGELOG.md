@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.18](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.17...guten-morgen-v0.23.18) (2026-06-12)
+
+
+### Bug Fixes
+
+* honour event timeZone in availability free-slot math ([#74](https://github.com/tenfourty/guten-morgen/issues/74)) ([#79](https://github.com/tenfourty/guten-morgen/issues/79)) ([fe76c25](https://github.com/tenfourty/guten-morgen/commit/fe76c25310d0bc52c05835972cc573e106693d3d))
+
 ## [0.23.17](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.16...guten-morgen-v0.23.17) (2026-06-12)
 
 
