@@ -51,9 +51,10 @@ count it from `scheduled_tasks` and exclude its block from the `events` (meeting
   `gm tasks schedule` is **`."morgen.so:metadata".taskId` being non-null**. Match a
   block back to its task by that `taskId`, not by title.
 - **`is_frame: true` does *not* mean "task scheduling block."** It is set on many
-  ordinary meetings, so it cannot be used to pick out task blocks. Don't filter on it
-  for that purpose.
-- **`--response-format concise` nulls `is_frame` and drops `morgen.so:metadata`
+  ordinary solo holds and personal calendar entries (not just task blocks; genuine
+  multi-attendee meetings are *not* flagged), so it cannot be used to pick out task
+  blocks. Don't filter on it for that purpose.
+- **`--response-format concise` omits both `is_frame` and `morgen.so:metadata`
   entirely.** So in a concise pull you cannot detect task-linked blocks at all — neither
   `is_frame` nor `taskId` is present. Use the default (detailed) format when you need to
   tell task blocks apart from meetings.
@@ -63,26 +64,30 @@ count it from `scheduled_tasks` and exclude its block from the `events` (meeting
 
 ## Timezone convention
 
-All ISO times passed to and read from `gm` are **the user's local timezone** — for
-example Europe/Budapest (CEST = UTC+2 in summer, CET = UTC+1 in winter). Run
-`date "+%Y-%m-%dT%H:%M:%S %Z"` once per session to confirm the current offset before
-computing any time.
+The CLI re-expresses each event's `start`/`end` in **your local zone, offset-qualified**
+(e.g. `2026-06-03T16:00:00+02:00`) by default, normalising `timeZone` to local — so the
+wall-clock you read is the real local time and the trailing offset makes it
+self-describing. Times you *pass in* (`--start`, `--due`, …) are interpreted in your
+local zone. Run `date "+%Y-%m-%dT%H:%M:%S %Z"` once per session to confirm the offset.
 
-**Two gotchas where the rendered `start` lies — always cross-check:**
+`--raw-times` opts out, showing the untranslated per-event wall-clock in the event's own
+stored `timeZone`. Note the **library path (`enrich_events`) is always raw** — library
+consumers (e.g. brief-deck) see source values, not localised ones; only the CLI localises.
 
-- **`timeZone: "Etc/UTC"` events render un-converted.** When an event's `timeZone`
-  field is `Etc/UTC`, `gm` shows its `start` as the raw UTC wall-clock, *not* converted
-  to local — so for a Budapest user it reads 2h early in summer (1h in winter). Add
-  the current local offset to get the real time. Often these are imported appointment
-  events whose description carries the true local time as a provider-localized field
-  (e.g. `Időpont:` from a Hungarian provider) — cross-check against that when present.
-  (Observed against Morgen API as of gm 0.23.7 / 2026-05; if Morgen ever starts
-  returning UTC-converted starts, drop this gotcha.)
-- **UID `…T<HHMMSS>Z` token beats `start`.** A calendar UID embedding a `…T<HHMMSS>Z`
-  token *whose date matches the viewed day* is the authoritative UTC start — convert
-  to local and ignore `start` (which can render hours off from a foreign-TZ leak).
-  Duplicate copies agreeing on a wrong `start` is not validation. If the UID's date ≠
-  the viewed day, it's a recurring-series anchor — trust `start` instead.
+**Under `--raw-times` (or via the library), the old foreign-zone gotchas apply — the raw
+`start` can lie, so cross-check:**
+
+- **`timeZone: "Etc/UTC"` events read un-converted.** The raw `start` is the UTC
+  wall-clock, *not* local — for a Budapest user, 2h early in summer (1h in winter). Drop
+  `--raw-times` to get the converted value, or add the local offset by hand. Imported
+  appointment events sometimes carry the true local time in a provider-localized
+  description field (e.g. `Időpont:` from a Hungarian provider) — cross-check when present.
+- **UID `…T<HHMMSS>Z` token beats a raw `start`.** A calendar UID embedding a
+  `…T<HHMMSS>Z` token *whose date matches the viewed day* is the authoritative UTC start.
+  With default (localised) output this is rarely needed; under `--raw-times`, or for a
+  *floating* event with no `timeZone` (which the CLI can't convert), convert the token to
+  local and prefer it over a `start` that can render hours off from a foreign-TZ leak. (If
+  the UID's date ≠ the viewed day, it's a recurring-series anchor — trust `start`.)
 
 ## Discovery & recipes
 

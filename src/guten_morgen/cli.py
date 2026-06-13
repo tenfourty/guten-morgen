@@ -59,6 +59,14 @@ def output_options(f: Callable[..., Any]) -> Callable[..., Any]:
         help="Comma-separated list of my_status values to include (accepted,tentative,needs-action,declined,null).",
     )
     @click.option("--counts", is_flag=True, default=False, help="Wrap JSON output with meta including status_counts.")
+    @click.option(
+        "--raw-times",
+        is_flag=True,
+        default=False,
+        help="Show event times as the raw per-event wall-clock instead of converting to your "
+        "local zone. By default the CLI re-expresses event start/end in your local zone "
+        "(offset-qualified, e.g. 2026-06-03T16:00:00+02:00).",
+    )
     @functools.wraps(f)
     def wrapper(
         *args: Any,
@@ -72,14 +80,16 @@ def output_options(f: Callable[..., Any]) -> Callable[..., Any]:
         hide_declined: bool,
         event_status_filter: str | None,
         counts: bool,
+        raw_times: bool,
         **kwargs: Any,
     ) -> Any:
-        # short_ids, no_frames, hide_declined, event_status_filter, counts read from click context
+        # short_ids, no_frames, hide_declined, event_status_filter, counts, raw_times read from click context
         _ = short_ids
         _ = no_frames
         _ = hide_declined
         _ = event_status_filter
         _ = counts
+        _ = raw_times
         if json_flag:
             fmt = "json"
         fields = [s.strip() for s in fields_str.split(",")] if fields_str else None
@@ -107,6 +117,42 @@ def morgen_output(
         data = truncate_ids(data)
     text = render(data, fmt=fmt, fields=fields, jq_expr=jq_expr, columns=columns)
     click.echo(text)
+
+
+def _localize_event_times(events: list[dict[str, Any]], raw_times: bool) -> list[dict[str, Any]]:
+    """Re-express each event's ``start``/``end`` in the local zone (offset-qualified) for CLI
+    display, normalising ``timeZone`` to the local zone.
+
+    CLI-render-only: the library ``enrich_events`` stays raw-passthrough, so consumers like
+    brief-deck are unaffected. Floating/all-day events (no ``timeZone``) and unresolvable zones
+    pass through unchanged. Skipped entirely when ``raw_times`` is set (the escape hatch for the
+    untranslated source value). DST-safe via the shared ``time_utils.to_local_aware``. (#75)
+    """
+    if raw_times:
+        return events
+    from guten_morgen import time_utils
+
+    for evt in events:
+        tz = evt.get("timeZone")
+        if not tz:
+            continue  # floating / all-day — leave naive-local as-is
+        converted = False
+        for key in ("start", "end"):
+            val = evt.get(key)
+            if val:
+                aware = time_utils.to_local_aware(val, tz)
+                if aware is not None:
+                    evt[key] = aware.isoformat()
+                    converted = True
+        if converted:
+            evt["timeZone"] = time_utils.get_local_timezone()
+    return events
+
+
+def _raw_times_active() -> bool:
+    """Whether --raw-times is set on the current invocation (read from click context)."""
+    ctx = click.get_current_context(silent=True)
+    return bool(ctx.params.get("raw_times")) if ctx else False
 
 
 # ---------------------------------------------------------------------------
@@ -393,6 +439,8 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `--event-status <csv>` (filter by my_status: accepted, tentative, needs-action, declined, null)
 - `--hide-declined` (convenience alias: exclude events you declined)
 - `--counts` (wrap JSON in {"events":[..], "meta":{..}}; changes output shape)
+- `--raw-times` (show event times as the raw per-event wall-clock; by default the CLI
+  re-expresses event start/end in your local zone, offset-qualified e.g. ...+02:00)
 - `--no-cache` (bypass cache, fetch fresh from API)
 - `--group NAME` (filter events by calendar group; use 'all' for no filtering — events only, has no effect on tasks)
 - `--all-calendars` (include inactive calendars, overrides active_only config)
@@ -897,6 +945,7 @@ def events_list(
         from guten_morgen.output import enrich_events
 
         data = enrich_events(data)
+        data = _localize_event_times(data, _raw_times_active())
         data = _apply_status_filter(data, ctx)
         if response_format == "concise" and not fields:
             fields = EVENT_CONCISE_FIELDS
@@ -950,6 +999,7 @@ def events_get(
 
         # Enrich
         enriched = enrich_events([target])[0]
+        enriched = _localize_event_times([enriched], _raw_times_active())[0]
 
         # Replace participants dict with structured list
         from guten_morgen.projection import _structured_participants
@@ -2045,6 +2095,7 @@ def gm_next(
         from guten_morgen.output import enrich_events
 
         upcoming_dicts = enrich_events(upcoming_dicts)
+        upcoming_dicts = _localize_event_times(upcoming_dicts, _raw_times_active())
         upcoming_dicts = _apply_status_filter(upcoming_dicts, ctx)
         if count is not None:
             upcoming_dicts = upcoming_dicts[:count]
@@ -2129,6 +2180,7 @@ def _combined_view(
             from guten_morgen.output import enrich_events
 
             events_list_enriched = enrich_events(events_list_raw)
+            events_list_enriched = _localize_event_times(events_list_enriched, _raw_times_active())
             events_list_enriched = _apply_status_filter(events_list_enriched, ctx)
             if ctx and ctx.params.get("counts") and fmt == "json":
                 counts = _compute_status_counts(events_list_enriched)
