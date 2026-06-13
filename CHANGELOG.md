@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.21](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.20...guten-morgen-v0.23.21) (2026-06-13)
+
+
+### Bug Fixes
+
+* make tasks schedule idempotent — move linked block, don't duplicate ([#70](https://github.com/tenfourty/guten-morgen/issues/70)) ([#83](https://github.com/tenfourty/guten-morgen/issues/83)) ([c9d71b7](https://github.com/tenfourty/guten-morgen/commit/c9d71b7031bbb6e45499b78cdf5b59452da54a43))
+
 ## [0.23.20](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.19...guten-morgen-v0.23.20) (2026-06-12)
 
 
