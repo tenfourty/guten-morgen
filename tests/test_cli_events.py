@@ -784,3 +784,86 @@ class TestNormalizeDatetime:
         from guten_morgen.cli import _normalize_datetime
 
         assert _normalize_datetime("2026-03-03T10:30:00+01:00") == "2026-03-03T10:30:00+01:00"
+
+
+class TestLocalizeEventTimes:
+    """#75: CLI displays event times in the local zone (offset-qualified) by default, with a
+    --raw-times opt-out. Library enrich_events stays raw — this is CLI-render-only."""
+
+    def test_converts_foreign_tz_to_offset_qualified_local(self, monkeypatch) -> None:
+        from guten_morgen import cli, time_utils
+
+        monkeypatch.setattr(time_utils, "get_local_timezone", lambda: "Europe/Budapest")
+        events = [{"start": "2026-06-03T10:00:00", "timeZone": "America/New_York", "title": "x"}]
+        out = cli._localize_event_times(events, raw_times=False)
+        assert out[0]["start"] == "2026-06-03T16:00:00+02:00"  # NY 10:00 → Budapest 16:00 (summer)
+        assert out[0]["timeZone"] == "Europe/Budapest"  # normalised to local
+
+    def test_converts_end_too(self, monkeypatch) -> None:
+        from guten_morgen import cli, time_utils
+
+        monkeypatch.setattr(time_utils, "get_local_timezone", lambda: "Europe/Budapest")
+        events = [{"start": "2026-06-03T10:00:00", "end": "2026-06-03T11:00:00", "timeZone": "America/New_York"}]
+        out = cli._localize_event_times(events, raw_times=False)
+        assert out[0]["start"] == "2026-06-03T16:00:00+02:00"
+        assert out[0]["end"] == "2026-06-03T17:00:00+02:00"
+
+    def test_raw_times_passthrough(self) -> None:
+        from guten_morgen import cli
+
+        events = [{"start": "2026-06-03T10:00:00", "timeZone": "America/New_York"}]
+        out = cli._localize_event_times(events, raw_times=True)
+        assert out[0]["start"] == "2026-06-03T10:00:00"  # untouched
+
+    def test_floating_event_unchanged(self, monkeypatch) -> None:
+        from guten_morgen import cli, time_utils
+
+        monkeypatch.setattr(time_utils, "get_local_timezone", lambda: "Europe/Budapest")
+        events = [{"start": "2026-06-03T10:00:00"}]  # no timeZone → floating
+        out = cli._localize_event_times(events, raw_times=False)
+        assert out[0]["start"] == "2026-06-03T10:00:00"  # unchanged
+        assert "timeZone" not in out[0]
+
+
+class TestEventsListLocalTimes:
+    """#75: end-to-end — `gm events list` localises event times by default; --raw-times opts out."""
+
+    @staticmethod
+    def _tz_event():  # type: ignore[no-untyped-def]
+        from guten_morgen.models import Event
+
+        return Event.model_validate(
+            {
+                "id": "evt-tz",
+                "title": "NY meeting",
+                "start": "2026-06-03T10:00:00",
+                "duration": "PT1H",
+                "timeZone": "America/New_York",
+                "calendarId": "cal-1",
+                "accountId": "acc-1",
+            }
+        )
+
+    def test_list_shows_local_offset_qualified_by_default(
+        self, runner: CliRunner, mock_client: MorgenClient, monkeypatch
+    ) -> None:
+        from guten_morgen import time_utils
+
+        monkeypatch.setattr(time_utils, "get_local_timezone", lambda: "Europe/Budapest")
+        monkeypatch.setattr(mock_client, "list_all_events", lambda *a, **kw: [self._tz_event()])
+        result = runner.invoke(cli, ["events", "list", "--start", "2026-06-03", "--end", "2026-06-03", "--json"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data[0]["start"] == "2026-06-03T16:00:00+02:00"  # NY 10:00 → Budapest 16:00
+
+    def test_list_raw_times_shows_source_value(self, runner: CliRunner, mock_client: MorgenClient, monkeypatch) -> None:
+        from guten_morgen import time_utils
+
+        monkeypatch.setattr(time_utils, "get_local_timezone", lambda: "Europe/Budapest")
+        monkeypatch.setattr(mock_client, "list_all_events", lambda *a, **kw: [self._tz_event()])
+        result = runner.invoke(
+            cli, ["events", "list", "--start", "2026-06-03", "--end", "2026-06-03", "--json", "--raw-times"]
+        )
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data[0]["start"] == "2026-06-03T10:00:00"  # untranslated source
