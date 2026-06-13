@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.21...guten-morgen-v0.24.0) (2026-06-13)
+
+
+### Features
+
+* CLI shows event times in local zone (offset-qualified) by default ([#75](https://github.com/tenfourty/guten-morgen/issues/75)) ([#86](https://github.com/tenfourty/guten-morgen/issues/86)) ([89f34bd](https://github.com/tenfourty/guten-morgen/commit/89f34bdbef81184ab9fccb8abbaf0d55778d7e96))
+
 ## [0.23.21](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.20...guten-morgen-v0.23.21) (2026-06-13)
 
 
