@@ -166,3 +166,79 @@ class TestScheduleTask:
         )
         assert result is not None
         assert result.duration == "PT60M"
+
+
+class TestScheduleTaskIdempotent:
+    """#70: re-scheduling an already-scheduled task moves its existing linked block instead
+    of creating a second one (double-booking)."""
+
+    def test_moves_existing_linked_block_instead_of_duplicating(self, client: MorgenClient, monkeypatch) -> None:
+        from guten_morgen.models import Event
+
+        existing = Event.model_validate(
+            {
+                "id": "blk-1",
+                "title": "Review PR",
+                "start": "2026-06-02T10:00:00",
+                "duration": "PT30M",
+                "calendarId": "cal-1",
+                "accountId": "acc-1",
+                "morgen.so:metadata": {"taskId": "task-1"},
+            }
+        )
+        monkeypatch.setattr(client, "list_all_events", lambda *a, **kw: [existing])
+        moved: dict = {}
+        monkeypatch.setattr(client, "update_event", lambda ed, **kw: moved.update(ed) or Event(id="blk-1"))
+
+        def _no_create(ed):  # type: ignore[no-untyped-def]
+            raise AssertionError("should move the existing linked block, not create a duplicate")
+
+        monkeypatch.setattr(client, "create_event", _no_create)
+        client.schedule_task("task-1", "2026-06-02T15:00:00", "cal-1", "acc-1", duration_minutes=30)
+        assert moved["id"] == "blk-1"  # moved the existing block
+        assert moved["start"] == "2026-06-02T15:00:00"  # to the new time
+        assert moved["morgen.so:metadata"]["taskId"] == "task-1"  # link preserved
+
+    def test_creates_block_when_none_linked(self, client: MorgenClient, monkeypatch) -> None:
+        from guten_morgen.models import Event
+
+        monkeypatch.setattr(client, "list_all_events", lambda *a, **kw: [])  # no linked block
+        created: dict = {}
+        monkeypatch.setattr(client, "create_event", lambda ed: created.update(ed) or Event(id="evt-new"))
+
+        def _no_update(ed, **kw):  # type: ignore[no-untyped-def]
+            raise AssertionError("should create a new block, not update")
+
+        monkeypatch.setattr(client, "update_event", _no_update)
+        client.schedule_task("task-1", "2026-06-02T10:00:00", "cal-1", "acc-1", duration_minutes=30)
+        assert created["morgen.so:metadata"]["taskId"] == "task-1"
+
+    def test_scan_filters_on_taskid_and_tolerates_bad_due(self, client: MorgenClient, monkeypatch) -> None:
+        """The scan matches on taskId (not the first event) and survives a malformed task.due."""
+        from guten_morgen.models import Event, Task
+
+        # Malformed due exercises the anchor-parse guard; unrelated block has a DIFFERENT taskId.
+        monkeypatch.setattr(
+            client, "get_task", lambda tid: Task(id=tid, title="X", due="not-a-date", estimatedDuration="PT30M")
+        )
+        unrelated = Event.model_validate(
+            {
+                "id": "other-blk",
+                "title": "Someone else",
+                "start": "2026-06-02T09:00:00",
+                "duration": "PT1H",
+                "calendarId": "cal-1",
+                "accountId": "acc-1",
+                "morgen.so:metadata": {"taskId": "a-different-task"},
+            }
+        )
+        monkeypatch.setattr(client, "list_all_events", lambda *a, **kw: [unrelated])
+        created: dict = {}
+        monkeypatch.setattr(client, "create_event", lambda ed: created.update(ed) or Event(id="evt-new"))
+
+        def _no_update(ed, **kw):  # type: ignore[no-untyped-def]
+            raise AssertionError("must not move an unrelated task's block")
+
+        monkeypatch.setattr(client, "update_event", _no_update)
+        client.schedule_task("task-1", "2026-06-02T10:00:00", "cal-1", "acc-1", duration_minutes=30)
+        assert created["morgen.so:metadata"]["taskId"] == "task-1"  # created fresh, didn't hijack
