@@ -87,7 +87,7 @@ Then: `uv run mypy src/` — clean before committing.
 - `my_status` — account owner's participation status
 - `is_frame` — True when `my_status is None AND (no participants OR only accountOwner)`. Used by `exclude_frames` filtering.
 
-**`list_enriched_tasks(client)`** — convenience function combining `list_all_tasks()` + `enrich_tasks()` for Python consumers (e.g. brief-deck). Import from `guten_morgen.output`.
+**`list_enriched_tasks(client)`** — convenience function combining `list_all_tasks()` + `enrich_tasks()` for Python consumers. Import from `guten_morgen.output`.
 
 **MCP server** (`mcp_server.py`): 31 tools with `ToolAnnotations` (read-only, mutating, destructive hints). Key patterns:
 - Handler functions (testable without MCP transport) + thin MCP wrappers (`# pragma: no cover`)

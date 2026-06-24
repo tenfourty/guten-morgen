@@ -67,6 +67,10 @@ warn_unused_configs = true
 [tool.ruff]
 target-version = "py310"
 line-length = 120
+# Vendored dev-team canonical scanner — kept byte-identical across repos (copied verbatim).
+# Excluded from ruff so its upstream formatting isn't rewritten to gm's house style.
+extend-exclude = ["scripts/pii-scan.py"]
+force-exclude = true
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "TC", "ANN", "A"]

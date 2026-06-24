@@ -72,7 +72,7 @@ local zone. Run `date "+%Y-%m-%dT%H:%M:%S %Z"` once per session to confirm the o
 
 `--raw-times` opts out, showing the untranslated per-event wall-clock in the event's own
 stored `timeZone`. Note the **library path (`enrich_events`) is always raw** — library
-consumers (e.g. brief-deck) see source values, not localised ones; only the CLI localises.
+consumers see source values, not localised ones; only the CLI localises.
 
 **Under `--raw-times` (or via the library), the old foreign-zone gotchas apply — the raw
 `start` can lie, so cross-check:**

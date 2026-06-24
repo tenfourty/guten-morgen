@@ -21,7 +21,7 @@ repos:
         pass_filenames: false
       - id: pii-denylist
         name: PII denylist scan
-        entry: scripts/check-pii-denylist.sh
+        entry: python3 scripts/pii-scan.py
         language: system
         # Patterns come from $PII_DENYLIST / $PII_DENYLIST_FILE / .git/pii-denylist
         # (never the repo). Skips with a notice if none configured.
