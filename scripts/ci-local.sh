@@ -10,8 +10,9 @@ if [[ "$1" == "--fix" ]]; then
   FIX=1
 fi
 
-echo "=== uv.lock public-index guard ==="
+echo "=== PII-leak guards ==="
 bash scripts/check-uv-lock-registry.sh
+bash scripts/check-pii-denylist.sh
 
 echo ""
 echo "=== Install dependencies ==="
