@@ -12,7 +12,7 @@ fi
 
 echo "=== PII-leak guards ==="
 bash scripts/check-uv-lock-registry.sh
-bash scripts/check-pii-denylist.sh
+python3 scripts/pii-scan.py
 
 echo ""
 echo "=== Install dependencies ==="

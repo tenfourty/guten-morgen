@@ -13,6 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
       - name: uv.lock public-index guard
         run: bash scripts/check-uv-lock-registry.sh
 
@@ -21,7 +25,7 @@ jobs:
         # Skips (green) until PII_DENYLIST is configured in repo/org secrets.
         env:
           PII_DENYLIST: ${{ secrets.PII_DENYLIST }}
-        run: bash scripts/check-pii-denylist.sh
+        run: python3 scripts/pii-scan.py
 
   check:
     runs-on: ubuntu-latest

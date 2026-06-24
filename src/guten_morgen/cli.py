@@ -123,8 +123,8 @@ def _localize_event_times(events: list[dict[str, Any]], raw_times: bool) -> list
     """Re-express each event's ``start``/``end`` in the local zone (offset-qualified) for CLI
     display, normalising ``timeZone`` to the local zone.
 
-    CLI-render-only: the library ``enrich_events`` stays raw-passthrough, so consumers like
-    brief-deck are unaffected. Floating/all-day events (no ``timeZone``) and unresolvable zones
+    CLI-render-only: the library ``enrich_events`` stays raw-passthrough, so downstream
+    consumers are unaffected. Floating/all-day events (no ``timeZone``) and unresolvable zones
     pass through unchanged. Skipped entirely when ``raw_times`` is set (the escape hatch for the
     untranslated source value). DST-safe via the shared ``time_utils.to_local_aware``. (#75)
     """
