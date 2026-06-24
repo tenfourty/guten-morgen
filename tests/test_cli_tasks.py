@@ -725,9 +725,9 @@ class TestTasksProjectFilter:
         from tests.conftest import FAKE_TASKS
 
         original = FAKE_TASKS[1].get("description")
-        FAKE_TASKS[1]["description"] = "context\nproject: AI Adoption"
+        FAKE_TASKS[1]["description"] = "context\nproject: Sample Project"
         try:
-            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "AI Adoption"])
+            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "Sample Project"])
             assert result.exit_code == 0
             data = json.loads(result.output)
             assert len(data) == 1
@@ -739,9 +739,9 @@ class TestTasksProjectFilter:
         from tests.conftest import FAKE_TASKS
 
         original = FAKE_TASKS[1].get("description")
-        FAKE_TASKS[1]["description"] = "project: AI Adoption"
+        FAKE_TASKS[1]["description"] = "project: Sample Project"
         try:
-            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "ai adoption"])
+            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "sample project"])
             assert result.exit_code == 0
             data = json.loads(result.output)
             assert len(data) == 1
@@ -752,9 +752,9 @@ class TestTasksProjectFilter:
         from tests.conftest import FAKE_TASKS
 
         original = FAKE_TASKS[1].get("description")
-        FAKE_TASKS[1]["description"] = "project: AI Adoption"
+        FAKE_TASKS[1]["description"] = "project: Sample Project"
         try:
-            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "ai"])
+            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "sample"])
             assert result.exit_code == 0
             data = json.loads(result.output)
             assert len(data) == 1
@@ -772,15 +772,15 @@ class TestTasksProjectFilter:
         from tests.conftest import FAKE_TASKS
 
         original = FAKE_TASKS[1].get("description")
-        FAKE_TASKS[1]["description"] = "project: AI Adoption"
+        FAKE_TASKS[1]["description"] = "project: Sample Project"
         try:
-            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "AI", "--tag", "personal"])
+            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "Sample", "--tag", "personal"])
             assert result.exit_code == 0
             data = json.loads(result.output)
             assert len(data) == 1
             assert data[0]["id"] == "task-2"
 
-            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "AI", "--tag", "urgent"])
+            result = runner.invoke(cli, ["tasks", "list", "--json", "--project", "Sample", "--tag", "urgent"])
             assert result.exit_code == 0
             data = json.loads(result.output)
             assert not any(t["id"] == "task-2" for t in data)
@@ -792,10 +792,10 @@ class TestTasksCreateProject:
     """--project and --ref on tasks create."""
 
     def test_create_with_project(self, runner: CliRunner, mock_client: MorgenClient) -> None:
-        result = runner.invoke(cli, ["tasks", "create", "--title", "New", "--project", "AI Adoption"])
+        result = runner.invoke(cli, ["tasks", "create", "--title", "New", "--project", "Sample Project"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert "project: AI Adoption" in (data.get("description") or "")
+        assert "project: Sample Project" in (data.get("description") or "")
 
     def test_create_with_project_and_description(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         result = runner.invoke(
@@ -844,7 +844,7 @@ class TestTasksCreateProject:
                 "--title",
                 "Follow up",
                 "--project",
-                "AI Adoption",
+                "Sample Project",
                 "--ref",
                 "https://linear.app/co/issue/ENG-1740",
             ],
@@ -852,7 +852,7 @@ class TestTasksCreateProject:
         assert result.exit_code == 0
         data = json.loads(result.output)
         desc = data.get("description", "")
-        assert "project: AI Adoption" in desc
+        assert "project: Sample Project" in desc
         assert "ref: https://linear.app/co/issue/ENG-1740" in desc
 
 
@@ -861,11 +861,11 @@ class TestTasksUpdateProject:
 
     def test_update_with_project_adds_to_existing(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """Setting --project on a task without project: line adds it."""
-        result = runner.invoke(cli, ["tasks", "update", "task-2", "--project", "Platform Stability"])
+        result = runner.invoke(cli, ["tasks", "update", "task-2", "--project", "Other Project"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         desc = data.get("description", "")
-        assert "project: Platform Stability" in desc
+        assert "project: Other Project" in desc
 
     def test_update_with_project_replaces_existing(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """Setting --project on a task with existing project: replaces it."""
@@ -888,7 +888,7 @@ class TestTasksUpdateProject:
         from tests.conftest import FAKE_TASKS
 
         original = FAKE_TASKS[1].get("description")
-        FAKE_TASKS[1]["description"] = "context\nproject: AI Adoption"
+        FAKE_TASKS[1]["description"] = "context\nproject: Sample Project"
         try:
             result = runner.invoke(cli, ["tasks", "update", "task-2", "--project", ""])
             assert result.exit_code == 0
@@ -913,13 +913,13 @@ class TestTasksConciseProject:
         from tests.conftest import FAKE_TASKS
 
         original = FAKE_TASKS[0].get("description")
-        FAKE_TASKS[0]["description"] = "project: AI Adoption"
+        FAKE_TASKS[0]["description"] = "project: Sample Project"
         try:
             result = runner.invoke(cli, ["tasks", "list", "--json", "--response-format", "concise"])
             assert result.exit_code == 0
             data = json.loads(result.output)
             t1 = next(t for t in data if t["id"] == "task-1")
-            assert t1["project"] == "AI Adoption"
+            assert t1["project"] == "Sample Project"
         finally:
             FAKE_TASKS[0]["description"] = original
 

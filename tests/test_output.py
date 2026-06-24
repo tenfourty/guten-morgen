@@ -374,7 +374,7 @@ class TestEnrichTasks:
         tasks = [
             {
                 "id": "nt1",
-                "title": "Update Ladder",
+                "title": "Sample Task",
                 "integrationId": "notion",
                 "progress": "needs-action",
                 "links": {"original": {"href": "https://www.notion.so/abc123"}},
@@ -434,10 +434,10 @@ class TestEnrichTasks:
     # --- project enrichment ---
 
     def test_enrich_project_single(self) -> None:
-        desc = "context\nproject: AI Adoption"
+        desc = "context\nproject: Sample Project"
         tasks = [{"id": "t1", "title": "Do thing", "description": desc, "progress": "needs-action"}]
         result = enrich_tasks(tasks)
-        assert result[0]["project"] == "AI Adoption"
+        assert result[0]["project"] == "Sample Project"
 
     def test_enrich_project_multiple_first_wins(self) -> None:
         desc = "project: Alpha\nproject: Beta"
@@ -461,23 +461,23 @@ class TestEnrichTasks:
         assert result[0]["project"] == "Railway"
 
     def test_enrich_project_whitespace_stripped(self) -> None:
-        desc = "project:  AI Adoption  "
+        desc = "project:  Sample Project  "
         tasks = [{"id": "t1", "title": "Do thing", "description": desc, "progress": "needs-action"}]
         result = enrich_tasks(tasks)
-        assert result[0]["project"] == "AI Adoption"
+        assert result[0]["project"] == "Sample Project"
 
     def test_enrich_project_not_matched_mid_line(self) -> None:
-        desc = "discussed the project: AI Adoption today"
+        desc = "discussed the project: Sample Project today"
         tasks = [{"id": "t1", "title": "Do thing", "description": desc, "progress": "needs-action"}]
         result = enrich_tasks(tasks)
         assert result[0]["project"] is None
 
     def test_enrich_project_after_html_conversion(self) -> None:
         """HTML descriptions are converted to markdown before project extraction."""
-        desc = "<p>context</p><p>project: Platform Stability</p>"
+        desc = "<p>context</p><p>project: Other Project</p>"
         tasks = [{"id": "t1", "title": "Do thing", "description": desc, "progress": "needs-action"}]
         result = enrich_tasks(tasks)
-        assert result[0]["project"] == "Platform Stability"
+        assert result[0]["project"] == "Other Project"
 
     # --- refs enrichment ---
 
@@ -603,47 +603,47 @@ class TestExtractProject:
     def test_newline_separator(self) -> None:
         from guten_morgen.output import _extract_project
 
-        assert _extract_project("project: AI Adoption\nPromised in Staffs meeting") == "AI Adoption"
+        assert _extract_project("project: Sample Project\nPromised in team meeting") == "Sample Project"
 
     def test_crlf_separator(self) -> None:
         from guten_morgen.output import _extract_project
 
         # CRLF must not leak \r into the project name
-        assert _extract_project("project: AI Adoption\r\nPromised in Staffs meeting") == "AI Adoption"
+        assert _extract_project("project: Sample Project\r\nPromised in team meeting") == "Sample Project"
 
     def test_single_line_no_trailing_content(self) -> None:
         from guten_morgen.output import _extract_project
 
-        assert _extract_project("project: AI Adoption") == "AI Adoption"
+        assert _extract_project("project: Sample Project") == "Sample Project"
 
     def test_last_line_no_trailing_newline(self) -> None:
         from guten_morgen.output import _extract_project
 
-        desc = "Some preamble\nproject: Observability Migration"
-        assert _extract_project(desc) == "Observability Migration"
+        desc = "Some preamble\nproject: Second Project"
+        assert _extract_project(desc) == "Second Project"
 
     def test_trailing_whitespace_stripped(self) -> None:
         from guten_morgen.output import _extract_project
 
-        assert _extract_project("project: AI Adoption   \nMore text") == "AI Adoption"
+        assert _extract_project("project: Sample Project   \nMore text") == "Sample Project"
 
     def test_unicode_line_separator(self) -> None:
         from guten_morgen.output import _extract_project
 
         # U+2028 LINE SEPARATOR — must not leak into the project name
-        assert _extract_project("project: AI Adoption\u2028Promised in Staffs meeting") == "AI Adoption"
+        assert _extract_project("project: Sample Project\u2028Promised in team meeting") == "Sample Project"
 
     def test_unicode_paragraph_separator(self) -> None:
         from guten_morgen.output import _extract_project
 
         # U+2029 PARAGRAPH SEPARATOR — must not leak into the project name
-        assert _extract_project("project: AI Adoption\u2029Promised in Staffs meeting") == "AI Adoption"
+        assert _extract_project("project: Sample Project\u2029Promised in team meeting") == "Sample Project"
 
     def test_vertical_tab_separator(self) -> None:
         from guten_morgen.output import _extract_project
 
         # Vertical tab \v — must not leak into the project name
-        assert _extract_project("project: AI Adoption\x0bPromised in Staffs meeting") == "AI Adoption"
+        assert _extract_project("project: Sample Project\x0bPromised in team meeting") == "Sample Project"
 
 
 class TestOutputError:

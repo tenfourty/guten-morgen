@@ -242,7 +242,7 @@ class TestConciseProjection:
             "source": "morgen",
             "tag_names": ["urgent"],
             "list_name": "Inbox",
-            "project": "AI Adoption",
+            "project": "Sample Project",
             "extra": "dropped",
         }
         result = _concise_task(full)
@@ -839,11 +839,11 @@ class TestHandleGmTasksCreate:
         client.create_task.return_value = Task(id="new-3", title="Review")
 
         result = json.loads(
-            handle_gm_tasks_create(client, title="Review", project="AI Adoption", ref="https://example.com")
+            handle_gm_tasks_create(client, title="Review", project="Sample Project", ref="https://example.com")
         )
         assert result["status"] == "ok"
         call_data = client.create_task.call_args[0][0]
-        assert "project: AI Adoption" in call_data["description"]
+        assert "project: Sample Project" in call_data["description"]
         assert "ref: https://example.com" in call_data["description"]
 
     def test_creates_task_with_tag(self) -> None:
@@ -1304,10 +1304,10 @@ class TestHandleGmTasksUpdateProjectRef:
         client.get_task.return_value = existing_task
         client.update_task.return_value = Task(id="task-1", title="PR")
 
-        result = json.loads(handle_gm_tasks_update(client, task_id="task-1", project="AI Adoption"))
+        result = json.loads(handle_gm_tasks_update(client, task_id="task-1", project="Sample Project"))
         assert result["status"] == "ok"
         call_data = client.update_task.call_args[0][0]
-        assert "project: AI Adoption" in call_data["description"]
+        assert "project: Sample Project" in call_data["description"]
 
     def test_updates_task_with_ref(self) -> None:
         from guten_morgen.mcp_server import handle_gm_tasks_update

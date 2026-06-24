@@ -233,7 +233,7 @@ flowchart LR
 Task descriptions support structured metadata lines:
 
 ```
-project: AI Adoption
+project: Sample Project
 ref: https://linear.app/co/issue/ENG-1740
 ref: https://www.notion.so/doc123
 ```
