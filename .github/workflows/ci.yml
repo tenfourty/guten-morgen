@@ -8,14 +8,20 @@ on:
 
 jobs:
   guards:
-    # uv.lock public-index guard — non-bypassable (local hooks can be skipped with --no-verify).
-    # PII-marker scanning is added separately via the shared cross-repo pii-scan mechanism.
+    # PII-leak prevention — non-bypassable enforcement (local hooks can be skipped with --no-verify).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: uv.lock public-index guard
         run: bash scripts/check-uv-lock-registry.sh
+
+      - name: PII denylist scan
+        # Patterns injected from a secret — never stored in this public repo.
+        # Skips (green) until PII_DENYLIST is configured in repo/org secrets.
+        env:
+          PII_DENYLIST: ${{ secrets.PII_DENYLIST }}
+        run: bash scripts/check-pii-denylist.sh
 
   check:
     runs-on: ubuntu-latest

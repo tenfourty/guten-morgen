@@ -3,6 +3,7 @@ config.toml
 .config.toml
 *.local.toml
 docs/plans/
+.pii-denylist
 __pycache__/
 *.pyc
 *.egg-info/
