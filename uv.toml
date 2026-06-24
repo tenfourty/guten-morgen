@@ -1,0 +1,10 @@
+# Public repo: always resolve dependencies against the public PyPI index.
+#
+# This overrides any user-level ~/.config/uv/uv.toml `index-url` (e.g. an internal
+# mirror) for this project, so a plain `uv lock` here on a machine configured for a
+# private index still produces a public, shareable lockfile.
+#
+# NOTE: a *set* UV_INDEX environment variable still overrides this file. The
+# enforced backstop is scripts/check-uv-lock-registry.sh (pre-commit + CI), which
+# fails on any non-public index regardless of how it leaked in.
+index-url = "https://pypi.org/simple"
