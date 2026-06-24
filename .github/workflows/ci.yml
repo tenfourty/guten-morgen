@@ -7,6 +7,16 @@ on:
     branches: [main]
 
 jobs:
+  guards:
+    # uv.lock public-index guard — non-bypassable (local hooks can be skipped with --no-verify).
+    # PII-marker scanning is added separately via the shared cross-repo pii-scan mechanism.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: uv.lock public-index guard
+        run: bash scripts/check-uv-lock-registry.sh
+
   check:
     runs-on: ubuntu-latest
     strategy:

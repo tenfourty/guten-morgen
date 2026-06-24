@@ -1,4 +1,8 @@
 config.toml
+# Personal/local config & internal planning — must never land in this public repo
+.config.toml
+*.local.toml
+docs/plans/
 __pycache__/
 *.pyc
 *.egg-info/

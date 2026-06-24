@@ -10,6 +10,10 @@ if [[ "$1" == "--fix" ]]; then
   FIX=1
 fi
 
+echo "=== uv.lock public-index guard ==="
+bash scripts/check-uv-lock-registry.sh
+
+echo ""
 echo "=== Install dependencies ==="
 uv sync --all-extras
 

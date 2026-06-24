@@ -13,6 +13,12 @@ repos:
       - id: ruff-format
   - repo: local
     hooks:
+      - id: uv-lock-registry
+        name: uv.lock public-index guard
+        entry: scripts/check-uv-lock-registry.sh
+        language: system
+        files: ^uv\.lock$
+        pass_filenames: false
       - id: mypy
         name: mypy
         entry: uv run --frozen mypy src/
