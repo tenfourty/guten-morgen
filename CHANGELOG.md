@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.2](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.24.1...guten-morgen-v0.24.2) (2026-11-02)
+
+
+### Bug Fixes
+
+* **mcp:** update, delete and RSVP events on their own calendar ([#94](https://github.com/tenfourty/guten-morgen/issues/94)) ([8c7c53b](https://github.com/tenfourty/guten-morgen/commit/8c7c53b5b0866adde2abe3ab7b1d5ec178863c72))
+
 ## [0.24.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.24.0...guten-morgen-v0.24.1) (2026-11-02)
 
 
