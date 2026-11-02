@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from guten_morgen.groups import MorgenConfig
 from guten_morgen.models import Account, Event, Tag, Task, TaskList, TaskListResponse
 
 # ---------------------------------------------------------------------------
@@ -968,12 +969,39 @@ class TestHandleGmTasksSchedule:
         ]
         client.schedule_task.return_value = Event(id="evt-new", title="Time block")
 
-        result = json.loads(handle_gm_tasks_schedule(client, task_id="task-1", start="2026-03-15T10:00:00"))
+        result = json.loads(
+            handle_gm_tasks_schedule(client, MorgenConfig(), task_id="task-1", start="2026-03-15T10:00:00")
+        )
         assert result["status"] == "ok"
         assert result["event_id"] == "evt-new"
 
+    def test_uses_configured_task_calendar(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_tasks_schedule
+
+        client = _make_mock_client()
+        client.schedule_task.return_value = Event(id="evt-new", title="Time block")
+        config = MorgenConfig(task_calendar="cal-tasks", task_calendar_account="acc-tasks")
+
+        handle_gm_tasks_schedule(client, config, task_id="task-1", start="2026-03-15T10:00:00")
+
+        assert client.schedule_task.call_args.kwargs["calendar_id"] == "cal-tasks"
+        assert client.schedule_task.call_args.kwargs["account_id"] == "acc-tasks"
+
 
 class TestHandleGmEventsCreate:
+    def test_uses_configured_task_calendar(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_create
+
+        client = _make_mock_client()
+        client.create_event.return_value = Event(id="evt-new", title="Meeting")
+        config = MorgenConfig(task_calendar="cal-tasks", task_calendar_account="acc-tasks")
+
+        handle_gm_events_create(client, config, title="Meeting", start="2026-03-15T10:00:00", duration_minutes=60)
+
+        event_data = client.create_event.call_args.args[0]
+        assert event_data["calendarId"] == "cal-tasks"
+        assert event_data["accountId"] == "acc-tasks"
+
     def test_creates_event(self) -> None:
         from guten_morgen.mcp_server import handle_gm_events_create
 
@@ -985,7 +1013,9 @@ class TestHandleGmEventsCreate:
         client.create_event.return_value = Event(id="evt-new", title="Meeting")
 
         result = json.loads(
-            handle_gm_events_create(client, title="Meeting", start="2026-03-15T10:00:00", duration_minutes=60)
+            handle_gm_events_create(
+                client, MorgenConfig(), title="Meeting", start="2026-03-15T10:00:00", duration_minutes=60
+            )
         )
         assert result["status"] == "ok"
         assert result["event_id"] == "evt-new"
@@ -1002,7 +1032,9 @@ class TestHandleGmEventsCreate:
         client.create_event.side_effect = Exception("Calendar error")
 
         result = json.loads(
-            handle_gm_events_create(client, title="Fail", start="2026-03-15T10:00:00", duration_minutes=30)
+            handle_gm_events_create(
+                client, MorgenConfig(), title="Fail", start="2026-03-15T10:00:00", duration_minutes=30
+            )
         )
         assert "error" in result
 
@@ -1156,7 +1188,9 @@ class TestMutationErrorPaths:
         ]
         client.schedule_task.side_effect = Exception("Schedule failed")
 
-        result = json.loads(handle_gm_tasks_schedule(client, task_id="t-1", start="2026-03-15T10:00:00"))
+        result = json.loads(
+            handle_gm_tasks_schedule(client, MorgenConfig(), task_id="t-1", start="2026-03-15T10:00:00")
+        )
         assert "error" in result
 
     def test_events_update_error(self) -> None:

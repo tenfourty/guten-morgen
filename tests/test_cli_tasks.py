@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 from click.testing import CliRunner
 
 from guten_morgen.cli import cli
 from guten_morgen.client import MorgenClient
+from guten_morgen.groups import MorgenConfig
 
 
 class TestTasksList:
@@ -414,6 +416,36 @@ class TestTasksSchedule:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "calendarId" in data
+
+    def test_schedule_uses_configured_task_calendar(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        """task_calendar in config beats the first writable calendar."""
+        config = MorgenConfig(task_calendar="cal-tasks", task_calendar_account="acc-tasks")
+        with patch("guten_morgen.cli.load_morgen_config", return_value=config):
+            result = runner.invoke(cli, ["tasks", "schedule", "task-1", "--start", "2026-02-18T09:00:00"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["calendarId"] == "cal-tasks"
+        assert data["accountId"] == "acc-tasks"
+
+    def test_schedule_flags_beat_configured_task_calendar(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        config = MorgenConfig(task_calendar="cal-tasks", task_calendar_account="acc-tasks")
+        with patch("guten_morgen.cli.load_morgen_config", return_value=config):
+            result = runner.invoke(
+                cli,
+                [
+                    "tasks",
+                    "schedule",
+                    "task-1",
+                    "--start",
+                    "2026-02-18T09:00:00",
+                    "--calendar-id",
+                    "cal-1",
+                    "--account-id",
+                    "acc-1",
+                ],
+            )
+        assert result.exit_code == 0
+        assert json.loads(result.output)["calendarId"] == "cal-1"
 
 
 class TestTasksTagFilter:

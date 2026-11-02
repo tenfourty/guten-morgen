@@ -118,6 +118,10 @@ recipe knowledge that `--help` won't surface.
     "no room." Fall back to reading the open gaps directly from
     `gm events list --start <day>T00:00:00 --end <day>T23:59:59` (drop the all-day
     markers, then eyeball the gaps between timed events).
+- **Set the default write calendar:** `task_calendar` and `task_calendar_account` at the
+  top of the config (set both, IDs from `gm calendars list --json`) choose where
+  `tasks schedule` and `events create` write when no `--calendar-id` is given. Without
+  them, gm uses the first writable calendar of the first account.
 - **Target a non-default calendar on `events create`:** `--calendar-id` expects the
   base64-encoded composite identifier (e.g. `WyI2OWFlZWM…`), NOT the raw Google calendar
   slug like `<id>@group.calendar.google.com`. Passing the raw slug fails with

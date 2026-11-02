@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from guten_morgen.errors import GroupNotFoundError
+from guten_morgen.errors import ConfigError, GroupNotFoundError
 from guten_morgen.groups import (
     GroupConfig,
     MorgenConfig,
@@ -74,6 +74,19 @@ calendars = ["Family", "Personal"]
         config = load_morgen_config(path=config_file)
         assert config.task_calendar is None
         assert config.task_calendar_account is None
+
+    def test_write_target_unset(self) -> None:
+        assert MorgenConfig().write_target() is None
+
+    def test_write_target_set(self) -> None:
+        config = MorgenConfig(task_calendar="cal-tasks", task_calendar_account="acc-1")
+        assert config.write_target() == ("acc-1", "cal-tasks")
+
+    @pytest.mark.parametrize("fields", [{"task_calendar": "cal-tasks"}, {"task_calendar_account": "acc-1"}])
+    def test_write_target_half_set_is_an_error(self, fields: dict[str, str]) -> None:
+        """Half a setting must not silently fall back to the first writable calendar."""
+        with pytest.raises(ConfigError, match="set together"):
+            MorgenConfig(**fields).write_target()
 
 
 class TestLoadMorgenConfigDiscovery:

@@ -871,6 +871,15 @@ def _auto_discover(client: MorgenClient) -> tuple[str, list[str]]:
     return account_id, writable
 
 
+def _write_target(client: MorgenClient, config: MorgenConfig) -> tuple[str, str]:
+    """Resolve where a new block or event goes: config, then auto-discovery."""
+    configured = config.write_target()
+    if configured:
+        return configured
+    account_id, cal_ids = _auto_discover(client)
+    return account_id, cal_ids[0]
+
+
 def _normalize_due(due: str) -> str:
     """Normalize due date to 19-char ISO 8601 (YYYY-MM-DDTHH:MM:SS)."""
     if due.endswith("Z"):
@@ -1081,6 +1090,7 @@ def handle_gm_tasks_move(
 
 def handle_gm_tasks_schedule(
     client: MorgenClient,
+    config: MorgenConfig,
     *,
     task_id: str,
     start: str,
@@ -1089,11 +1099,11 @@ def handle_gm_tasks_schedule(
 ) -> str:
     """Schedule a task as a linked calendar event. Returns JSON string."""
     try:
-        account_id, cal_ids = _auto_discover(client)
+        account_id, calendar_id = _write_target(client, config)
         result = client.schedule_task(
             task_id=task_id,
             start=start,
-            calendar_id=cal_ids[0],
+            calendar_id=calendar_id,
             account_id=account_id,
             duration_minutes=duration_minutes,
             timezone=timezone,
@@ -1108,6 +1118,7 @@ def handle_gm_tasks_schedule(
 
 def handle_gm_events_create(
     client: MorgenClient,
+    config: MorgenConfig,
     *,
     title: str,
     start: str,
@@ -1117,7 +1128,7 @@ def handle_gm_events_create(
 ) -> str:
     """Create a new calendar event. Returns JSON string."""
     try:
-        account_id, cal_ids = _auto_discover(client)
+        account_id, calendar_id = _write_target(client, config)
         if not timezone:
             from guten_morgen.time_utils import get_local_timezone
 
@@ -1126,7 +1137,7 @@ def handle_gm_events_create(
             "title": title,
             "start": start,
             "duration": f"PT{duration_minutes}M",
-            "calendarId": cal_ids[0],
+            "calendarId": calendar_id,
             "accountId": account_id,
             "showWithoutTime": False,
             "timeZone": timezone,
@@ -1723,11 +1734,11 @@ def gm_tasks_schedule(  # pragma: no cover
 ) -> str:
     """Schedule a task as a linked calendar event (timeblocking).
 
-    Creates a calendar event linked to the task. Calendar auto-discovered.
+    Creates a calendar event linked to the task. Calendar is task_calendar from config, else auto-discovered.
     """
-    client, _ = _get_client_and_config()
+    client, config = _get_client_and_config()
     return handle_gm_tasks_schedule(
-        client, task_id=task_id, start=start, duration_minutes=duration_minutes, timezone=timezone
+        client, config, task_id=task_id, start=start, duration_minutes=duration_minutes, timezone=timezone
     )
 
 
@@ -1741,11 +1752,17 @@ def gm_events_create(  # pragma: no cover
 ) -> str:
     """Create a new calendar event.
 
-    Calendar and account auto-discovered. Timezone defaults to system local.
+    Calendar is task_calendar from config, else auto-discovered. Timezone defaults to system local.
     """
-    client, _ = _get_client_and_config()
+    client, config = _get_client_and_config()
     return handle_gm_events_create(
-        client, title=title, start=start, duration_minutes=duration_minutes, description=description, timezone=timezone
+        client,
+        config,
+        title=title,
+        start=start,
+        duration_minutes=duration_minutes,
+        description=description,
+        timezone=timezone,
     )
 
 
