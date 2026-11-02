@@ -33,6 +33,7 @@ from guten_morgen.projection import (
 if TYPE_CHECKING:
     from guten_morgen.client import MorgenClient
     from guten_morgen.groups import CalendarFilter, MorgenConfig
+    from guten_morgen.models import Event
 
 mcp = FastMCP("guten-morgen", instructions="Calendar and task management via Morgen API.")
 
@@ -880,6 +881,14 @@ def _write_target(client: MorgenClient, config: MorgenConfig) -> tuple[str, str]
     return account_id, cal_ids[0]
 
 
+def _event_target(event: Event) -> tuple[str, str]:
+    """Return the (account_id, calendar_id) an existing event lives on."""
+    if not event.accountId or not event.calendarId:
+        msg = f"Event '{event.id}' has no calendar or account"
+        raise RuntimeError(msg)
+    return event.accountId, event.calendarId
+
+
 def _normalize_due(due: str) -> str:
     """Normalize due date to 19-char ISO 8601 (YYYY-MM-DDTHH:MM:SS)."""
     if due.endswith("Z"):
@@ -1165,10 +1174,11 @@ def handle_gm_events_update(
 ) -> str:
     """Update an existing calendar event. Returns JSON string."""
     try:
-        account_id, cal_ids = _auto_discover(client)
+        existing = client.get_event(event_id)
+        account_id, calendar_id = _event_target(existing)
         event_data: dict[str, Any] = {
             "id": event_id,
-            "calendarId": cal_ids[0],
+            "calendarId": calendar_id,
             "accountId": account_id,
         }
         if title is not None:
@@ -1184,7 +1194,7 @@ def handle_gm_events_update(
         if start is not None or duration_minutes is not None:
             from guten_morgen.client import backfill_event_time_quartet
 
-            backfill_event_time_quartet(event_data, client.get_event(event_id))
+            backfill_event_time_quartet(event_data, existing)
         client.update_event(event_data, series_update_mode=series_mode)
         return _mutation_ok("updated", event_id=event_id)
     except Exception as e:
@@ -1201,9 +1211,9 @@ def handle_gm_events_delete(
 ) -> str:
     """Delete a calendar event. Returns JSON string."""
     try:
-        account_id, cal_ids = _auto_discover(client)
+        account_id, calendar_id = _event_target(client.get_event(event_id))
         client.delete_event(
-            {"id": event_id, "calendarId": cal_ids[0], "accountId": account_id},
+            {"id": event_id, "calendarId": calendar_id, "accountId": account_id},
             series_update_mode=series_mode,
         )
         return _mutation_ok("deleted", event_id=event_id)
@@ -1224,11 +1234,11 @@ def handle_gm_events_rsvp(
 ) -> str:
     """RSVP to a calendar event. Returns JSON string."""
     try:
-        account_id, cal_ids = _auto_discover(client)
+        account_id, calendar_id = _event_target(client.get_event(event_id))
         client.rsvp_event(
             action=action,
             event_id=event_id,
-            calendar_id=cal_ids[0],
+            calendar_id=calendar_id,
             account_id=account_id,
             notify_organizer=notify,
             comment=comment,
