@@ -10,6 +10,11 @@ api_key = "your_api_key_here"
 # default_group = "work"
 # active_only = true
 
+# Calendar for new task blocks and events when no --calendar-id is given.
+# Set both, with IDs from `gm calendars list --json`.
+# task_calendar = "calendar-id"
+# task_calendar_account = "account-id"
+
 # [groups.work]
 # accounts = ["you@example.com:google"]
 # calendars = ["My Calendar"]

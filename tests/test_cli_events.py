@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 from click.testing import CliRunner
 
 from guten_morgen.cli import cli
 from guten_morgen.client import MorgenClient
+from guten_morgen.groups import MorgenConfig
 
 
 class TestEventsList:
@@ -168,6 +170,20 @@ class TestEventsCreate:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["title"] == "Test Event"
+
+    def test_create_uses_configured_task_calendar(self, runner: CliRunner, mock_client: MorgenClient) -> None:
+        config = MorgenConfig(task_calendar="cal-tasks", task_calendar_account="acc-tasks")
+        with (
+            patch("guten_morgen.cli.load_morgen_config", return_value=config),
+            patch.object(mock_client, "create_event", wraps=mock_client.create_event) as create,
+        ):
+            result = runner.invoke(
+                cli, ["events", "create", "--title", "Standup", "--start", "2026-02-18T09:00:00", "--duration", "30"]
+            )
+        assert result.exit_code == 0
+        event_data = create.call_args.args[0]
+        assert event_data["calendarId"] == "cal-tasks"
+        assert event_data["accountId"] == "acc-tasks"
 
     def test_create_with_privacy(self, runner: CliRunner, mock_client: MorgenClient) -> None:
         """--privacy sets the privacy field on created events."""

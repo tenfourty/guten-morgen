@@ -289,7 +289,8 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 
 - `gm events create --title TEXT --start ISO --duration MINUTES [--calendar-id ID]`
   `  [--description TEXT] [--meet] [--privacy public|private|secret]`
-  Create a new event. --meet auto-attaches a Google Meet link.
+  Create a new event. Calendar: flags, then task_calendar in config, then first
+  writable calendar of the first account. --meet auto-attaches a Google Meet link.
   --privacy sets visibility (JSCalendar): public (default), private
   (hidden details), secret (invisible to others).
 
@@ -353,7 +354,8 @@ Use `--fields calendar_uid,my_status` to select specific fields.
 - `gm tasks schedule ID --start ISO [--duration MINUTES] [--calendar-id ID] [--account-id ID]`
   Schedule a task as a linked calendar event. Fetches the task to derive
   title and duration, creates an event with morgen.so:metadata.taskId.
-  Auto-discovers calendar if not specified. Idempotent: re-scheduling moves the
+  Calendar: flags, then task_calendar in config, then first writable calendar
+  of the first account. Idempotent: re-scheduling moves the
   task's existing linked block instead of double-booking (best-effort — a block
   scheduled far outside a ~6-month window may not be found and could duplicate).
 
@@ -581,6 +583,11 @@ api_key = "{api_key}"
 # Calendar group filtering (uncomment and customise)
 # default_group = "work"
 # active_only = true
+
+# Calendar for new task blocks and events when no --calendar-id is given.
+# Set both, with IDs from `gm calendars list --json`.
+# task_calendar = "calendar-id"
+# task_calendar_account = "account-id"
 
 # [groups.work]
 # accounts = ["you@example.com:google"]
@@ -908,6 +915,18 @@ def _auto_discover(client: MorgenClient) -> tuple[str, list[str]]:
     return account_id, writable
 
 
+def _write_target(client: MorgenClient, calendar_id: str | None, account_id: str | None) -> tuple[str, str]:
+    """Resolve where a new block or event goes: flags, then config, then auto-discovery."""
+    if not calendar_id and not account_id:
+        configured = load_morgen_config().write_target()
+        if configured:
+            return configured
+    if not account_id or not calendar_id:
+        account_id, cal_ids = _auto_discover(client)
+        calendar_id = calendar_id or cal_ids[0]
+    return account_id, calendar_id
+
+
 @events.command("list")
 @click.option("--start", required=True, help="Start datetime (ISO 8601).")
 @click.option("--end", required=True, help="End datetime (ISO 8601).")
@@ -1048,9 +1067,7 @@ def events_create(
     """Create a new event."""
     try:
         client = _get_client()
-        if not account_id or not calendar_id:
-            account_id, cal_ids = _auto_discover(client)
-            calendar_id = calendar_id or cal_ids[0]
+        account_id, calendar_id = _write_target(client, calendar_id, account_id)
         if not timezone:
             from guten_morgen.time_utils import get_local_timezone
 
@@ -1825,9 +1842,7 @@ def tasks_schedule(
     """
     try:
         client = _get_client()
-        if not account_id or not calendar_id:
-            account_id, cal_ids = _auto_discover(client)
-            calendar_id = calendar_id or cal_ids[0]
+        account_id, calendar_id = _write_target(client, calendar_id, account_id)
         result = client.schedule_task(
             task_id=task_id,
             start=start,

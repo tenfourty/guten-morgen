@@ -15,7 +15,7 @@ else:
     import tomli as tomllib  # type: ignore[import-not-found,unused-ignore]
 
 from guten_morgen.config import find_config
-from guten_morgen.errors import GroupNotFoundError
+from guten_morgen.errors import ConfigError, GroupNotFoundError
 
 
 @dataclass
@@ -35,6 +35,17 @@ class MorgenConfig:
     groups: dict[str, GroupConfig] = field(default_factory=dict)
     task_calendar: str | None = None
     task_calendar_account: str | None = None
+
+    def write_target(self) -> tuple[str, str] | None:
+        """Return the configured (account_id, calendar_id) for new blocks and events, if any."""
+        if not self.task_calendar and not self.task_calendar_account:
+            return None
+        if not self.task_calendar or not self.task_calendar_account:
+            raise ConfigError(
+                "task_calendar and task_calendar_account must be set together",
+                suggestions=["Find both IDs with `gm calendars list --json`"],
+            )
+        return self.task_calendar_account, self.task_calendar
 
 
 @dataclass
