@@ -1090,6 +1090,59 @@ class TestHandleGmEventsUpdate:
         assert captured["showWithoutTime"] is False  # backfilled
 
 
+class TestEventHandlersUseEventsOwnCalendar:
+    """Update, delete and RSVP must target the event's calendar, not the first discovered one."""
+
+    @staticmethod
+    def _client() -> MagicMock:
+        client = _make_mock_client()
+        client.get_event.return_value = Event(id="evt-1", calendarId="cal-other", accountId="acc-other")
+        return client
+
+    def test_update(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_update
+
+        client = self._client()
+        json.loads(handle_gm_events_update(client, event_id="evt-1", title="X"))
+        event_data = client.update_event.call_args.args[0]
+        assert (event_data["accountId"], event_data["calendarId"]) == ("acc-other", "cal-other")
+        client.list_accounts.assert_not_called()
+
+    def test_update_time_change_fetches_event_once(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_update
+
+        client = self._client()
+        json.loads(handle_gm_events_update(client, event_id="evt-1", start="2026-05-26T09:00:00"))
+        client.get_event.assert_called_once_with("evt-1")
+
+    def test_delete(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_delete
+
+        client = self._client()
+        json.loads(handle_gm_events_delete(client, event_id="evt-1"))
+        event_data = client.delete_event.call_args.args[0]
+        assert (event_data["accountId"], event_data["calendarId"]) == ("acc-other", "cal-other")
+        client.list_accounts.assert_not_called()
+
+    def test_rsvp(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_rsvp
+
+        client = self._client()
+        json.loads(handle_gm_events_rsvp(client, event_id="evt-1", action="accept"))
+        kwargs = client.rsvp_event.call_args.kwargs
+        assert (kwargs["account_id"], kwargs["calendar_id"]) == ("acc-other", "cal-other")
+        client.list_accounts.assert_not_called()
+
+    def test_event_without_calendar_is_an_error_not_a_guess(self) -> None:
+        from guten_morgen.mcp_server import handle_gm_events_delete
+
+        client = _make_mock_client()
+        client.get_event.return_value = Event(id="evt-1")
+        result = json.loads(handle_gm_events_delete(client, event_id="evt-1"))
+        assert "error" in result
+        client.delete_event.assert_not_called()
+
+
 class TestHandleGmEventsDelete:
     def test_deletes_event(self) -> None:
         from guten_morgen.mcp_server import handle_gm_events_delete
