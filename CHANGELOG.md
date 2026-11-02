@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.1](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.24.0...guten-morgen-v0.24.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* honour task_calendar config for new blocks and events ([#92](https://github.com/tenfourty/guten-morgen/issues/92)) ([6763ce2](https://github.com/tenfourty/guten-morgen/commit/6763ce29a80b19f03e09882ad519f7766d77024a))
+
 ## [0.24.0](https://github.com/tenfourty/guten-morgen/compare/guten-morgen-v0.23.21...guten-morgen-v0.24.0) (2026-06-13)
 
 
